@@ -1,0 +1,22 @@
+{
+  "name": "medical-center-capstone",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,green \"npm run dev --workspace @medical-center/web\" \"npm run dev --workspace @medical-center/api\"",
+    "dev:web": "npm run dev --workspace @medical-center/web",
+    "dev:api": "npm run dev --workspace @medical-center/api",
+    "build": "npm run build --workspace @medical-center/web",
+    "start": "npm run start --workspace @medical-center/api",
+    "test": "npm run test --workspace @medical-center/api"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

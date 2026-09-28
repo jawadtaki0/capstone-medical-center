@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+coverage/
+.tmp/
+npm-debug.log*
+
+# Local course material and planning notes are not part of the public code repository.
+/course-docs/
+/docs/
