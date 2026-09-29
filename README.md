@@ -4,7 +4,9 @@ A medical-center website and operations-system capstone. The intended product co
 
 ## Current status
 
-This repository currently contains a runnable **foundation**, not the completed product. The React page displays project and API status; the Express API provides a health endpoint. Patient login, booking, queues, lab results, billing, and WhatsApp delivery are **not implemented yet**.
+This repository contains a responsive **Home-page visual prototype** and a minimal Express health endpoint, not the completed product. The Home page uses fictional sample content; its booking, login, laboratory, and service buttons show an explanatory preview dialog. Patient login, booking, queues, lab results, billing, and WhatsApp delivery are **not implemented yet**. The former frontend health display has been replaced; the API health endpoint remains unchanged.
+
+The licensed hero photograph is kept outside this public repository. Current production builds show a graceful fallback; deployment will supply the image separately.
 
 ## Technology
 
