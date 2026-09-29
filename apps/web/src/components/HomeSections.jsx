@@ -25,7 +25,7 @@ export function VisitInfo() {
 function SectionHeading({ eyebrow, title, children }) {
   return (
     <div className="section-heading">
-      <div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div>
+      <Reveal><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></Reveal>
       {children}
     </div>
   );
@@ -35,11 +35,11 @@ export function Doctors({ onPreview }) {
   const [featured, ...supporting] = doctors;
   return (
     <section id="doctors" tabIndex={-1} className="section container" aria-labelledby="doctors-title">
-      <Reveal>
-        <SectionHeading eyebrow="PEOPLE AT THE HEART OF YOUR CARE" title={<span id="doctors-title">Today’s doctors</span>}>
-          <p className="section-note">A sample day at the center. <br />All names and sessions are fictional.</p>
-        </SectionHeading>
-        <div className="doctors-layout">
+      <SectionHeading eyebrow="PEOPLE AT THE HEART OF YOUR CARE" title={<span id="doctors-title">Today’s doctors</span>}>
+        <p className="section-note">A sample day at the center. <br />All names and sessions are fictional.</p>
+      </SectionHeading>
+      <div className="doctors-layout">
+        <Reveal className="card-reveal" direction="left">
           <article className="doctor-feature">
             <div className="feature-copy">
               <p className="card-kicker">FEATURED SAMPLE PROFILE</p>
@@ -57,25 +57,27 @@ export function Doctors({ onPreview }) {
               <span className="feature-cross" aria-hidden="true">+</span>
             </div>
           </article>
-          <div className="supporting-doctors">
-            {supporting.map((doctor) => (
-            <article className="doctor-card" key={doctor.name}>
-              <div className={`doctor-avatar ${doctor.tone}`} aria-hidden="true">{doctor.initials}<span>+</span></div>
-              <div className="doctor-details">
-                <p className="card-kicker">{doctor.specialty}</p>
-                <h3>{doctor.name}</h3>
-                <p className="session-time"><Icon name="clock" /> {doctor.session}</p>
-                <p className="card-description">Arrive during the full session.<br />Seen in check-in order.</p>
-                <button className="text-button" type="button" onClick={() => onPreview("Book an appointment")}>
-                  Plan a visit <Icon name="arrow" />
-                </button>
-              </div>
-            </article>
-            ))}
-          </div>
+        </Reveal>
+        <div className="supporting-doctors">
+          {supporting.map((doctor, index) => (
+            <Reveal className="card-reveal" direction="right" delay={(index + 1) * 70} key={doctor.name}>
+              <article className="doctor-card">
+                <div className={`doctor-avatar ${doctor.tone}`} aria-hidden="true">{doctor.initials}<span>+</span></div>
+                <div className="doctor-details">
+                  <p className="card-kicker">{doctor.specialty}</p>
+                  <h3>{doctor.name}</h3>
+                  <p className="session-time"><Icon name="clock" /> {doctor.session}</p>
+                  <p className="card-description">Arrive during the full session.<br />Seen in check-in order.</p>
+                  <button className="text-button" type="button" onClick={() => onPreview("Book an appointment")}>
+                    Plan a visit <Icon name="arrow" />
+                  </button>
+                </div>
+              </article>
+            </Reveal>
+          ))}
         </div>
-        <p className="section-caption">Session times are arrival windows, not guaranteed consultation times.</p>
-      </Reveal>
+      </div>
+      <p className="section-caption">Session times are arrival windows, not guaranteed consultation times.</p>
     </section>
   );
 }
@@ -83,24 +85,26 @@ export function Doctors({ onPreview }) {
 export function Services({ onPreview }) {
   return (
     <section id="services" tabIndex={-1} className="services-section section" aria-labelledby="services-title">
-      <Reveal className="container">
+      <div className="container">
         <SectionHeading eyebrow="SUPPORT FOR EVERYDAY HEALTH" title={<span id="services-title">Care, all in one place.</span>}>
           <p className="section-note">A few ways our fictional center <br />could support you and your family.</p>
         </SectionHeading>
         <div className="service-grid">
           {services.map((service, index) => (
-            <article className="service-card" key={service.title}>
-              <span className="service-number">0{index + 1}</span>
-              <span className="icon-tile"><Icon name={service.icon} /></span>
-              <h3>{service.title}</h3>
-              <p>{service.description}</p>
-              <button className="text-button" onClick={() => onPreview(service.title)}>
-                Explore service <Icon name="arrow" />
-              </button>
-            </article>
+            <Reveal className="card-reveal" direction={index === 2 ? "right" : "left"} delay={index * 70} key={service.title}>
+              <article className="service-card">
+                <span className="service-number">0{index + 1}</span>
+                <span className="icon-tile"><Icon name={service.icon} /></span>
+                <h3>{service.title}</h3>
+                <p>{service.description}</p>
+                <button className="text-button" onClick={() => onPreview(service.title)}>
+                  Explore service <Icon name="arrow" />
+                </button>
+              </article>
+            </Reveal>
           ))}
         </div>
-      </Reveal>
+      </div>
     </section>
   );
 }
@@ -108,7 +112,7 @@ export function Services({ onPreview }) {
 export function About() {
   return (
     <section id="about" tabIndex={-1} className="section container" aria-labelledby="about-title">
-      <Reveal className="about-grid">
+      <div className="about-grid">
         <div className="about-panel">
           <span className="about-cross" aria-hidden="true">+</span>
           <p className="eyebrow">A PLACE TO FEEL AT EASE</p>
@@ -116,13 +120,12 @@ export function About() {
           <span className="sample-caption">Provisional center story</span>
         </div>
         <div className="about-copy">
-          <p className="eyebrow">ABOUT OUR CENTER</p>
-          <h2 id="about-title">Your neighborhood.<br />Your care team.</h2>
+          <Reveal><p className="eyebrow">ABOUT OUR CENTER</p><h2 id="about-title">Your neighborhood.<br />Your care team.</h2></Reveal>
           <p>We imagine a center where finding care feels simple. A friendly welcome, clear information, and a team that helps you find your way.</p>
           <p>From a routine visit to a laboratory follow-up, our goal is to make each step feel a little more personal.</p>
           <a className="text-button" href="#contact">Get to know your way here <Icon name="arrow" /></a>
         </div>
-      </Reveal>
+      </div>
     </section>
   );
 }
@@ -130,10 +133,9 @@ export function About() {
 export function Contact() {
   return (
     <section id="contact" tabIndex={-1} className="contact-section section" aria-labelledby="contact-title">
-      <Reveal className="container contact-grid">
+      <div className="container contact-grid">
         <div>
-          <p className="eyebrow">LET’S MAKE YOUR VISIT EASIER</p>
-          <h2 id="contact-title">We’re here to help.</h2>
+          <Reveal><p className="eyebrow">LET’S MAKE YOUR VISIT EASIER</p><h2 id="contact-title">We’re here to help.</h2></Reveal>
           <p className="contact-intro">A question before your visit? Our reception team would be your first point of contact.</p>
           <div className="contact-detail">
             <Icon name="phone" />
@@ -151,7 +153,7 @@ export function Contact() {
             <p>Location preview — a real map will follow once the center details are confirmed.</p>
           </div>
         </div>
-      </Reveal>
+      </div>
     </section>
   );
 }
