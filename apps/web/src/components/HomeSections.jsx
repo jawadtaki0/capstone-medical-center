@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import Icon, { Brand } from "./Icon.jsx";
 import Reveal from "./Reveal.jsx";
-import { doctors, services } from "../data/homeContent.js";
+import { services } from "../data/homeContent.js";
+import "./homeDoctors.css";
 
 export function VisitInfo() {
   return (
@@ -31,55 +33,125 @@ function SectionHeading({ eyebrow, title, children }) {
   );
 }
 
+function formatScheduleDate(date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", month: "long", day: "numeric", year: "numeric",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
+
+function doctorInitials(name) {
+  return name.replace(/^Dr\.?\s+/i, "").split(/\s+/).slice(0, 2)
+    .map((part) => part[0] ?? "").join("").toUpperCase();
+}
+
+function SessionAction({ session, onPreview }) {
+  if (session.status !== "active") {
+    return <span className="home-doctor-status">
+      {session.status === "cancelled" ? "Cancelled" : "Unavailable"}
+    </span>;
+  }
+  return <button className="text-button" type="button" onClick={() => onPreview("Book appointment (prototype)")}>
+    Book appointment (prototype) <Icon name="arrow" />
+  </button>;
+}
+
 export function Doctors({ onPreview }) {
-  const [featured, ...supporting] = doctors;
-  return (
-    <section id="doctors" tabIndex={-1} className="section container" aria-labelledby="doctors-title">
-      <SectionHeading eyebrow="PEOPLE AT THE HEART OF YOUR CARE" title={<span id="doctors-title">Today’s doctors</span>}>
-        <p className="section-note">A sample day at the center. <br />All names and sessions are fictional.</p>
-      </SectionHeading>
-      <div className="doctors-layout">
-        <Reveal className="card-reveal" direction="left">
+  const [result, setResult] = useState({ status: "loading", schedule: null });
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setResult({ status: "loading", schedule: null });
+    fetch("/api/schedule", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Schedule request failed");
+        const schedule = await response.json();
+        if (schedule.timeZone !== "Asia/Beirut" || typeof schedule.date !== "string"
+          || !Array.isArray(schedule.doctorSessions)) {
+          throw new Error("Unexpected schedule response");
+        }
+        return schedule;
+      })
+      .then((schedule) => {
+        if (!controller.signal.aborted) setResult({ status: "success", schedule });
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError" && !controller.signal.aborted) {
+          setResult({ status: "error", schedule: null });
+        }
+      });
+    return () => controller.abort();
+  }, [retryCount]);
+
+  const sessions = result.schedule?.doctorSessions ?? [];
+  const featured = sessions.find((session) => session.status === "active") ?? sessions[0];
+  const supporting = sessions.filter((session) => session !== featured);
+  const hasActiveSession = sessions.some((session) => session.status === "active");
+  const supportingTones = ["avatar-warm", "avatar-teal", "avatar-blue"];
+
+  return <section id="doctors" tabIndex={-1} className="section container" aria-labelledby="doctors-title">
+    <SectionHeading eyebrow="PEOPLE AT THE HEART OF YOUR CARE" title={<span id="doctors-title">Today’s doctors</span>}>
+      <p className="section-note">
+        {result.schedule ? `Sample sessions for ${formatScheduleDate(result.schedule.date)}.` : "A sample day at the center."}
+        {" "}<br />All names and sessions are fictional.
+      </p>
+    </SectionHeading>
+
+    {result.status === "loading" && <div className="home-doctor-state" role="status">
+      <h3>Checking today’s schedule…</h3><p>Doctor sessions will appear here shortly.</p>
+    </div>}
+    {result.status === "error" && <div className="home-doctor-state" role="alert">
+      <h3>Today’s doctors are unavailable right now.</h3>
+      <p>We couldn’t load the schedule. Please try again.</p>
+      <button className="text-button" type="button" onClick={() => setRetryCount((count) => count + 1)}>
+        Try again <Icon name="arrow" />
+      </button>
+    </div>}
+    {result.status === "success" && sessions.length === 0 && <div className="home-doctor-state">
+      <h3>No doctor sessions today.</h3>
+      <p>Choose another day to see the sample doctor schedule.</p>
+      <a className="text-button" href="/schedule">View the full schedule <Icon name="arrow" /></a>
+    </div>}
+
+    {result.status === "success" && featured && <>
+      <div className={`doctors-layout ${supporting.length === 0 ? "home-doctors-single" : ""}`}>
+        <Reveal className="card-reveal" direction="left" key={featured.id}>
           <article className="doctor-feature">
             <div className="feature-copy">
               <p className="card-kicker">FEATURED SAMPLE PROFILE</p>
-              <h3>{featured.name}</h3>
+              <h3>{featured.doctorName}</h3>
               <p className="feature-specialty">{featured.specialty}</p>
               <p className="feature-intro">A closer look at one of the fictional people in today’s sample schedule.</p>
-              <p className="session-time"><Icon name="clock" /> {featured.session}</p>
-              <p className="card-description">Arrive during the full session. Seen in check-in order.</p>
-              <button className="text-button" type="button" onClick={() => onPreview("Book an appointment")}>
-                Plan a visit <Icon name="arrow" />
-              </button>
+              <p className="session-time"><Icon name="clock" /> {featured.startTime}–{featured.endTime}</p>
+              {featured.status === "active" && <p className="card-description">Arrive during the full session. Seen in check-in order.</p>}
+              <SessionAction session={featured} onPreview={onPreview} />
             </div>
-            <div className="feature-portrait" aria-label="Illustrated initials for a fictional doctor; no photograph supplied" role="img">
-              <span className="feature-monogram">{featured.initials}</span>
+            <div className="feature-portrait" aria-label={`Illustrated initials for ${featured.doctorName}; no photograph supplied`} role="img">
+              <span className="feature-monogram">{doctorInitials(featured.doctorName)}</span>
               <span className="feature-cross" aria-hidden="true">+</span>
             </div>
           </article>
         </Reveal>
-        <div className="supporting-doctors">
-          {supporting.map((doctor, index) => (
-            <Reveal className="card-reveal" direction="right" delay={(index + 1) * 70} key={doctor.name}>
-              <article className="doctor-card">
-                <div className={`doctor-avatar ${doctor.tone}`} aria-hidden="true">{doctor.initials}<span>+</span></div>
-                <div className="doctor-details">
-                  <p className="card-kicker">{doctor.specialty}</p>
-                  <h3>{doctor.name}</h3>
-                  <p className="session-time"><Icon name="clock" /> {doctor.session}</p>
-                  <p className="card-description">Arrive during the full session.<br />Seen in check-in order.</p>
-                  <button className="text-button" type="button" onClick={() => onPreview("Book an appointment")}>
-                    Plan a visit <Icon name="arrow" />
-                  </button>
-                </div>
-              </article>
-            </Reveal>
-          ))}
-        </div>
+        {supporting.length > 0 && <div className="supporting-doctors home-supporting-doctors">
+          {supporting.map((doctor, index) => <Reveal className="card-reveal" direction="right" delay={(index + 1) * 70} key={doctor.id}>
+            <article className="doctor-card">
+              <div className={`doctor-avatar ${supportingTones[index % supportingTones.length]}`} aria-hidden="true">
+                {doctorInitials(doctor.doctorName)}<span>+</span>
+              </div>
+              <div className="doctor-details">
+                <p className="card-kicker">{doctor.specialty}</p>
+                <h3>{doctor.doctorName}</h3>
+                <p className="session-time"><Icon name="clock" /> {doctor.startTime}–{doctor.endTime}</p>
+                {doctor.status === "active" && <p className="card-description">Arrive during the full session.<br />Seen in check-in order.</p>}
+                <SessionAction session={doctor} onPreview={onPreview} />
+              </div>
+            </article>
+          </Reveal>)}
+        </div>}
       </div>
-      <p className="section-caption">Session times are arrival windows, not guaranteed consultation times.</p>
-    </section>
-  );
+      {hasActiveSession && <p className="section-caption">Session times are arrival windows, not guaranteed consultation times.</p>}
+    </>}
+  </section>;
 }
 
 export function Services({ onPreview }) {

@@ -1,0 +1,34 @@
+.doctors-layout.home-doctors-single { grid-template-columns: 1fr; }
+.doctors-layout .supporting-doctors.home-supporting-doctors {
+  grid-template-rows: none;
+  grid-auto-rows: minmax(0, 1fr);
+}
+.home-doctor-state {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fffffff0;
+  box-shadow: var(--shadow);
+}
+.home-doctor-state p { max-width: 34rem; margin-top: var(--s2); color: var(--muted); }
+.home-doctor-state .text-button { margin-top: var(--s2); }
+.home-doctor-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  margin-top: .7rem;
+  padding: .35rem .8rem;
+  border-radius: var(--pill);
+  background: var(--warm);
+  color: #684b25;
+  font-size: .85rem;
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  .home-doctor-state { min-height: 180px; padding: var(--s3); }
+}
