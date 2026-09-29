@@ -3,6 +3,7 @@ import express from "express";
 import helmet from "helmet";
 import { config } from "./config.js";
 import { getDatabaseStatus } from "./db.js";
+import { getBeirutToday, getScheduleForDate } from "./schedule.js";
 
 export function createApp() {
   const app = express();
@@ -20,6 +21,22 @@ export function createApp() {
     });
   });
 
+  app.get("/api/schedule", (request, response) => {
+    const date = request.query.date ?? getBeirutToday();
+    try {
+      response.json(getScheduleForDate(date));
+    } catch (error) {
+      if (error instanceof RangeError) {
+        response.status(400).json({
+          error: "invalid_date",
+          message: "Use a real calendar date in YYYY-MM-DD format.",
+        });
+        return;
+      }
+      throw error;
+    }
+  });
+
   app.use((request, response) => {
     response.status(404).json({
       error: "not_found",
@@ -29,4 +46,3 @@ export function createApp() {
 
   return app;
 }
-

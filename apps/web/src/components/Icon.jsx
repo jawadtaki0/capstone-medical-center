@@ -13,5 +13,5 @@ export default function Icon({ name }) {
   return <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] || paths.arrow} /></svg>;
 }
 export function Brand() {
-  return <a className="brand" href="#main" aria-label="Cedar Medical Center home"><span className="brand-mark" aria-hidden="true">+</span><span>Cedar<span className="brand-subtitle">MEDICAL CENTER</span></span></a>;
+  return <a className="brand" href="/" aria-label="Cedar Medical Center home"><span className="brand-mark" aria-hidden="true">+</span><span>Cedar<span className="brand-subtitle">MEDICAL CENTER</span></span></a>;
 }

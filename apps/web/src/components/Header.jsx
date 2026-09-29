@@ -3,13 +3,15 @@ import Icon, { Brand } from "./Icon.jsx";
 
 const mobileQuery = "(max-width: 1179px)";
 
-export default function Header({ onPreview }) {
+export default function Header({ onPreview, onSchedulePage = false }) {
   const [mobile, setMobile] = useState(() => window.matchMedia(mobileQuery).matches);
   const [menuOpen, setMenuOpen] = useState(false);
   const [centerOpen, setCenterOpen] = useState(false);
   const header = useRef(null);
   const menuButton = useRef(null);
   const centerButton = useRef(null);
+  const homeLink = onSchedulePage ? "/" : "#main";
+  const homeSectionLink = (id) => onSchedulePage ? `/#${id}` : `#${id}`;
 
   function closeNavigation() {
     setMenuOpen(false);
@@ -62,7 +64,7 @@ export default function Header({ onPreview }) {
 
   function goTo(id) {
     closeNavigation();
-    if (mobile) requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true }));
+    if (mobile && !onSchedulePage && id) requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true }));
   }
 
   function preview(action) {
@@ -101,7 +103,7 @@ export default function Header({ onPreview }) {
           aria-label="Main navigation"
           inert={mobile && !menuOpen ? true : undefined}
         >
-          <a className="nav-pill" href="#main" aria-current="page" onClick={() => goTo("main")}><span>Home</span></a>
+          <a className="nav-pill" href={homeLink} aria-current={onSchedulePage ? undefined : "page"} onClick={() => goTo("main")}><span>Home</span></a>
           <div className="nav-disclosure" onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget)) setCenterOpen(false);
           }}>
@@ -115,14 +117,14 @@ export default function Header({ onPreview }) {
             ><span>Our Center <Icon name="chevron" /></span></button>
             <span className="mobile-center-label">Our Center</span>
             <div id="center-links" className="dropdown" hidden={!mobile && !centerOpen}>
-              <a href="#about" onClick={() => goTo("about")}>About Us</a>
-              <a href="#doctors" onClick={() => goTo("doctors")}>Our Doctors</a>
+              <a href={homeSectionLink("about")} onClick={() => goTo("about")}>About Us</a>
+              <a href={homeSectionLink("doctors")} onClick={() => goTo("doctors")}>Our Doctors</a>
             </div>
           </div>
-          <a className="nav-pill" href="#services" onClick={() => goTo("services")}><span>Services</span></a>
+          <a className="nav-pill" href={homeSectionLink("services")} onClick={() => goTo("services")}><span>Services</span></a>
           <button className="nav-pill" type="button" onClick={() => preview("Laboratory")}><span>Laboratory</span></button>
-          <a className="nav-pill" href="#doctors" onClick={() => goTo("doctors")}><span>Schedule</span></a>
-          <a className="nav-pill" href="#contact" onClick={() => goTo("contact")}><span>Contact</span></a>
+          <a className="nav-pill" href="/schedule" aria-current={onSchedulePage ? "page" : undefined} onClick={() => goTo()}><span>Schedule</span></a>
+          <a className="nav-pill" href={homeSectionLink("contact")} onClick={() => goTo("contact")}><span>Contact</span></a>
           <button className="nav-pill login-link" type="button" onClick={() => preview("Patient login")}><span>Patient login</span></button>
           <button className="button button-primary header-cta" type="button" onClick={() => preview("Book an appointment")}>
             Book an appointment <Icon name="arrow" />
