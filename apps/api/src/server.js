@@ -5,7 +5,7 @@ import { closeDatabase, connectDatabase } from "./db.js";
 try {
   await connectDatabase();
 } catch (error) {
-  console.warn(`MongoDB is unavailable; starting the API without persistence: ${error.message}`);
+  console.warn(`MongoDB is unavailable; /api/schedule will return 503: ${error.message}`);
 }
 
 const server = createApp().listen(config.port, () => {
@@ -22,4 +22,3 @@ async function shutDown(signal) {
 
 process.on("SIGINT", () => shutDown("SIGINT"));
 process.on("SIGTERM", () => shutDown("SIGTERM"));
-

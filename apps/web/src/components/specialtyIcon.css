@@ -1,0 +1,30 @@
+/* Decorative badges share the site's palette, independent of the profile initials. */
+.specialty-line { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+.specialty-line > .specialty-label { min-width: 0; overflow-wrap: anywhere; }
+.specialty-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 50%;
+  background: var(--pale);
+  color: var(--blue);
+  transition: background var(--fast);
+}
+/* Alpha masks preserve original SVG/PNG files and tint both with currentColor. */
+.specialty-icon-glyph {
+  display: block;
+  width: var(--specialty-glyph-size, 24px);
+  height: var(--specialty-glyph-size, 24px);
+  background: currentColor;
+  -webkit-mask: var(--specialty-mask) center / contain no-repeat;
+  mask: var(--specialty-mask) center / contain no-repeat;
+}
+@media (hover: hover) {
+  .doctor-card:hover .specialty-icon, .doctor-feature:hover .specialty-icon,
+  .schedule-card:hover .specialty-icon { background: #dceef9; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .specialty-icon { transition: none; }
+}

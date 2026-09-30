@@ -1,50 +1,7 @@
+import { getDatabase } from "./db.js";
+import { CENTER_ID, COLLECTIONS, validateScheduleDay } from "./schedule-model.js";
+
 const TIME_ZONE = "Asia/Beirut";
-
-// Fictional public display data. Weekdays use Sunday = 0 through Saturday = 6.
-const weeklyDoctorSessions = {
-  0: [],
-  1: [
-    { id: "nour-monday", doctorName: "Dr. Nour Haddad", specialty: "Family Medicine", startTime: "09:00", endTime: "11:00" },
-    { id: "samir-monday", doctorName: "Dr. Samir Nasser", specialty: "Internal Medicine", startTime: "13:00", endTime: "15:00" },
-  ],
-  2: [
-    { id: "maya-tuesday", doctorName: "Dr. Maya Rahal", specialty: "Pediatrics", startTime: "10:00", endTime: "12:00" },
-  ],
-  3: [
-    { id: "nour-wednesday", doctorName: "Dr. Nour Haddad", specialty: "Family Medicine", startTime: "09:00", endTime: "11:00" },
-    { id: "hadi-wednesday", doctorName: "Dr. Hadi Salem", specialty: "ENT", startTime: "13:00", endTime: "15:00" },
-  ],
-  4: [
-    { id: "maya-thursday", doctorName: "Dr. Maya Rahal", specialty: "Pediatrics", startTime: "10:00", endTime: "12:00" },
-    { id: "samir-thursday", doctorName: "Dr. Samir Nasser", specialty: "Internal Medicine", startTime: "14:00", endTime: "16:00" },
-  ],
-  5: [
-    { id: "hadi-friday", doctorName: "Dr. Hadi Salem", specialty: "ENT", startTime: "09:00", endTime: "11:00" },
-  ],
-  6: [],
-};
-
-const weeklyOtherServices = {
-  0: [],
-  1: [{ id: "laboratory", name: "Laboratory", startTime: "08:00", endTime: "14:00" }],
-  2: [
-    { id: "laboratory", name: "Laboratory", startTime: "08:00", endTime: "14:00" },
-    { id: "audiometry", name: "Audiometry", startTime: "10:00", endTime: "13:00" },
-  ],
-  3: [{ id: "laboratory", name: "Laboratory", startTime: "08:00", endTime: "14:00" }],
-  4: [
-    { id: "laboratory", name: "Laboratory", startTime: "08:00", endTime: "14:00" },
-    { id: "audiometry", name: "Audiometry", startTime: "10:00", endTime: "13:00" },
-  ],
-  5: [{ id: "laboratory", name: "Laboratory", startTime: "08:00", endTime: "14:00" }],
-  6: [{ id: "laboratory", name: "Laboratory", startTime: "08:00", endTime: "12:00" }],
-};
-
-// One-date changes leave their regular weekly templates untouched.
-const dateExceptions = {
-  "2026-10-01": { doctorSessions: { "maya-thursday": { status: "cancelled" } } },
-  "2026-10-02": { doctorSessions: { "hadi-friday": { startTime: "11:00", endTime: "13:00" } } },
-};
 
 export function isValidScheduleDate(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -60,17 +17,68 @@ export function getBeirutToday(now = new Date()) {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
-export function getScheduleForDate(date) {
+function emptySchedule(date, publicationStatus, centerClosed = null) {
+  return {
+    date, timeZone: TIME_ZONE, publicationStatus, centerClosed,
+    centerHours: null, doctorSessions: [], specialistSessions: [], otherServices: [],
+  };
+}
+
+function publicSessions(sessions, profiles, referenceKey, nameKey, date) {
+  const byId = new Map(profiles.map((profile) => [profile._id, profile]));
+  return sessions.map((session) => {
+    const profile = byId.get(session[referenceKey]);
+    if (!profile || typeof profile.name !== "string" || typeof profile.specialty !== "string") {
+      throw new Error("Published schedule references an unavailable profile.");
+    }
+    return {
+      id: session.id, [nameKey]: profile.name, specialty: profile.specialty, date,
+      startTime: session.startTime, endTime: session.endTime,
+      status: session.status, appointmentRequired: session.appointmentRequired,
+    };
+  }).sort((first, second) => first.startTime.localeCompare(second.startTime));
+}
+
+// All operations here are reads. Seeding and future authorized publication are separate.
+export async function getScheduleForDate(date, database = undefined) {
   if (!isValidScheduleDate(date)) throw new RangeError("Invalid schedule date");
+  const db = database ?? getDatabase();
+  const weekly = await db.collection(COLLECTIONS.weekly).findOne({
+    centerId: CENTER_ID,
+    publicationStatus: "published",
+    $or: [{ effectiveFrom: null }, { effectiveFrom: { $lte: date } }],
+  }, { sort: { effectiveFrom: -1, publishedAt: -1, _id: -1 } });
+  if (!weekly) return emptySchedule(date, "unpublished");
+  if (weekly.effectiveFrom !== null && !isValidScheduleDate(weekly.effectiveFrom)) {
+    throw new Error("Invalid published weekly effective date.");
+  }
 
-  // Noon UTC determines the calendar weekday without local-midnight ambiguity.
+  // A one-date replacement is tied to its weekly revision so stale overrides cannot leak.
+  const change = await db.collection(COLLECTIONS.changes).findOne({
+    centerId: CENTER_ID, weeklyScheduleId: weekly._id, date, publicationStatus: "published",
+  }, { sort: { publishedAt: -1, _id: -1 } });
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-  const overrides = dateExceptions[date]?.doctorSessions ?? {};
-  const doctorSessions = weeklyDoctorSessions[weekday]
-    .map((session) => ({ ...session, date, status: "active", ...overrides[session.id] }))
-    .sort((first, second) => first.startTime.localeCompare(second.startTime));
-  const otherServices = weeklyOtherServices[weekday]
-    .map((service) => ({ ...service, date }));
+  const day = change ? change.day : weekly.days?.[weekday];
+  validateScheduleDay(day);
+  if (day.closed) return emptySchedule(date, "published", true);
 
-  return { date, timeZone: TIME_ZONE, sampleData: true, doctorSessions, otherServices };
+  const queryProfiles = (collection, ids) => ids.length
+    ? db.collection(collection).find({
+      _id: { $in: ids }, centerId: CENTER_ID, publicationStatus: "published", active: true,
+    }).toArray()
+    : Promise.resolve([]);
+  const [doctors, specialists] = await Promise.all([
+    queryProfiles(COLLECTIONS.doctors, day.doctorSessions.map((session) => session.doctorId)),
+    queryProfiles(COLLECTIONS.specialists, day.specialistSessions.map((session) => session.specialistId)),
+  ]);
+
+  return {
+    date, timeZone: TIME_ZONE, publicationStatus: "published", centerClosed: false,
+    centerHours: { startTime: day.centerHours.startTime, endTime: day.centerHours.endTime },
+    doctorSessions: publicSessions(day.doctorSessions, doctors, "doctorId", "doctorName", date),
+    specialistSessions: publicSessions(day.specialistSessions, specialists, "specialistId", "name", date),
+    otherServices: day.otherServices.filter((service) => service.status === "active").map((service) => ({
+      id: service.id, name: service.name, date, startTime: service.startTime, endTime: service.endTime,
+    })),
+  };
 }
