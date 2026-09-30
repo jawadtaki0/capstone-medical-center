@@ -1,42 +1,31 @@
 import { useEffect, useState } from "react";
 import Icon from "../components/Icon.jsx";
+import SpecialtyIcon from "../components/SpecialtyIcon.jsx";
+import { specialtyLabel } from "../data/specialties.js";
+import useSchedule from "../hooks/useSchedule.js";
+import { beirutToday, dateObject, addDays, mondayOf, formatDate, longDate, timeRange } from "../lib/scheduleDate.js";
 import "./schedule.css";
 
-function beirutToday() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Beirut", year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function dateObject(date) {
-  return new Date(`${date}T12:00:00Z`);
-}
-
-function addDays(date, count) {
-  const result = dateObject(date);
-  result.setUTCDate(result.getUTCDate() + count);
-  return result.toISOString().slice(0, 10);
-}
-
-function mondayOf(date) {
-  const weekday = dateObject(date).getUTCDay();
-  return addDays(date, -(weekday === 0 ? 6 : weekday - 1));
-}
-
-function formatDate(date, options) {
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", ...options }).format(dateObject(date));
-}
-
-function longDate(date) {
-  return formatDate(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+function SessionCard({ session, label, onPreview }) {
+  return <article className="schedule-card">
+    <div className="schedule-card-details">
+      <p className="schedule-card-kicker">{label}</p>
+      <h3>{session.doctorName ?? session.name}</h3>
+      <p className="schedule-specialty specialty-line"><SpecialtyIcon specialty={session.specialty} /><span className="specialty-label">{specialtyLabel(session.specialty)}</span></p>
+      {session.appointmentRequired && <p className="schedule-appointment-note">Appointment required</p>}
+      <div className="schedule-card-meta">
+        <span><Icon name="calendar" /> {longDate(session.date)}</span>
+        <span><Icon name="clock" /> {timeRange(session.startTime, session.endTime)}</span>
+      </div>
+    </div>
+    {session.status === "cancelled" ? <span className="schedule-cancelled">Cancelled</span> :
+      <button className="button schedule-outline-button schedule-book-button" type="button" onClick={() => onPreview("Book appointment (prototype)")}>Book appointment (prototype)</button>}
+  </article>;
 }
 
 export default function SchedulePage({ onPreview }) {
   const [selectedDate, setSelectedDate] = useState(beirutToday);
-  const [retryCount, setRetryCount] = useState(0);
-  const [result, setResult] = useState({ date: selectedDate, status: "loading", data: null });
+  const { result, retry } = useSchedule(selectedDate);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -44,36 +33,18 @@ export default function SchedulePage({ onPreview }) {
     return () => { document.title = previousTitle; };
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setResult({ date: selectedDate, status: "loading", data: null });
-
-    fetch(`/api/schedule?date=${encodeURIComponent(selectedDate)}`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Schedule request failed (${response.status})`);
-        return response.json();
-      })
-      .then((data) => setResult({ date: selectedDate, status: "success", data }))
-      .catch((error) => {
-        if (error.name !== "AbortError") {
-          setResult({ date: selectedDate, status: "error", data: null });
-        }
-      });
-
-    return () => controller.abort();
-  }, [selectedDate, retryCount]);
-
   const firstDay = mondayOf(selectedDate);
   const days = Array.from({ length: 7 }, (_, index) => addDays(firstDay, index));
-  const currentResult = result.date === selectedDate ? result : { status: "loading" };
-  const schedule = currentResult.status === "success" ? currentResult.data : null;
+  const schedule = result.status === "success" ? result.schedule : null;
   const doctorSessions = schedule?.doctorSessions ?? [];
+  const specialistSessions = schedule?.specialistSessions ?? [];
   const otherServices = schedule?.otherServices ?? [];
+  const published = schedule?.publicationStatus === "published";
 
   return <div className="schedule-page">
     <div className="container schedule-shell">
       <div className="schedule-intro">
-        <p className="eyebrow">PUBLIC SCHEDULE · SYNTHETIC SAMPLE DATA</p>
+        <p className="eyebrow">PUBLIC SCHEDULE</p>
         <h1>Find a day that works for you.</h1>
         <p>Choose a day to see its doctor sessions and other scheduled services.</p>
       </div>
@@ -113,42 +84,45 @@ export default function SchedulePage({ onPreview }) {
           <h2 id="schedule-results-title">{longDate(selectedDate)}</h2>
         </div>
 
-        {currentResult.status === "loading" && <div className="schedule-state" role="status">Loading this day’s schedule…</div>}
-        {currentResult.status === "error" && <div className="schedule-state schedule-error" role="alert">
-          <p>We couldn’t load this day’s schedule. Check that the API is running and try again.</p>
-          <button className="button schedule-outline-button" type="button" onClick={() => setRetryCount((count) => count + 1)}>Try again</button>
+        {result.status === "loading" && <div className="schedule-state" role="status">Loading this day’s schedule…</div>}
+        {result.status === "error" && <div className="schedule-state schedule-error" role="alert">
+          <p>We couldn’t load this day’s schedule. Please try again.</p>
+          <button className="button schedule-outline-button" type="button" onClick={retry}>Try again</button>
         </div>}
 
-        {schedule && <>
+        {schedule && !published && <div className="schedule-state" role="status">
+          <h3>The schedule is not available for this date yet.</h3>
+          <p>Please check again later or choose another day.</p>
+        </div>}
+        {published && schedule.centerClosed && <div className="schedule-state" role="status">
+          <h3>The center is closed on this day.</h3>
+          <p>Choose another day to view sessions and service hours.</p>
+        </div>}
+
+        {published && !schedule.centerClosed && <>
+          <p className="schedule-center-hours">Opening hours: {timeRange(schedule.centerHours.startTime, schedule.centerHours.endTime)}</p>
           <p className="schedule-announcement" role="status">
-            {doctorSessions.length} doctor {doctorSessions.length === 1 ? "session" : "sessions"} shown for {longDate(selectedDate)}.
+            {doctorSessions.length} doctor {doctorSessions.length === 1 ? "session" : "sessions"} for {longDate(selectedDate)}.
           </p>
           {doctorSessions.length > 0 ? <div className="schedule-card-list">
-            {doctorSessions.map((session) => <article className="schedule-card" key={`${selectedDate}-${session.id}`}>
-              <div className="schedule-card-details">
-                <p className="schedule-card-kicker">DOCTOR SESSION · SAMPLE DATA</p>
-                <h3>{session.doctorName}</h3>
-                <p className="schedule-specialty">{session.specialty}</p>
-                <div className="schedule-card-meta">
-                  <span><Icon name="calendar" /> {longDate(session.date)}</span>
-                  <span><Icon name="clock" /> {session.startTime}–{session.endTime}</span>
-                </div>
-              </div>
-              {session.status === "cancelled" ? <span className="schedule-cancelled">Cancelled</span> :
-                <button className="button schedule-outline-button schedule-book-button" type="button" onClick={() => onPreview("Book appointment")}>Book appointment</button>}
-            </article>)}
+            {doctorSessions.map((session) => <SessionCard session={session} label="DOCTOR SESSION" onPreview={onPreview} key={`${selectedDate}-${session.id}`} />)}
           </div> : <div className="schedule-state">No doctor sessions are scheduled for this day.</div>}
+
+          {specialistSessions.length > 0 && <section className="schedule-other" aria-labelledby="specialists-title">
+            <h3 id="specialists-title">Specialist sessions</h3>
+            <div className="schedule-card-list">
+              {specialistSessions.map((session) => <SessionCard session={session} label="SPECIALIST SESSION" onPreview={onPreview} key={`${selectedDate}-${session.id}`} />)}
+            </div>
+          </section>}
 
           {otherServices.length > 0 && <section className="schedule-other" aria-labelledby="other-services-title">
             <h3 id="other-services-title">Other services today</h3>
             <div className="schedule-other-row">
               {otherServices.map((service) => <div className="schedule-other-item" key={service.id}>
-                <strong>{service.name}</strong><span>{service.startTime}–{service.endTime}</span>
+                <strong>{service.name}</strong><span>{timeRange(service.startTime, service.endTime)}</span>
               </div>)}
             </div>
           </section>}
-          {doctorSessions.length === 0 && otherServices.length === 0 &&
-            <p className="schedule-empty-note">There are no other services scheduled for this day either.</p>}
         </>}
       </section>
     </div>

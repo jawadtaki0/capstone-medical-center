@@ -3,9 +3,9 @@ import express from "express";
 import helmet from "helmet";
 import { config } from "./config.js";
 import { getDatabaseStatus } from "./db.js";
-import { getBeirutToday, getScheduleForDate } from "./schedule.js";
+import { getBeirutToday, getScheduleForDate, isValidScheduleDate } from "./schedule.js";
 
-export function createApp() {
+export function createApp({ scheduleReader = getScheduleForDate } = {}) {
   const app = express();
 
   app.disable("x-powered-by");
@@ -21,19 +21,23 @@ export function createApp() {
     });
   });
 
-  app.get("/api/schedule", (request, response) => {
+  app.get("/api/schedule", async (request, response) => {
     const date = request.query.date ?? getBeirutToday();
+    if (!isValidScheduleDate(date)) {
+      response.status(400).json({
+        error: "invalid_date",
+        message: "Use a real calendar date in YYYY-MM-DD format.",
+      });
+      return;
+    }
     try {
-      response.json(getScheduleForDate(date));
+      response.json(await scheduleReader(date));
     } catch (error) {
-      if (error instanceof RangeError) {
-        response.status(400).json({
-          error: "invalid_date",
-          message: "Use a real calendar date in YYYY-MM-DD format.",
-        });
-        return;
-      }
-      throw error;
+      console.error(`Schedule read failed: ${error.message}`);
+      response.status(503).json({
+        error: "schedule_unavailable",
+        message: "The public schedule could not be loaded right now.",
+      });
     }
   });
 

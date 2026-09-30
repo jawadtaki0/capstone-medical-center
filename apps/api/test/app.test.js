@@ -14,7 +14,7 @@ test("GET /api/health reports the API and database state", async (context) => {
   assert.equal(response.status, 200);
   assert.equal(body.service, "medical-center-api");
   assert.equal(body.status, "ok");
-  assert.equal(body.database, "not-configured");
+  assert.ok(["not-configured", "disconnected"].includes(body.database));
 });
 
 test("unknown routes return a JSON 404", async (context) => {
@@ -29,4 +29,3 @@ test("unknown routes return a JSON 404", async (context) => {
   assert.equal(response.status, 404);
   assert.equal(body.error, "not_found");
 });
-

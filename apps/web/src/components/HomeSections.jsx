@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react";
 import Icon, { Brand } from "./Icon.jsx";
 import Reveal from "./Reveal.jsx";
+import SpecialtyIcon from "./SpecialtyIcon.jsx";
+import { specialtyLabel } from "../data/specialties.js";
 import { services } from "../data/homeContent.js";
+import { longDate, timeRange } from "../lib/scheduleDate.js";
 import "./homeDoctors.css";
 
-export function VisitInfo() {
+export function VisitInfo({ result }) {
+  const schedule = result.schedule;
+  let hours = "Checking today’s opening hours…";
+  if (result.status === "error") hours = "Opening hours could not be loaded.";
+  if (schedule?.publicationStatus === "unpublished") hours = "Today’s schedule is not available yet.";
+  if (schedule?.centerClosed) hours = "Closed today.";
+  if (schedule?.centerHours) hours = `Open today: ${timeRange(schedule.centerHours.startTime, schedule.centerHours.endTime)}`;
   return (
     <div className="visit-info">
       <div className="container visit-info-inner">
@@ -12,11 +20,11 @@ export function VisitInfo() {
           <span className="icon-tile"><Icon name="clock" /></span>
           <div>
             <strong>A little planning, a smoother visit.</strong>
-            <p>Sample hours: Mon–Sat, 8:00 am–6:00 pm</p>
+            <p>{hours}</p>
           </div>
         </div>
         <a className="info-shortcut" href="#doctors">
-          <span>Who’s here today?<small>Explore the sample doctor sessions</small></span>
+          <span>Who’s here today?<small>View today’s doctor sessions</small></span>
           <Icon name="arrow" />
         </a>
       </div>
@@ -33,14 +41,8 @@ function SectionHeading({ eyebrow, title, children }) {
   );
 }
 
-function formatScheduleDate(date) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC", month: "long", day: "numeric", year: "numeric",
-  }).format(new Date(`${date}T12:00:00Z`));
-}
-
 function doctorInitials(name) {
-  return name.replace(/^Dr\.?\s+/i, "").split(/\s+/).slice(0, 2)
+  return name.replace(/^Dr\.?\s*/i, "").split(/\s+/).slice(0, 2)
     .map((part) => part[0] ?? "").join("").toUpperCase();
 }
 
@@ -55,34 +57,7 @@ function SessionAction({ session, onPreview }) {
   </button>;
 }
 
-export function Doctors({ onPreview }) {
-  const [result, setResult] = useState({ status: "loading", schedule: null });
-  const [retryCount, setRetryCount] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setResult({ status: "loading", schedule: null });
-    fetch("/api/schedule", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Schedule request failed");
-        const schedule = await response.json();
-        if (schedule.timeZone !== "Asia/Beirut" || typeof schedule.date !== "string"
-          || !Array.isArray(schedule.doctorSessions)) {
-          throw new Error("Unexpected schedule response");
-        }
-        return schedule;
-      })
-      .then((schedule) => {
-        if (!controller.signal.aborted) setResult({ status: "success", schedule });
-      })
-      .catch((error) => {
-        if (error.name !== "AbortError" && !controller.signal.aborted) {
-          setResult({ status: "error", schedule: null });
-        }
-      });
-    return () => controller.abort();
-  }, [retryCount]);
-
+export function Doctors({ onPreview, result, onRetry }) {
   const sessions = result.schedule?.doctorSessions ?? [];
   const featured = sessions.find((session) => session.status === "active") ?? sessions[0];
   const supporting = sessions.filter((session) => session !== featured);
@@ -92,8 +67,7 @@ export function Doctors({ onPreview }) {
   return <section id="doctors" tabIndex={-1} className="section container" aria-labelledby="doctors-title">
     <SectionHeading eyebrow="PEOPLE AT THE HEART OF YOUR CARE" title={<span id="doctors-title">Today’s doctors</span>}>
       <p className="section-note">
-        {result.schedule ? `Sample sessions for ${formatScheduleDate(result.schedule.date)}.` : "A sample day at the center."}
-        {" "}<br />All names and sessions are fictional.
+        {result.schedule ? `Doctor sessions for ${longDate(result.schedule.date)}.` : "Checking today’s doctor sessions."}
       </p>
     </SectionHeading>
 
@@ -103,13 +77,18 @@ export function Doctors({ onPreview }) {
     {result.status === "error" && <div className="home-doctor-state" role="alert">
       <h3>Today’s doctors are unavailable right now.</h3>
       <p>We couldn’t load the schedule. Please try again.</p>
-      <button className="text-button" type="button" onClick={() => setRetryCount((count) => count + 1)}>
+      <button className="text-button" type="button" onClick={onRetry}>
         Try again <Icon name="arrow" />
       </button>
     </div>}
-    {result.status === "success" && sessions.length === 0 && <div className="home-doctor-state">
-      <h3>No doctor sessions today.</h3>
-      <p>Choose another day to see the sample doctor schedule.</p>
+    {result.status === "success" && result.schedule?.publicationStatus === "unpublished" && <div className="home-doctor-state">
+      <h3>Today’s schedule is not available yet.</h3>
+      <p>Please check again later or view another day.</p>
+      <a className="text-button" href="/schedule">View the full schedule <Icon name="arrow" /></a>
+    </div>}
+    {result.status === "success" && result.schedule?.publicationStatus === "published" && sessions.length === 0 && <div className="home-doctor-state">
+      <h3>{result.schedule.centerClosed ? "The center is closed today." : "No doctor sessions today."}</h3>
+      <p>Choose another day to see doctor sessions and service hours.</p>
       <a className="text-button" href="/schedule">View the full schedule <Icon name="arrow" /></a>
     </div>}
 
@@ -118,12 +97,12 @@ export function Doctors({ onPreview }) {
         <Reveal className="card-reveal" direction="left" key={featured.id}>
           <article className="doctor-feature">
             <div className="feature-copy">
-              <p className="card-kicker">FEATURED SAMPLE PROFILE</p>
+              <p className="card-kicker">FEATURED DOCTOR</p>
               <h3>{featured.doctorName}</h3>
-              <p className="feature-specialty">{featured.specialty}</p>
-              <p className="feature-intro">A closer look at one of the fictional people in today’s sample schedule.</p>
-              <p className="session-time"><Icon name="clock" /> {featured.startTime}–{featured.endTime}</p>
-              {featured.status === "active" && <p className="card-description">Arrive during the full session. Seen in check-in order.</p>}
+              <p className="feature-specialty specialty-line"><SpecialtyIcon specialty={featured.specialty} /><span className="specialty-label">{specialtyLabel(featured.specialty)}</span></p>
+              <p className="feature-intro">Today’s session at Cedar Medical Center.</p>
+              <p className="session-time"><Icon name="clock" /> {timeRange(featured.startTime, featured.endTime)}</p>
+              {featured.appointmentRequired && <p className="card-description">Appointment required.</p>}
               <SessionAction session={featured} onPreview={onPreview} />
             </div>
             <div className="feature-portrait" aria-label={`Illustrated initials for ${featured.doctorName}; no photograph supplied`} role="img">
@@ -139,17 +118,17 @@ export function Doctors({ onPreview }) {
                 {doctorInitials(doctor.doctorName)}<span>+</span>
               </div>
               <div className="doctor-details">
-                <p className="card-kicker">{doctor.specialty}</p>
+                <p className="card-kicker specialty-line"><SpecialtyIcon specialty={doctor.specialty} /><span className="specialty-label">{specialtyLabel(doctor.specialty)}</span></p>
                 <h3>{doctor.doctorName}</h3>
-                <p className="session-time"><Icon name="clock" /> {doctor.startTime}–{doctor.endTime}</p>
-                {doctor.status === "active" && <p className="card-description">Arrive during the full session.<br />Seen in check-in order.</p>}
+                <p className="session-time"><Icon name="clock" /> {timeRange(doctor.startTime, doctor.endTime)}</p>
+                {doctor.appointmentRequired && <p className="card-description">Appointment required.</p>}
                 <SessionAction session={doctor} onPreview={onPreview} />
               </div>
             </article>
           </Reveal>)}
         </div>}
       </div>
-      {hasActiveSession && <p className="section-caption">Session times are arrival windows, not guaranteed consultation times.</p>}
+      {hasActiveSession && <p className="section-caption">Booking buttons are prototype actions; no appointment is reserved.</p>}
     </>}
   </section>;
 }
@@ -238,8 +217,8 @@ export function Footer() {
           <Brand /><p>Thoughtful care, closer to you.</p><a className="text-button" href="#main">Back to top ↑</a>
         </div>
         <div className="footer-bottom">
-          <p>© 2026 Cedar Medical Center · Fictional design prototype</p>
-          <p>Sample names, services and contact details. No bookings or sign-in available.</p>
+          <p>© 2026 Cedar Medical Center · Prototype branding</p>
+          <p>Branding and contact details are provisional. Booking buttons are prototypes; sign-in is not available yet.</p>
         </div>
       </div>
     </footer>

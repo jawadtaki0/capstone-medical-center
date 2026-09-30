@@ -1,8 +1,33 @@
-.doctors-layout.home-doctors-single { grid-template-columns: 1fr; }
-.doctors-layout .supporting-doctors.home-supporting-doctors {
-  grid-template-rows: none;
-  grid-auto-rows: minmax(0, 1fr);
+/* Align the two areas at the top, not to the height of every supporting row. */
+#doctors .doctors-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; }
+#doctors .doctors-layout.home-doctors-single { grid-template-columns: 1fr; }
+.doctors-layout .doctor-feature {
+  height: auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) 30%;
+  gap: var(--s2);
+  padding: var(--s3);
 }
+.doctors-layout .feature-copy, .doctors-layout .doctor-details { min-width: 0; }
+.doctors-layout h3 { overflow-wrap: anywhere; }
+.doctors-layout .feature-portrait {
+  align-self: center;
+  min-height: 0;
+  height: auto;
+  aspect-ratio: 3 / 5;
+  max-height: 260px;
+}
+.doctors-layout .feature-monogram { font-size: clamp(2.7rem, 4vw, 4.5rem); }
+.doctors-layout .doctor-feature .session-time { margin-top: var(--s2); padding-top: 0; }
+.doctors-layout .text-button { text-align: left; }
+.doctors-layout .text-button .icon { flex-shrink: 0; }
+.doctors-layout .supporting-doctors.home-supporting-doctors {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: none;
+  grid-auto-rows: auto;
+}
+.home-supporting-doctors .doctor-card { flex-direction: column; }
+.home-supporting-doctors .card-kicker { font-size: .8rem; line-height: 1.5; }
 .home-doctor-state {
   min-height: 220px;
   display: flex;
@@ -29,6 +54,15 @@
   font-size: .85rem;
   font-weight: 700;
 }
+@media (max-width: 1100px) {
+  #doctors .doctors-layout { grid-template-columns: 1fr; }
+  .home-supporting-doctors .doctor-card { flex-direction: row; }
+  .doctors-layout .feature-portrait { max-height: 230px; }
+}
 @media (max-width: 700px) {
+  .doctors-layout .supporting-doctors.home-supporting-doctors { grid-template-columns: 1fr; }
+  .doctors-layout .doctor-feature { grid-template-columns: 1fr; }
+  .doctors-layout .feature-portrait { height: 180px; aspect-ratio: auto; }
+  .doctors-layout .doctor-card { gap: var(--s2); }
   .home-doctor-state { min-height: 180px; padding: var(--s3); }
 }
