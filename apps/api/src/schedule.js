@@ -1,5 +1,5 @@
 import { getDatabase } from "./db.js";
-import { CENTER_ID, COLLECTIONS, validateScheduleDay } from "./schedule-model.js";
+import { COLLECTIONS, validateScheduleDay } from "./schedule-model.js";
 
 const TIME_ZONE = "Asia/Beirut";
 
@@ -28,7 +28,8 @@ function publicSessions(sessions, profiles, referenceKey, nameKey, date) {
   const byId = new Map(profiles.map((profile) => [profile._id, profile]));
   return sessions.map((session) => {
     const profile = byId.get(session[referenceKey]);
-    if (!profile || typeof profile.name !== "string" || typeof profile.specialty !== "string") {
+    if (!profile || typeof profile.name !== "string" || !profile.name.trim()
+      || typeof profile.specialty !== "string" || !profile.specialty.trim()) {
       throw new Error("Published schedule references an unavailable profile.");
     }
     return {
@@ -44,7 +45,6 @@ export async function getScheduleForDate(date, database = undefined) {
   if (!isValidScheduleDate(date)) throw new RangeError("Invalid schedule date");
   const db = database ?? getDatabase();
   const weekly = await db.collection(COLLECTIONS.weekly).findOne({
-    centerId: CENTER_ID,
     publicationStatus: "published",
     $or: [{ effectiveFrom: null }, { effectiveFrom: { $lte: date } }],
   }, { sort: { effectiveFrom: -1, publishedAt: -1, _id: -1 } });
@@ -55,7 +55,7 @@ export async function getScheduleForDate(date, database = undefined) {
 
   // A one-date replacement is tied to its weekly revision so stale overrides cannot leak.
   const change = await db.collection(COLLECTIONS.changes).findOne({
-    centerId: CENTER_ID, weeklyScheduleId: weekly._id, date, publicationStatus: "published",
+    weeklyScheduleId: weekly._id, date, publicationStatus: "published",
   }, { sort: { publishedAt: -1, _id: -1 } });
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   const day = change ? change.day : weekly.days?.[weekday];
@@ -64,8 +64,8 @@ export async function getScheduleForDate(date, database = undefined) {
 
   const queryProfiles = (collection, ids) => ids.length
     ? db.collection(collection).find({
-      _id: { $in: ids }, centerId: CENTER_ID, publicationStatus: "published", active: true,
-    }).toArray()
+      _id: { $in: ids }, active: true,
+    }, { projection: { _id: 1, name: 1, specialty: 1 } }).toArray()
     : Promise.resolve([]);
   const [doctors, specialists] = await Promise.all([
     queryProfiles(COLLECTIONS.doctors, day.doctorSessions.map((session) => session.doctorId)),

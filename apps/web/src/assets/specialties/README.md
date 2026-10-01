@@ -9,6 +9,7 @@ Files: pediatric.png, tooth-24px.svg, heart-organ-24px.svg, bladder-24px.svg,
 ear-24px.svg, eye-24px.svg, female-reproductive_system-24px.svg, stomach.svg,
 glucosemeter.png, food.png, talk.png, speech-therapy.png, dermatology.png, surgery.png.
 
-No accompanying attribution or license notice was found for these selected assets.
-Their source and redistribution license have not been independently verified.
-Do not interpret this note as a license grant; retain any later supplied notices.
+The owner confirmed on 2026-10-01 that supplied assets are open-source and licensed
+for use. No accompanying attribution or named license notice was supplied for
+these selected assets; no independent license identification is claimed.
+Retain any embedded or later supplied notices.

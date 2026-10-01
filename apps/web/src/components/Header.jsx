@@ -3,15 +3,16 @@ import Icon, { Brand } from "./Icon.jsx";
 
 const mobileQuery = "(max-width: 1179px)";
 
-export default function Header({ onPreview, onSchedulePage = false }) {
+export default function Header({ onPreview, onSchedulePage = false, onDoctorsPage = false }) {
   const [mobile, setMobile] = useState(() => window.matchMedia(mobileQuery).matches);
   const [menuOpen, setMenuOpen] = useState(false);
   const [centerOpen, setCenterOpen] = useState(false);
   const header = useRef(null);
   const menuButton = useRef(null);
   const centerButton = useRef(null);
-  const homeLink = onSchedulePage ? "/" : "#main";
-  const homeSectionLink = (id) => onSchedulePage ? `/#${id}` : `#${id}`;
+  const onHomePage = !onSchedulePage && !onDoctorsPage;
+  const homeLink = onHomePage ? "#main" : "/";
+  const homeSectionLink = (id) => onHomePage ? `#${id}` : `/#${id}`;
 
   function closeNavigation() {
     setMenuOpen(false);
@@ -64,7 +65,7 @@ export default function Header({ onPreview, onSchedulePage = false }) {
 
   function goTo(id) {
     closeNavigation();
-    if (mobile && !onSchedulePage && id) requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true }));
+    if (mobile && onHomePage && id) requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: true }));
   }
 
   function preview(action) {
@@ -103,13 +104,14 @@ export default function Header({ onPreview, onSchedulePage = false }) {
           aria-label="Main navigation"
           inert={mobile && !menuOpen ? true : undefined}
         >
-          <a className="nav-pill" href={homeLink} aria-current={onSchedulePage ? undefined : "page"} onClick={() => goTo("main")}><span>Home</span></a>
+          <a className="nav-pill" href={homeLink} aria-current={onHomePage ? "page" : undefined} onClick={() => goTo("main")}><span>Home</span></a>
           <div className="nav-disclosure" onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget)) setCenterOpen(false);
           }}>
             <button
               ref={centerButton}
               className="nav-pill center-toggle"
+              data-active={onDoctorsPage || undefined}
               type="button"
               aria-expanded={centerOpen}
               aria-controls="center-links"
@@ -118,7 +120,7 @@ export default function Header({ onPreview, onSchedulePage = false }) {
             <span className="mobile-center-label">Our Center</span>
             <div id="center-links" className="dropdown" hidden={!mobile && !centerOpen}>
               <a href={homeSectionLink("about")} onClick={() => goTo("about")}>About Us</a>
-              <a href={homeSectionLink("doctors")} onClick={() => goTo("doctors")}>Our Doctors</a>
+              <a href="/doctors" aria-current={onDoctorsPage ? "page" : undefined} onClick={() => goTo()}>Our Doctors</a>
             </div>
           </div>
           <a className="nav-pill" href={homeSectionLink("services")} onClick={() => goTo("services")}><span>Services</span></a>

@@ -7,6 +7,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "seed:schedule": "node src/seed-schedule.js",
+    "migrate:schema": "node src/migrate-schema.js",
     "test": "node --test"
   },
   "dependencies": {
