@@ -10,6 +10,8 @@ The responsive Home and Schedule pages share the MongoDB-backed public schedule 
 
 The licensed hero photo stays outside the public repository; deployment supplies it separately. Other branding, contact details and service copy remain provisional.
 
+The public `/doctors` directory includes active doctors and specialists independently of their daily sessions. Search filters locally by name or specialty, including both the Therapist display label and its underlying specialty wording. Cards use supplied generic avatars and specialty icons; they contain no booking or contact controls. Our Doctors navigation opens the directory, while Home retains its separate Today's doctors preview. Doctors and Schedule use the shared Grainient page background; directory card backgrounds animate only during hover.
+
 ## Run locally
 
 Use Node.js 22 or newer and MongoDB (local or a development Atlas database). Copy `apps/api/.env.example` to `apps/api/.env` and configure `MONGODB_URI` and `MONGODB_DB_NAME`. Keep credentials out of Git.
@@ -20,27 +22,44 @@ npm run seed:schedule --workspace @medical-center/api
 npm run dev
 ```
 
-Open `http://localhost:5173` and `http://localhost:5173/schedule`. Vite proxies `/api` to `http://localhost:4000`. Inspect `/api/health` and `/api/schedule?date=2026-10-03`. Dates use Asia/Beirut. An unavailable MongoDB connection returns 503; a database without a published weekly timetable returns an unpublished state.
+Open `http://localhost:5173`, `http://localhost:5173/doctors`, and `http://localhost:5173/schedule` (use the port Vite prints if 5173 is occupied). Vite proxies `/api` to `http://localhost:4000`. Inspect `/api/health`, `/api/professionals`, and `/api/schedule?date=2026-10-03`. Dates use Asia/Beirut. An unavailable MongoDB connection returns 503; a database without a published weekly timetable returns an unpublished state. The directory returns only stable public IDs, names, specialties, professional kind, and a safe server-derived `avatarVariant`; no eligible profiles means a genuinely empty directory.
+
+Vite development and preview servers support direct loading/refreshing public routes through their SPA fallback. A deployment host must likewise serve `index.html` for `/doctors` and `/schedule` while routing `/api/*` to Express.
+
+The API starts listening before MongoDB connects. Failed database connections are retried automatically after five seconds; once access is restored, use the page's Try again control. `/api/health` checks current database reachability rather than retaining a startup result. For Atlas, keep your current development IP in the project's IP Access List; connection recovery does not bypass Atlas access rules or TLS validation.
 
 ## Persistence and publishing model
 
-- `doctor_profiles`: stable ID, center ID, English name/specialty, `publicationStatus`, and `active`. Monday/Friday use the same Dr. Issam Al-Tawil profile.
-- `specialist_profiles`: the same profile fields for the dietitian and therapists.
+- `doctor_profiles`: readable string `_id`, English `name`/`specialty`, `active`, and owner-confirmed `gender` (`male` or `female`). IDs look like `doctor:hasan-rahal`. Inactive profiles remain stored but are not public. Monday/Friday use the same Dr. Issam Al-Tawil profile.
+- `specialist_profiles`: the same fields for the dietitian and therapists, with IDs such as `specialist:maya-najdi`. Neither profile collection stores `centerId`, `publicationStatus`, or `avatarVariant`.
 - `weekly_schedules`: a complete seven-day timetable referencing profile IDs, center/service hours, session hours, appointment-required flags and session status. Weekday 0 is Sunday. The seed baseline has `effectiveFrom: null`; no starting date was supplied. A future published revision uses a confirmed `effectiveFrom: "YYYY-MM-DD"`.
 - `schedule_date_changes`: a complete replacement `day` for one `date`, linked by `weeklyScheduleId` to the timetable being changed. It can change hours, add a session, retain a cancelled session, or close that date. An override belongs to its weekly revision; a future admin must review/rebase it when publishing a replacement revision.
-- `schedule_seed_runs`: completion marker for the approved initial seed.
+- `schedule_seed_runs`: the `approved-weekly-v1` completion marker and its original `completedAt`.
 
-Only `publicationStatus: "published"` documents are read by the API. It selects the latest effective weekly revision and then the latest published one-date replacement for that revision. Drafts remain hidden. A complete weekly document lets a future admin publish a coherent timetable in one write. For new doctors, publish their profiles before publishing a timetable that references them. Published profile updates can change displayed names/specialties; keeping full profile history is a future enhancement.
+Weekly timetables and date exceptions still require `publicationStatus: "published"`; profiles require only `active: true`. The API selects the latest effective weekly revision and then the latest published one-date replacement for that revision. Drafts remain hidden. Weekly records have no `centerId` or `source`; their baseline null effective date and publication timestamp are retained. A complete weekly document lets a future admin publish a coherent timetable in one write. Create/activate referenced profiles before publishing their sessions. Broken or inactive published profile references return an error rather than silently removing a professional. Keeping full profile history is a future enhancement.
 
 The future authenticated Clinic Admin layer will manage drafts, validate references, set publication timestamps and audit the authorized publisher. This stage supplies the storage and read resolution, with **no schedule-writing HTTP endpoints**. GET requests perform no writes.
 
-## Repeatable seed and superseded records
+## Repeatable seed
 
 The initial seed inserts 16 doctor profiles, 3 specialist profiles and one published weekly timetable. Stable IDs plus `$setOnInsert` protect existing records during partial-run recovery. Once the completion marker exists, reruns do no initialization writes, so later admin edits or removals are preserved. The reader never uses seed constants as fallback data.
 
-The earlier 12 records remain untouched in `public_schedule_days`. Their exact IDs are listed in `apps/api/src/legacy-schedule-records.js`; the seed reports which are present. The live API never reads that collection, so those records cannot affect Home or Schedule. No collections are deleted.
+To inspect MongoDB, use the database selected by `MONGODB_DB_NAME` and view `doctor_profiles`, `specialist_profiles`, `weekly_schedules`, `schedule_date_changes` and `schedule_seed_runs`. The baseline timetable ID is `weekly:approved-v1`. Existing namespaced data must be migrated before running initialization; its old completion marker also prevents accidental reseeding.
 
-To inspect MongoDB, use the database selected by `MONGODB_DB_NAME` and view `doctor_profiles`, `specialist_profiles`, `weekly_schedules`, `schedule_date_changes` and `schedule_seed_runs`. The baseline timetable ID is `cedar:weekly:approved-v1`.
+## Development schema migration and recovery
+
+This narrowly scoped migration is restricted to the configured `medical-center-dev` database and requires a replica set with transactions. Keep the local API running with the migration read gate loaded. It never changes credentials, access rules, TLS settings, or other databases.
+
+```powershell
+npm run migrate:schema --workspace @medical-center/api -- --dry-run --database medical-center-dev
+npm run migrate:schema --workspace @medical-center/api -- --apply --database medical-center-dev
+```
+
+Dry run is read-only and reports ID remaps, counts, and index cleanup. Apply first captures and verifies all six affected collections under ignored `.tmp/schema-cleanup/backups/<timestamp-id>/medical-center-dev/`. Each `.bson` contains the original BSON bytes; companion metadata preserves collection options/indexes, and `manifest.json` records counts and checksums. Treat these backups as private local artifacts, not Git content. The obsolete 12 `public_schedule_days` announcements are archived there, then that collection alone is dropped. Readers and initialization never reconstruct the timetable from these announcements.
+
+Profiles, weekly references, date exceptions, and the completion marker are remapped together in one snapshot/majority transaction. Collisions, unknown profiles, missing references, or data changed since backup stop the migration. New Schedule/Directory requests temporarily receive 503; existing reads finish first. Health checks and database recovery remain available. Obsolete indexes and the archived legacy collection are removed after the transaction while the read gate remains closed. A second apply takes a fresh backup but performs no database writes once clean; completed seed reruns do not overwrite edits or resurrect removed profiles.
+
+Recovery: inspect the backup's `result.json` before acting. A transaction failure rolls back the related record changes. A failure after commit can be recovered by rerunning the migration to finish index/archive cleanup. A hard process interruption can leave `.tmp/schema-cleanup/public-data.lock` in place (fail closed): confirm its PID is no longer running and review database/backup state before removing that exact lock file. Do not stop unrelated processes. For a deliberate rollback, use the original pre-migration BSON and metadata to restore only the backed-up collections in `medical-center-dev` while public readers are gated. Have the restore reviewed first; bulk restore overwrites later edits. MongoDB Database Tools can read these BSON dumps, but this increment does not execute a destructive restore or require those tools.
 
 ## Checks
 
@@ -51,9 +70,9 @@ npm run build
 git diff --check
 ```
 
-Tests cover recurring weekdays, Saturday hours, Sunday closure, appointment-required flags, protected seed reruns, date overrides/cancellations, future publications, hidden drafts, isolated old records, Beirut dates, validation and read-only HTTP behavior. Date-change and future-admin tests use synthetic fixtures.
+Tests cover recurring weekdays, Saturday hours, Sunday closure, appointment-required flags, protected seed reruns, date overrides/cancellations, future publications, hidden drafts, Beirut dates, validation and read-only HTTP behavior. Migration tests cover ID/reference remapping, collisions, reruns, original BSON preservation, backup verification, concurrency guards, transaction-only replacement, and the public read gate. Date-change, migration, and future-admin tests use synthetic fixtures; tests do not write to MongoDB.
 
-Frontend tests cover all 14 supplied specialty icons, ENT aliases, the display-only Therapist label, and an unknown-specialty fallback. Icon source/redistribution licensing remains unverified; see `apps/web/src/assets/specialties/README.md`. The dedicated Doctors page is not implemented yet: Our Doctors currently links to the Home section.
+Directory tests also cover active-profile visibility/projection, inclusion of both professional types, local search/clearing, Therapist wording, server-derived avatars/failure handling, and retryable loading. Frontend tests retain coverage of all 14 supplied specialty icons, ENT aliases, and the unknown-specialty fallback. The owner confirms supplied icon/avatar assets are licensed; accompanying notices and visible avatar watermarks are preserved. See the asset READMEs for provenance. The server derives `avatarVariant` from stored gender without exposing raw gender; missing/invalid gender gives a neutral fallback. Frontend artwork selection uses this safe choice, not a profile-ID assignment list. Current stored Therapist wording and Zeinab Mkahhel spelling are preserved.
 
 ## Intended scope
 

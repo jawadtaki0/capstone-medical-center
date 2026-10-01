@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import Icon from "../components/Icon.jsx";
 import SpecialtyIcon from "../components/SpecialtyIcon.jsx";
+import GrainientPage from "../components/GrainientPage.jsx";
 import { specialtyLabel } from "../data/specialties.js";
+import { professionalName } from "../data/professionalNames.js";
 import useSchedule from "../hooks/useSchedule.js";
 import { beirutToday, dateObject, addDays, mondayOf, formatDate, longDate, timeRange } from "../lib/scheduleDate.js";
 import "./schedule.css";
@@ -10,7 +12,7 @@ function SessionCard({ session, label, onPreview }) {
   return <article className="schedule-card">
     <div className="schedule-card-details">
       <p className="schedule-card-kicker">{label}</p>
-      <h3>{session.doctorName ?? session.name}</h3>
+      <h3>{professionalName(session.doctorName ?? session.name)}</h3>
       <p className="schedule-specialty specialty-line"><SpecialtyIcon specialty={session.specialty} /><span className="specialty-label">{specialtyLabel(session.specialty)}</span></p>
       {session.appointmentRequired && <p className="schedule-appointment-note">Appointment required</p>}
       <div className="schedule-card-meta">
@@ -41,7 +43,7 @@ export default function SchedulePage({ onPreview }) {
   const otherServices = schedule?.otherServices ?? [];
   const published = schedule?.publicationStatus === "published";
 
-  return <div className="schedule-page">
+  return <GrainientPage className="schedule-page">
     <div className="container schedule-shell">
       <div className="schedule-intro">
         <p className="eyebrow">PUBLIC SCHEDULE</p>
@@ -126,5 +128,5 @@ export default function SchedulePage({ onPreview }) {
         </>}
       </section>
     </div>
-  </div>;
+  </GrainientPage>;
 }

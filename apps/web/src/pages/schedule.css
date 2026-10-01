@@ -1,4 +1,4 @@
-.schedule-page { min-height: 65vh; background: linear-gradient(155deg, var(--white) 0%, var(--wash) 52%, var(--pale) 100%); }
+.schedule-page { min-height: 65vh; }
 .schedule-shell { padding-block: var(--s6); }
 .schedule-intro { max-width: 690px; margin-bottom: var(--s5); }
 .schedule-intro h1 { margin-bottom: var(--s2); }

@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createApp } from "../src/app.js";
 import { getBeirutToday, getScheduleForDate, isValidScheduleDate } from "../src/schedule.js";
-import { buildScheduleSeed, WEEKLY_SCHEDULE_ID } from "../src/schedule-seed-data.js";
-import { CENTER_ID, COLLECTIONS } from "../src/schedule-model.js";
-import { LEGACY_COLLECTION, LEGACY_SCHEDULE_IDS } from "../src/legacy-schedule-records.js";
+import { buildScheduleSeed, SEED_ID, WEEKLY_SCHEDULE_ID } from "../src/schedule-seed-data.js";
+import { COLLECTIONS } from "../src/schedule-model.js";
 import { seedPublicSchedules } from "../src/seed-schedule.js";
 
 function memoryDatabase() {
@@ -43,16 +42,16 @@ function memoryDatabase() {
     collection(name) {
       return {
         async findOne(query, options = {}) {
-          calls.push({ name, operation: "read" });
+          calls.push({ name, operation: "read", query, options });
           return structuredClone(selected(name, query, options.sort)[0] ?? null);
         },
-        find(query) {
+        find(query, options = {}) {
           return { async toArray() {
-            calls.push({ name, operation: "read" });
+            calls.push({ name, operation: "read", query, options });
             return structuredClone(selected(name, query));
           } };
         },
-        async createIndex() { calls.push({ name, operation: "index" }); },
+        async createIndex(keys) { calls.push({ name, operation: "index", keys }); },
         async updateOne({ _id }, update, options) {
           calls.push({ name, operation: "write" });
           assert.deepEqual(options, { upsert: true });
@@ -71,6 +70,72 @@ async function seededDatabase() {
   await seedPublicSchedules(db);
   return db;
 }
+
+test("initialization uses neutral IDs, confirmed genders, current wording and the agreed schema", () => {
+  const timestamp = "2026-10-01T09:00:00.000Z";
+  const seed = buildScheduleSeed(timestamp);
+  assert.equal(SEED_ID, "approved-weekly-v1");
+  assert.equal(WEEKLY_SCHEDULE_ID, "weekly:approved-v1");
+  const profiles = [...seed.doctors, ...seed.specialists];
+  const femaleIds = [
+    "doctor:diana-sharafeddin", "doctor:narjes-fadlallah", "doctor:rola-reslan",
+    "doctor:zahraa-badawi", "doctor:sawsan-el-korsifi", "specialist:taghreed-doueibes",
+    "specialist:maya-najdi", "specialist:zeinab-makahhel",
+  ];
+  assert.equal(profiles.length, 19);
+  assert.equal(profiles.filter(({ gender }) => gender === "male").length, 11);
+  assert.deepEqual(profiles.filter(({ gender }) => gender === "female").map(({ _id }) => _id).sort(), femaleIds.sort());
+  for (const profile of profiles) {
+    assert.deepEqual(Object.keys(profile).sort(), ["_id", "active", "gender", "name", "specialty"]);
+    assert.match(profile._id, /^(doctor|specialist):/);
+    assert.equal(profile.active, true);
+  }
+  assert.equal(seed.specialists.find(({ _id }) => _id === "specialist:maya-najdi").specialty, "Therapist");
+  assert.equal(seed.specialists.find(({ _id }) => _id === "specialist:zeinab-makahhel").name, "Zeinab Mkahhel");
+  assert.deepEqual(Object.keys(seed.weeklySchedule).sort(), ["_id", "days", "effectiveFrom", "publicationStatus", "publishedAt"]);
+  assert.equal(seed.weeklySchedule.effectiveFrom, null);
+  assert.equal(seed.weeklySchedule.publishedAt, timestamp);
+  assert.deepEqual(Object.keys(seed.weeklySchedule.days), ["0", "1", "2", "3", "4", "5", "6"]);
+  const doctorIds = new Set(seed.doctors.map(({ _id }) => _id));
+  const specialistIds = new Set(seed.specialists.map(({ _id }) => _id));
+  for (const day of Object.values(seed.weeklySchedule.days)) {
+    for (const session of day.doctorSessions) assert.equal(doctorIds.has(session.doctorId), true);
+    for (const session of day.specialistSessions) assert.equal(specialistIds.has(session.specialistId), true);
+    for (const session of [...day.doctorSessions, ...day.specialistSessions]) assert.equal(session.id.startsWith("cedar:"), false);
+  }
+});
+
+test("completed neutral seed marker preserves its timestamp and prevents all writes", async () => {
+  const db = memoryDatabase();
+  const marker = { _id: SEED_ID, completedAt: "2026-09-30T15:00:00.000Z" };
+  db.put(COLLECTIONS.seeds, marker);
+  assert.deepEqual(await seedPublicSchedules(db), { inserted: 0, status: "already_completed" });
+  assert.deepEqual(db.records(COLLECTIONS.seeds).get(SEED_ID), marker);
+  assert.equal(db.records(COLLECTIONS.doctors).size, 0);
+  assert.equal(db.calls.some(({ operation }) => operation !== "read"), false);
+});
+
+test("old completion marker or profile data requires migration before seed writes", async () => {
+  for (const [collection, document] of [
+    [COLLECTIONS.seeds, { _id: `cedar:${SEED_ID}`, completedAt: "2026-09-30T15:00:00.000Z" }],
+    [COLLECTIONS.doctors, { _id: "cedar:doctor:hasan-rahal", name: "Synthetic retained profile" }],
+    [COLLECTIONS.weekly, { _id: `cedar:${WEEKLY_SCHEDULE_ID}` }],
+  ]) {
+    const db = memoryDatabase();
+    db.put(collection, document);
+    await assert.rejects(seedPublicSchedules(db), /must be migrated/);
+    assert.deepEqual(db.records(collection).get(document._id), document);
+    assert.equal(db.calls.some(({ operation }) => operation !== "read"), false);
+  }
+});
+
+test("initialization creates neutral schedule indexes, never profile publication indexes", async () => {
+  const db = await seededDatabase();
+  assert.deepEqual(db.calls.filter(({ operation }) => operation === "index").map(({ name, keys }) => [name, keys]), [
+    [COLLECTIONS.weekly, { publicationStatus: 1, effectiveFrom: -1, publishedAt: -1 }],
+    [COLLECTIONS.changes, { weeklyScheduleId: 1, date: 1, publicationStatus: 1, publishedAt: -1 }],
+  ]);
+});
 
 test("weekly sessions recur until another publication takes effect", async () => {
   const db = await seededDatabase();
@@ -121,7 +186,7 @@ test("Saturday has its own hours and both 09:30–13:00 therapy sessions", async
   assert.deepEqual(schedule.centerHours, { startTime: "08:00", endTime: "13:00" });
   assert.deepEqual(schedule.otherServices.map(({ startTime, endTime }) => [startTime, endTime]), [["08:00", "13:00"], ["09:00", "13:00"]]);
   assert.deepEqual(schedule.specialistSessions.map(({ name, startTime, endTime }) => [name, startTime, endTime]), [
-    ["Zeinab Makahhel", "09:30", "13:00"], ["Maya Najdi", "09:30", "13:00"],
+    ["Zeinab Mkahhel", "09:30", "13:00"], ["Maya Najdi", "09:30", "13:00"],
   ]);
 });
 
@@ -144,23 +209,23 @@ test("no-walk-in flags require an appointment without blocking advance booking",
   };
   assert.deepEqual(await requiredNames("2026-10-01"), ["Dr. Narjes Fadlallah", "Taghreed Doueibes"]);
   assert.deepEqual(await requiredNames("2026-10-02"), ["Dr. Ezzat Hashem", "Dr. Issam Al-Tawil", "Dr. Sawsan El-Korsifi", "Dr. Soleiman Jibawi"]);
-  assert.deepEqual(await requiredNames("2026-10-03"), ["Dr. Hasan Ezzeddine", "Maya Najdi", "Zeinab Makahhel"]);
+  assert.deepEqual(await requiredNames("2026-10-03"), ["Dr. Hasan Ezzeddine", "Maya Najdi", "Zeinab Mkahhel"]);
   assert.deepEqual(await requiredNames("2026-09-30"), []);
   assert.deepEqual(await requiredNames("2026-09-28"), []);
 });
 
 test("completed seed reruns preserve admin edits, removals and published changes", async () => {
   const db = await seededDatabase();
-  const profile = db.records(COLLECTIONS.doctors).get("cedar:doctor:hasan-rahal");
+  const profile = db.records(COLLECTIONS.doctors).get("doctor:hasan-rahal");
   profile.specialty = "Synthetic edited specialty";
-  db.records(COLLECTIONS.specialists).delete("cedar:specialist:maya-najdi");
+  db.records(COLLECTIONS.specialists).delete("specialist:maya-najdi");
   db.records(COLLECTIONS.weekly).get(WEEKLY_SCHEDULE_ID).days[1].centerHours.endTime = "16:00";
   const before = db.calls.length;
   const result = await seedPublicSchedules(db);
   assert.equal(result.inserted, 0);
   assert.equal(result.status, "already_completed");
   assert.equal(profile.specialty, "Synthetic edited specialty");
-  assert.equal(db.records(COLLECTIONS.specialists).has("cedar:specialist:maya-najdi"), false);
+  assert.equal(db.records(COLLECTIONS.specialists).has("specialist:maya-najdi"), false);
   assert.equal(db.records(COLLECTIONS.weekly).get(WEEKLY_SCHEDULE_ID).days[1].centerHours.endTime, "16:00");
   assert.equal(db.calls.slice(before).some(({ operation }) => operation !== "read"), false);
 });
@@ -170,23 +235,20 @@ test("an interrupted first seed resumes without overwriting existing profiles", 
   db.put(COLLECTIONS.doctors, { ...buildScheduleSeed().doctors[0], specialty: "Synthetic retained edit" });
   const result = await seedPublicSchedules(db);
   assert.equal(result.inserted, 19);
-  assert.equal(db.records(COLLECTIONS.doctors).get("cedar:doctor:hasan-ezzeddine").specialty, "Synthetic retained edit");
+  assert.equal(db.records(COLLECTIONS.doctors).get("doctor:hasan-ezzeddine").specialty, "Synthetic retained edit");
   assert.equal(db.records(COLLECTIONS.weekly).size, 1);
 });
 
-test("the exact old records are identified, preserved, and never read by the live resolver", async () => {
+test("obsolete announcements are never queried by the seed or live resolver", async () => {
   const db = memoryDatabase();
-  for (const _id of LEGACY_SCHEDULE_IDS) db.put(LEGACY_COLLECTION, { _id, doctorName: "Synthetic legacy record" });
-  db.put(LEGACY_COLLECTION, { _id: "unrelated-record", doctorName: "Synthetic unrelated record" });
-  const before = structuredClone([...db.records(LEGACY_COLLECTION).values()]);
-  const result = await seedPublicSchedules(db);
-  assert.equal(result.legacyIds.length, 12);
-  assert.deepEqual([...db.records(LEGACY_COLLECTION).values()], before);
-  db.calls.length = 0;
+  const legacyCollection = "public_schedule_days";
+  db.put(legacyCollection, { _id: "synthetic-old-day", doctorName: "Synthetic legacy record" });
+  const before = structuredClone([...db.records(legacyCollection).values()]);
+  await seedPublicSchedules(db);
   const schedule = await getScheduleForDate("2026-09-07", db);
   assert.equal(schedule.doctorSessions.length, 3);
-  assert.equal(db.calls.some(({ name }) => name === LEGACY_COLLECTION), false);
-  assert.equal(db.calls.some(({ operation }) => operation !== "read"), false);
+  assert.equal(db.calls.some(({ name }) => name === legacyCollection), false);
+  assert.deepEqual([...db.records(legacyCollection).values()], before);
 });
 
 test("published one-date changes support cancellation, time changes, additions and services", async () => {
@@ -197,15 +259,15 @@ test("published one-date changes support cancellation, time changes, additions a
   day.centerHours.endTime = "16:00";
   day.otherServices[1].status = "cancelled";
   db.put(COLLECTIONS.doctors, {
-    _id: "synthetic-doctor", centerId: CENTER_ID, name: "Dr. Synthetic Test",
-    specialty: "Synthetic test specialty", publicationStatus: "published", active: true,
+    _id: "doctor:synthetic", name: "Dr. Synthetic Test",
+    specialty: "Synthetic test specialty", active: true, gender: "male",
   });
   day.doctorSessions.push({
-    id: "synthetic-added-session", doctorId: "synthetic-doctor", startTime: "14:00",
+    id: "synthetic-added-session", doctorId: "doctor:synthetic", startTime: "14:00",
     endTime: "15:00", status: "active", appointmentRequired: true,
   });
   db.put(COLLECTIONS.changes, {
-    _id: "synthetic-date-change", centerId: CENTER_ID, weeklyScheduleId: WEEKLY_SCHEDULE_ID,
+    _id: "synthetic-date-change", weeklyScheduleId: WEEKLY_SCHEDULE_ID,
     date: "2026-09-30", publicationStatus: "published", publishedAt: "2026-09-29T10:00:00Z", day,
   });
   const changed = await getScheduleForDate("2026-09-30", db);
@@ -229,11 +291,11 @@ test("future weekly publications take effect on their date and drafts stay hidde
   db.put(COLLECTIONS.weekly, revision);
   db.put(COLLECTIONS.weekly, { ...revision, _id: "synthetic-draft", publicationStatus: "draft", effectiveFrom: "2026-10-12" });
   db.put(COLLECTIONS.changes, {
-    _id: "synthetic-draft-change", centerId: CENTER_ID, weeklyScheduleId: revision._id,
+    _id: "synthetic-draft-change", weeklyScheduleId: revision._id,
     date: "2026-10-05", publicationStatus: "draft", day: buildScheduleSeed().weeklySchedule.days[0],
   });
   db.put(COLLECTIONS.changes, {
-    _id: "synthetic-stale-change", centerId: CENTER_ID, weeklyScheduleId: WEEKLY_SCHEDULE_ID,
+    _id: "synthetic-stale-change", weeklyScheduleId: WEEKLY_SCHEDULE_ID,
     date: "2026-10-05", publicationStatus: "published", day: buildScheduleSeed().weeklySchedule.days[0],
   });
   const surgeonStart = async (date) => (await getScheduleForDate(date, db)).doctorSessions.find(({ doctorName }) => doctorName === "Dr. Issam Al-Tawil").startTime;
@@ -288,9 +350,28 @@ test("API rejects invalid dates and exposes no schedule-writing endpoint", async
 
 test("database failures produce 503 and missing profiles do not silently hide sessions", async (context) => {
   const db = await seededDatabase();
-  db.records(COLLECTIONS.doctors).delete("cedar:doctor:hasan-ezzeddine");
+  db.records(COLLECTIONS.doctors).delete("doctor:hasan-ezzeddine");
   await assert.rejects(getScheduleForDate("2026-09-30", db), /unavailable profile/);
   const response = await apiResponse(context, "/api/schedule?date=2026-09-30", async () => { throw new Error("Synthetic test outage"); });
   assert.equal(response.status, 503);
   assert.equal(response.body.error, "schedule_unavailable");
+});
+
+test("schedule profile lookup uses only active visibility and safe public fields", async () => {
+  const db = await seededDatabase();
+  db.calls.length = 0;
+  const schedule = await getScheduleForDate("2026-09-30", db);
+  assert.equal(schedule.doctorSessions.length, 5);
+  assert.equal(schedule.specialistSessions.length, 1);
+  const reads = db.calls.filter(({ name }) => [COLLECTIONS.doctors, COLLECTIONS.specialists].includes(name));
+  for (const { query, options } of reads) {
+    assert.deepEqual(Object.keys(query).sort(), ["_id", "active"]);
+    assert.equal(query.active, true);
+    assert.deepEqual(options.projection, { _id: 1, name: 1, specialty: 1 });
+    assert.equal(query._id.$in.every((id) => !id.startsWith("cedar:")), true);
+  }
+  assert.equal(db.calls.some(({ operation }) => operation !== "read"), false);
+  const profile = db.records(COLLECTIONS.doctors).get("doctor:hasan-ezzeddine");
+  profile.active = false;
+  await assert.rejects(getScheduleForDate("2026-09-30", db), /unavailable profile/);
 });

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-// One low-resolution WebGL surface spans the entire below-hero Home content.
+// One low-resolution WebGL surface per page shell (below the hero on Home).
 // The soft moving color field is adapted from React Bits' Grainient idea; the
 // source shader's vivid palette, grain animation, and many controls are omitted.
 const vertexSource = `#version 300 es
