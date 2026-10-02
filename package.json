@@ -11,7 +11,15 @@
     "dev:api": "npm run dev --workspace @medical-center/api",
     "build": "npm run build --workspace @medical-center/web",
     "start": "npm run start --workspace @medical-center/api",
-    "test": "npm run test --workspace @medical-center/api"
+    "test": "npm run test --workspace @medical-center/api",
+    "staff:prepare": "node apps/staff-api/scripts/prepare-local.js",
+    "staff:db": "node apps/staff-api/scripts/start-mongo.js",
+    "staff:bootstrap": "node apps/staff-api/scripts/bootstrap.js",
+    "staff:api": "node apps/staff-api/src/server.js",
+    "staff:app": "npm run start --workspace @medical-center/staff --",
+    "staff:build": "npm run build --workspace @medical-center/staff",
+    "staff:package": "npm run package --workspace @medical-center/staff",
+    "staff:test": "npm run test --workspace @medical-center/staff-api && npm run test --workspace @medical-center/staff"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"

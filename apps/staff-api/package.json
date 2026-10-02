@@ -1,0 +1,21 @@
+{
+  "name": "@medical-center/staff-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:local": "node scripts/prepare-local.js",
+    "db:start": "node scripts/start-mongo.js",
+    "bootstrap": "node scripts/bootstrap.js",
+    "start": "node src/server.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
+  "dependencies": {
+    "argon2": "0.45.1",
+    "express": "5.2.1",
+    "helmet": "8.3.0",
+    "mongodb": "7.7.0",
+    "otplib": "13.5.0"
+  },
+  "engines": { "node": ">=22" }
+}

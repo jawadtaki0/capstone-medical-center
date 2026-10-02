@@ -6,7 +6,7 @@ A medical-center website and operations-system capstone. Cedar is temporary prot
 
 The responsive Home and Schedule pages share the MongoDB-backed public schedule API. The weekly timetable repeats until an authorized Clinic Admin publishes a change. Monday–Friday: center 8:00 AM–5:00 PM, laboratory 8:00 AM–2:30 PM, audiometry 9:00 AM–2:30 PM. Saturday: center/laboratory 8:00 AM–1:00 PM and audiometry 9:00 AM–1:00 PM. Sunday is closed.
 
-"No walk-in" is stored and displayed as **appointment required**. Phone and future online advance bookings remain possible. Booking capacity has not been confirmed and is absent from this model. Booking controls open a prototype message. Authentication, booking, Clinic Admin editing, patient records, lab results, billing and WhatsApp delivery are not implemented.
+"No walk-in" is stored and displayed as **appointment required**. Phone and future online advance bookings remain possible. Booking capacity has not been confirmed and is absent from this model. Booking controls open a prototype message. Public/patient authentication, booking, Clinic Admin editing, patient records, lab results, billing and WhatsApp delivery are not implemented. The separate synthetic staff-access foundation is described below.
 
 The licensed hero photo stays outside the public repository; deployment supplies it separately. Other branding, contact details and service copy remain provisional.
 
@@ -77,3 +77,63 @@ Directory tests also cover active-profile visibility/projection, inclusion of bo
 ## Intended scope
 
 The planned system includes public pages, full-doctor-session booking with shared online/receptionist capacity once confirmed, an FCFS check-in queue, staff-approved extra walk-ins, patient access to approved lab PDFs, and separate clinic/lab reception workflows. Development messaging uses mock/synthetic delivery; live WhatsApp requires authorized integration access. No online lab booking, online payment, pharmacy, insurance, AI chatbot or electronic doctor notes are planned for the first version.
+
+## Windows staff-access development foundation
+
+`apps/staff` packages a trusted local React interface in Electron; `apps/staff-api` is a separate Express authority. This increment contains one-time first-Admin setup, complete synthetic profile entry, password sign-in, mandatory authenticator MFA for the four administrative roles, private single-use backup codes, a permission-checked workspace, sign-out, and server-enforced session expiry. It does not contain account management or operational appointment, schedule, patient, lab or billing screens.
+
+Use synthetic information only. The staff runtime never reads the public API's environment file or uses Atlas. It refuses targets other than its isolated loopback replica set and dedicated `capstone_staff_dev` / `capstone_staff_test` databases. One shared authority is intended; clients have no MongoDB credentials or independently writable database.
+
+### Prepare and start
+
+Requires Windows, Node 22.12 or newer, and the existing MongoDB Server 8.2 binary in its standard installation directory. Preparation creates a separate authenticated single-host replica set on **127.0.0.1:27018**, not the existing service on 27017. It creates no Windows service, firewall rule or certificate-trust setting. Persistent data, DPAPI-protected authority material and restricted local files live under `%LOCALAPPDATA%/CapstoneStaffDev`, outside the repository and OneDrive. Preparation is repeatable and never recreates an Admin automatically.
+
+```powershell
+npm install
+npm run staff:prepare -- --demo-loopback
+npm run staff:db -- --demo-loopback
+```
+
+Keep the database command running. In another terminal:
+
+```powershell
+npm run staff:bootstrap -- --demo-loopback
+npm run staff:api -- --demo-loopback
+```
+
+In a third terminal:
+
+```powershell
+npm run staff:app -- --demo-loopback
+```
+
+HTTP requires the explicit `--demo-loopback` flag and is restricted to this computer. Without the flag, the app requires HTTPS and the development API refuses to start. There is no certificate-validation bypass or insecure LAN mode. The staff API uses 4100, separately from the public API's 4000.
+
+Privately reveal the installation code in a local dialog, never in a log or screenshot:
+
+```powershell
+npm run staff:bootstrap -- --demo-loopback --reveal
+```
+
+It expires after 30 minutes and five incorrect attempts. Before the first account is created, `--reissue` replaces it and invalidates the previous code. After account creation bootstrap is permanently closed, even after a restart or account deletion. Choose your own 15–128-character passphrase; no preset Admin/password is provided. If setup stops during MFA, sign in with the chosen username/password to resume. The pending authenticator key survives interrupted enrollment. Backup codes are shown once; acknowledgement remains required after restart. If they were not saved, they cannot be redisplayed here; factor/code replacement is deferred. Recovery email is unverified and unused.
+
+Background health/session polling never renews the session. Deliberate foreground input reports activity at most every 30 seconds. The warning appears after nine idle minutes; the server expires access at ten minutes and after eight hours absolutely. Tokens stay in Electron main-process memory, not renderer storage. API/database/key failure blocks access rather than permitting cached login.
+
+### Tests and Windows package
+
+With the separate staff database running:
+
+```powershell
+npm run staff:test
+npm run staff:build
+npm run test:electron --workspace @medical-center/staff
+npm run staff:package
+npm run test:electron --workspace @medical-center/staff -- --packaged
+git diff --check
+```
+
+Integration/Electron tests are explicitly guarded to use only the seven synthetic staff collections in `capstone_staff_test`; they must run sequentially, not alongside another test run. They reset those fixtures, never the development/public databases. The Electron check saves only non-secret screens under ignored `.local/staff-review`.
+
+Packaging produces `apps/staff/release/Cedar Staff Development Setup 0.1.0.exe` and `apps/staff/release/win-unpacked/Cedar Staff Development.exe`. Start the unpacked executable with `--demo-loopback` for the same-computer development demonstration. Release/test artifacts are ignored, not public source. This package is unsigned; installer creation or unpacked execution does not establish installation, code-signing, secure updates or real-center deployment readiness. Do not bypass Windows security warnings.
+
+Local authentication uses bundled assets, a local API/database and authenticator codes; it has no CDN/cloud-authentication/email dependency. External-network independence is checked at application level without disconnecting the computer or changing its network settings. Multi-computer/LAN operation, remote access, server hardware/power, key backup/recovery and real-center installation remain unverified. A single-host replica set supports transactions but is not redundancy. Loss of both Admins' factors has no implemented recovery/backdoor, and bootstrap must not be rerun. Never delete the private runtime to attempt account recovery.
