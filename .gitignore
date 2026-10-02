@@ -14,3 +14,9 @@ npm-debug.log*
 
 # Licensed hero photo stays local and out of the public Git repository.
 /apps/web/local-assets/
+
+# Private staff runtime, test evidence and Windows packaging output.
+/.local/
+/apps/staff/release/
+/apps/staff/test-results/
+/apps/staff/playwright-report/

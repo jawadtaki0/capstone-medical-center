@@ -1,0 +1,35 @@
+{
+  "name": "@medical-center/staff",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "package": "npm run build && electron-builder --win nsis --x64",
+    "test": "node --test test/*.test.js",
+    "test:electron": "node scripts/verify-electron.js"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "playwright": "1.63.0",
+    "vite": "8.3.1"
+  },
+  "build": {
+    "appId": "org.capstone.cedar.staff",
+    "productName": "Cedar Staff Development",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "asar": true,
+    "win": { "target": "nsis", "signAndEditExecutable": false },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": false, "createStartMenuShortcut": false }
+  }
+}
