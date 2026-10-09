@@ -12,29 +12,51 @@ function fakeClient({ connect = async () => {}, ping = async () => {} } = {}) {
     },
   };
   return {
-    calls, database,
-    async connect() { calls.connect += 1; await connect(); },
-    db(name) { assert.equal(name, "synthetic_test"); return database; },
-    async close() { calls.close += 1; },
+    calls,
+    database,
+    async connect() {
+      calls.connect += 1;
+      await connect();
+    },
+    db(name) {
+      assert.equal(name, "synthetic_test");
+      return database;
+    },
+    async close() {
+      calls.close += 1;
+    },
   };
 }
 
 function connectionWith(createClient) {
-  return createDatabaseConnection({ uri: "synthetic-uri", dbName: "synthetic_test", createClient });
+  return createDatabaseConnection({
+    uri: "synthetic-uri",
+    dbName: "synthetic_test",
+    createClient,
+  });
 }
 
 test("missing configuration never attempts a connection", async () => {
-  const connection = createDatabaseConnection({ uri: null, createClient: () => assert.fail("No client expected") });
+  const connection = createDatabaseConnection({
+    uri: null,
+    createClient: () => assert.fail("No client expected"),
+  });
   assert.equal(await connection.connect(), null);
   assert.equal(await connection.health(), "not-configured");
   assert.throws(connection.get, /not connected/);
 });
 
 test("failed startup cleans up and a later attempt recovers without a restart", async () => {
-  const failed = fakeClient({ connect: async () => { throw new Error("Synthetic TLS failure"); } });
+  const failed = fakeClient({
+    connect: async () => {
+      throw new Error("Synthetic TLS failure");
+    },
+  });
   const recovered = fakeClient();
   let attempts = 0;
-  const connection = connectionWith(() => ++attempts === 1 ? failed : recovered);
+  const connection = connectionWith(() =>
+    ++attempts === 1 ? failed : recovered,
+  );
   await assert.rejects(connection.connect(), /Synthetic TLS/);
   assert.equal(connection.status(), "unavailable");
   assert.equal(failed.calls.close, 1);
@@ -48,8 +70,15 @@ test("failed startup cleans up and a later attempt recovers without a restart", 
 test("concurrent startup/health/retry calls share one attempt and client", async () => {
   const client = fakeClient();
   let clients = 0;
-  const connection = connectionWith(() => { clients += 1; return client; });
-  const [first, second, health] = await Promise.all([connection.connect(), connection.connect(), connection.health()]);
+  const connection = connectionWith(() => {
+    clients += 1;
+    return client;
+  });
+  const [first, second, health] = await Promise.all([
+    connection.connect(),
+    connection.connect(),
+    connection.health(),
+  ]);
   assert.equal(first, client.database);
   assert.equal(second, first);
   assert.equal(health, "connected");
@@ -61,10 +90,14 @@ test("concurrent startup/health/retry calls share one attempt and client", async
 
 test("health reuses the pool, detects a later outage, and permits recovery", async () => {
   let unavailable = false;
-  const first = fakeClient({ ping: async () => { if (unavailable) throw new Error("Synthetic outage"); } });
+  const first = fakeClient({
+    ping: async () => {
+      if (unavailable) throw new Error("Synthetic outage");
+    },
+  });
   const second = fakeClient();
   let clients = 0;
-  const connection = connectionWith(() => ++clients === 1 ? first : second);
+  const connection = connectionWith(() => (++clients === 1 ? first : second));
   assert.equal(await connection.health(), "connected");
   assert.equal(await connection.health(), "connected");
   assert.equal(clients, 1);
@@ -79,7 +112,9 @@ test("health reuses the pool, detects a later outage, and permits recovery", asy
 
 test("closing during startup prevents late publication of the database", async () => {
   let finishConnect;
-  const waiting = new Promise((resolve) => { finishConnect = resolve; });
+  const waiting = new Promise((resolve) => {
+    finishConnect = resolve;
+  });
   const client = fakeClient({ connect: () => waiting });
   const connection = connectionWith(() => client);
   const pending = connection.connect();

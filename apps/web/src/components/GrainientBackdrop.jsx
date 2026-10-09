@@ -44,7 +44,9 @@ function compile(gl, type, source) {
 
 export default function GrainientBackdrop() {
   const host = useRef(null);
-  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -54,15 +56,23 @@ export default function GrainientBackdrop() {
   }, []);
 
   useEffect(() => {
-    const previewFallback = import.meta.env.DEV && new URLSearchParams(window.location.search).get("grain") === "off";
+    const previewFallback =
+      import.meta.env.DEV &&
+      new URLSearchParams(window.location.search).get("grain") === "off";
     if (reducedMotion || previewFallback || !host.current) return;
     const container = host.current;
     const canvas = document.createElement("canvas");
     canvas.setAttribute("aria-hidden", "true");
     let gl;
     try {
-      gl = canvas.getContext("webgl2", { alpha: false, antialias: false, powerPreference: "low-power" });
-    } catch { return; }
+      gl = canvas.getContext("webgl2", {
+        alpha: false,
+        antialias: false,
+        powerPreference: "low-power",
+      });
+    } catch {
+      return;
+    }
     if (!gl) return; // The CSS background remains visible.
 
     let program;
@@ -82,10 +92,15 @@ export default function GrainientBackdrop() {
       gl.linkProgram(program);
       gl.deleteShader(vertex);
       gl.deleteShader(fragment);
-      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+        throw new Error(gl.getProgramInfoLog(program));
       buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+        gl.STATIC_DRAW,
+      );
       gl.useProgram(program);
       const position = gl.getAttribLocation(program, "position");
       gl.enableVertexAttribArray(position);
@@ -113,11 +128,18 @@ export default function GrainientBackdrop() {
       const rect = container.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width = Math.max(1, Math.min(1280, Math.round(rect.width * dpr)));
-      canvas.height = Math.max(1, Math.min(1200, Math.round(rect.height * dpr)));
+      canvas.height = Math.max(
+        1,
+        Math.min(1200, Math.round(rect.height * dpr)),
+      );
       draw();
     }
 
-    function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; lastFrame = 0; }
+    function stop() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      lastFrame = 0;
+    }
     function tick(now) {
       raf = requestAnimationFrame(tick);
       if (now - lastFrame < 1000 / 24) return;
@@ -126,7 +148,8 @@ export default function GrainientBackdrop() {
       draw();
     }
     function update() {
-      if (!failed && visible && !document.hidden && !raf) raf = requestAnimationFrame(tick);
+      if (!failed && visible && !document.hidden && !raf)
+        raf = requestAnimationFrame(tick);
       if (failed || !visible || document.hidden) stop();
       container.dataset.animation = raf ? "running" : "paused";
     }
@@ -141,7 +164,10 @@ export default function GrainientBackdrop() {
 
     const resize = new ResizeObserver(size);
     resize.observe(container);
-    const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; update(); });
+    const intersection = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      update();
+    });
     intersection.observe(container);
     document.addEventListener("visibilitychange", update);
     canvas.addEventListener("webglcontextlost", contextLost);

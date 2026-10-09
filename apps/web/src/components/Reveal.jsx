@@ -1,6 +1,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
-export default function Reveal({ children, className = "", direction = "up", delay = 0 }) {
+export default function Reveal({
+  children,
+  className = "",
+  direction = "up",
+  delay = 0,
+}) {
   const element = useRef(null);
   const observer = useRef(null);
   const revealed = useRef(false);
@@ -19,19 +24,28 @@ export default function Reveal({ children, className = "", direction = "up", del
   useLayoutEffect(() => {
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const node = element.current;
-    if (!node || motion.matches || !("IntersectionObserver" in window)
-      || node.getBoundingClientRect().top < window.innerHeight - 24) {
+    if (
+      !node ||
+      motion.matches ||
+      !("IntersectionObserver" in window) ||
+      node.getBoundingClientRect().top < window.innerHeight - 24
+    ) {
       show();
       return;
     }
 
     setState("pending");
-    observer.current = new IntersectionObserver(([entry]) => {
-      // A fast scroll can jump completely past an element between observer updates.
-      if (entry.isIntersecting || entry.boundingClientRect.bottom < 0) show();
-    }, { rootMargin: "0px 0px -24px 0px", threshold: 0.01 });
+    observer.current = new IntersectionObserver(
+      ([entry]) => {
+        // A fast scroll can jump completely past an element between observer updates.
+        if (entry.isIntersecting || entry.boundingClientRect.bottom < 0) show();
+      },
+      { rootMargin: "0px 0px -24px 0px", threshold: 0.01 },
+    );
     observer.current.observe(node);
-    const onMotionChange = () => { if (motion.matches) show(); };
+    const onMotionChange = () => {
+      if (motion.matches) show();
+    };
     motion.addEventListener("change", onMotionChange);
     return () => {
       observer.current?.disconnect();
@@ -47,6 +61,8 @@ export default function Reveal({ children, className = "", direction = "up", del
       data-direction={direction}
       style={{ "--reveal-delay": `${delay}ms` }}
       onFocusCapture={() => show(true)}
-    >{children}</div>
+    >
+      {children}
+    </div>
   );
 }

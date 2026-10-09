@@ -8,4 +8,3 @@ export const config = Object.freeze({
   mongoUri: process.env.MONGODB_URI?.trim() || null,
   mongoDbName: process.env.MONGODB_DB_NAME?.trim() || "medical_center_capstone",
 });
-

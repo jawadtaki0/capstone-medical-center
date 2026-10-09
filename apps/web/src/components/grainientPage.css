@@ -1,2 +1,11 @@
-.grainient-page { position: relative; isolation: isolate; overflow: clip; background: var(--wash); min-height: 65vh; }
-.grainient-page__content { position: relative; z-index: 1; }
+.grainient-page {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background: var(--wash);
+  min-height: 65vh;
+}
+.grainient-page__content {
+  position: relative;
+  z-index: 1;
+}

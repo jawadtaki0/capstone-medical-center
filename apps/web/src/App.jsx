@@ -16,13 +16,27 @@ export default function App() {
     setPreviewAction(action);
     dialog.current?.showModal();
   }
-  return <>
-    <a className="skip-link" href="#main">Skip to content</a>
-    <Header onPreview={showPreview} onSchedulePage={onSchedulePage} onDoctorsPage={onDoctorsPage} />
-    <main id="main" tabIndex={-1}>
-      {onDoctorsPage ? <DoctorsPage /> : onSchedulePage ? <SchedulePage onPreview={showPreview} /> : <HomePage onPreview={showPreview} />}
-    </main>
-    <Footer />
-    <PrototypeDialog dialogRef={dialog} action={previewAction} />
-  </>;
+  return (
+    <>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <Header
+        onPreview={showPreview}
+        onSchedulePage={onSchedulePage}
+        onDoctorsPage={onDoctorsPage}
+      />
+      <main id="main" tabIndex={-1}>
+        {onDoctorsPage ? (
+          <DoctorsPage />
+        ) : onSchedulePage ? (
+          <SchedulePage onPreview={showPreview} />
+        ) : (
+          <HomePage onPreview={showPreview} />
+        )}
+      </main>
+      <Footer />
+      <PrototypeDialog dialogRef={dialog} action={previewAction} />
+    </>
+  );
 }

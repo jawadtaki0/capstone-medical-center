@@ -15,9 +15,14 @@ async function refreshDatabase() {
   if (stopping) return;
   const state = getDatabaseStatus();
   if (state !== lastReportedState) {
-    if (state === "connected") console.log("MongoDB connected; public data is available.");
-    else if (state === "unavailable") console.warn("MongoDB unavailable; public data returns 503. Retrying in 5 seconds. Check Atlas IP access and network connectivity.");
-    else if (state === "not-configured") console.warn("MongoDB is not configured; public data returns 503.");
+    if (state === "connected")
+      console.log("MongoDB connected; public data is available.");
+    else if (state === "unavailable")
+      console.warn(
+        "MongoDB unavailable; public data returns 503. Retrying in 5 seconds. Check Atlas IP access and network connectivity.",
+      );
+    else if (state === "not-configured")
+      console.warn("MongoDB is not configured; public data returns 503.");
     lastReportedState = state;
   }
   if (state !== "not-configured") {
@@ -28,7 +33,9 @@ async function refreshDatabase() {
 
 // Listen immediately: a database handshake must not cause proxy ECONNREFUSED.
 const server = createApp().listen(config.port, () => {
-  console.log(`Medical center API listening on http://localhost:${config.port}`);
+  console.log(
+    `Medical center API listening on http://localhost:${config.port}`,
+  );
   void refreshDatabase();
 });
 
