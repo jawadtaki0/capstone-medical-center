@@ -12,6 +12,7 @@
     "test:electron": "node scripts/verify-electron.js"
   },
   "dependencies": {
+    "libphonenumber-js": "1.13.14",
     "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -26,10 +27,26 @@
   "build": {
     "appId": "org.capstone.cedar.staff",
     "productName": "Cedar Staff Development",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "shared/PHONE_METADATA_NOTICE.md",
+      "package.json"
+    ],
     "asar": true,
-    "win": { "target": "nsis", "signAndEditExecutable": false },
-    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": false, "createStartMenuShortcut": false }
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": false
+    }
   }
 }
