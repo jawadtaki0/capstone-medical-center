@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { specialtyDefinitions, getSpecialtyIcon, specialtyLabel } from "../src/data/specialties.js";
+import {
+  specialtyDefinitions,
+  getSpecialtyIcon,
+  specialtyLabel,
+} from "../src/data/specialties.js";
 import { existsSync } from "node:fs";
 
 test("all fourteen supplied icons have packaged assets", () => {
@@ -8,15 +12,22 @@ test("all fourteen supplied icons have packaged assets", () => {
   assert.equal(new Set(specialtyDefinitions.map((item) => item.id)).size, 14);
   for (const item of specialtyDefinitions) {
     assert.ok(existsSync(new URL(item.asset)), item.id);
-    for (const alias of item.aliases) assert.equal(getSpecialtyIcon(alias).id, item.id);
+    for (const alias of item.aliases)
+      assert.equal(getSpecialtyIcon(alias).id, item.id);
   }
 });
 
 test("ENT aliases, case, whitespace and equivalent specialty wording share icons", () => {
-  assert.equal(getSpecialtyIcon("ENT"), getSpecialtyIcon("ENT (Otolaryngology)"));
+  assert.equal(
+    getSpecialtyIcon("ENT"),
+    getSpecialtyIcon("ENT (Otolaryngology)"),
+  );
   assert.equal(getSpecialtyIcon("  ent   ( Otolaryngology ) ").id, "ent");
   assert.equal(getSpecialtyIcon("Dentist").id, "dentistry");
-  assert.equal(getSpecialtyIcon("Endocrinology and Diabetes").id, "endocrinology");
+  assert.equal(
+    getSpecialtyIcon("Endocrinology and Diabetes").id,
+    "endocrinology",
+  );
   assert.equal(getSpecialtyIcon("Gastreonterologist").id, "gastroenterology");
 });
 

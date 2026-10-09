@@ -28,12 +28,7 @@ const doctorDefinitions = [
 ];
 const specialistDefinitions = [
   ["taghreed-doueibes", "Taghreed Doueibes", "Dietitian", "female"],
-  [
-    "maya-najdi",
-    "Maya Najdi",
-    "Therapist",
-    "female",
-  ],
+  ["maya-najdi", "Maya Najdi", "Therapist", "female"],
   [
     "zeinab-makahhel",
     "Zeinab Mkahhel",

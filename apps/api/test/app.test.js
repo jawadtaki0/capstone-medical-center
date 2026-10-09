@@ -3,7 +3,9 @@ import test from "node:test";
 import { createApp } from "../src/app.js";
 
 test("GET /api/health reports the API and database state", async (context) => {
-  const server = createApp({ databaseHealthReader: async () => "connected" }).listen(0);
+  const server = createApp({
+    databaseHealthReader: async () => "connected",
+  }).listen(0);
   context.after(() => server.close());
 
   await new Promise((resolve) => server.once("listening", resolve));
@@ -19,7 +21,9 @@ test("GET /api/health reports the API and database state", async (context) => {
 
 test("health reports a fresh unavailable state instead of a stale startup success", async (context) => {
   let currentState = "connected";
-  const server = createApp({ databaseHealthReader: async () => currentState }).listen(0);
+  const server = createApp({
+    databaseHealthReader: async () => currentState,
+  }).listen(0);
   context.after(() => server.close());
   await new Promise((resolve) => server.once("listening", resolve));
   const url = `http://127.0.0.1:${server.address().port}/api/health`;

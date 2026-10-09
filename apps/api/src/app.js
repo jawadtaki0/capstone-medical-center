@@ -5,7 +5,11 @@ import { config } from "./config.js";
 import { checkDatabaseHealth } from "./db.js";
 import { getPublicProfessionals } from "./professionals.js";
 import { createPublicDataGate } from "./public-data-gate.js";
-import { getBeirutToday, getScheduleForDate, isValidScheduleDate } from "./schedule.js";
+import {
+  getBeirutToday,
+  getScheduleForDate,
+  isValidScheduleDate,
+} from "./schedule.js";
 
 export function createApp({
   scheduleReader = getScheduleForDate,
@@ -29,37 +33,44 @@ export function createApp({
     });
   });
 
-  app.get("/api/schedule", publicDataGate.guard(async (request, response) => {
-    const date = request.query.date ?? getBeirutToday();
-    if (!isValidScheduleDate(date)) {
-      response.status(400).json({
-        error: "invalid_date",
-        message: "Use a real calendar date in YYYY-MM-DD format.",
-      });
-      return;
-    }
-    try {
-      response.json(await scheduleReader(date));
-    } catch (error) {
-      console.error(`Schedule read failed: ${error.message}`);
-      response.status(503).json({
-        error: "schedule_unavailable",
-        message: "The public schedule could not be loaded right now.",
-      });
-    }
-  }));
+  app.get(
+    "/api/schedule",
+    publicDataGate.guard(async (request, response) => {
+      const date = request.query.date ?? getBeirutToday();
+      if (!isValidScheduleDate(date)) {
+        response.status(400).json({
+          error: "invalid_date",
+          message: "Use a real calendar date in YYYY-MM-DD format.",
+        });
+        return;
+      }
+      try {
+        response.json(await scheduleReader(date));
+      } catch (error) {
+        console.error(`Schedule read failed: ${error.message}`);
+        response.status(503).json({
+          error: "schedule_unavailable",
+          message: "The public schedule could not be loaded right now.",
+        });
+      }
+    }),
+  );
 
-  app.get("/api/professionals", publicDataGate.guard(async (_request, response) => {
-    try {
-      response.json(await professionalsReader());
-    } catch {
-      console.error("Public directory read failed.");
-      response.status(503).json({
-        error: "directory_unavailable",
-        message: "The doctors and specialists directory could not be loaded right now.",
-      });
-    }
-  }));
+  app.get(
+    "/api/professionals",
+    publicDataGate.guard(async (_request, response) => {
+      try {
+        response.json(await professionalsReader());
+      } catch {
+        console.error("Public directory read failed.");
+        response.status(503).json({
+          error: "directory_unavailable",
+          message:
+            "The doctors and specialists directory could not be loaded right now.",
+        });
+      }
+    }),
+  );
 
   app.use((request, response) => {
     response.status(404).json({

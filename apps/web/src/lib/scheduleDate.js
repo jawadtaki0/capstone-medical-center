@@ -1,8 +1,13 @@
 export function beirutToday(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Beirut", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: "Asia/Beirut",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).formatToParts(now);
-  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  const values = Object.fromEntries(
+    parts.map(({ type, value }) => [type, value]),
+  );
   return `${values.year}-${values.month}-${values.day}`;
 }
 
@@ -22,11 +27,19 @@ export function mondayOf(date) {
 }
 
 export function formatDate(date, options) {
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", ...options }).format(dateObject(date));
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    ...options,
+  }).format(dateObject(date));
 }
 
 export function longDate(date) {
-  return formatDate(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  return formatDate(date, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export function timeRange(startTime, endTime) {

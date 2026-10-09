@@ -7,19 +7,28 @@ function isNonemptyString(value) {
 }
 
 export function parseDirectoryResponse(payload) {
-  if (!payload || typeof payload !== "object" || !Array.isArray(payload.professionals)) {
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !Array.isArray(payload.professionals)
+  ) {
     throw new Error("The professional directory response is invalid.");
   }
 
   const seenIds = new Set();
   return payload.professionals.map((professional) => {
-    if (!professional || typeof professional !== "object" ||
+    if (
+      !professional ||
+      typeof professional !== "object" ||
       !isNonemptyString(professional.id) ||
       !isNonemptyString(professional.name) ||
       !isNonemptyString(professional.specialty) ||
       !["doctor", "specialist"].includes(professional.kind) ||
-      seenIds.has(professional.id)) {
-      throw new Error("The professional directory contains an invalid or duplicate profile.");
+      seenIds.has(professional.id)
+    ) {
+      throw new Error(
+        "The professional directory contains an invalid or duplicate profile.",
+      );
     }
 
     seenIds.add(professional.id);
@@ -35,19 +44,23 @@ export function parseDirectoryResponse(payload) {
 }
 
 function normalizeSearch(value) {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").toLowerCase() : "";
+  return typeof value === "string"
+    ? value.trim().replace(/\s+/g, " ").toLowerCase()
+    : "";
 }
 
 export function filterProfessionals(professionals, query = "") {
   const normalizedQuery = normalizeSearch(query);
   if (!normalizedQuery) return professionals;
 
-  return professionals.filter((professional) => [
-    professional.name,
-    professionalName(professional.name),
-    professional.specialty,
-    specialtyLabel(professional.specialty),
-    // Include known wording variants even if a profile stores the short label.
-    ...(getSpecialtyIcon(professional.specialty).aliases ?? []),
-  ].some((value) => normalizeSearch(value).includes(normalizedQuery)));
+  return professionals.filter((professional) =>
+    [
+      professional.name,
+      professionalName(professional.name),
+      professional.specialty,
+      specialtyLabel(professional.specialty),
+      // Include known wording variants even if a profile stores the short label.
+      ...(getSpecialtyIcon(professional.specialty).aliases ?? []),
+    ].some((value) => normalizeSearch(value).includes(normalizedQuery)),
+  );
 }

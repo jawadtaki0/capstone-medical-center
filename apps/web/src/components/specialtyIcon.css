@@ -1,6 +1,14 @@
 /* Decorative badges share the site's palette, independent of the profile initials. */
-.specialty-line { display: flex; align-items: center; gap: .65rem; min-width: 0; }
-.specialty-line > .specialty-label { min-width: 0; overflow-wrap: anywhere; }
+.specialty-line {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.specialty-line > .specialty-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .specialty-icon {
   display: inline-grid;
   place-items: center;
@@ -22,9 +30,14 @@
   mask: var(--specialty-mask) center / contain no-repeat;
 }
 @media (hover: hover) {
-  .doctor-card:hover .specialty-icon, .doctor-feature:hover .specialty-icon,
-  .schedule-card:hover .specialty-icon { background: #dceef9; }
+  .doctor-card:hover .specialty-icon,
+  .doctor-feature:hover .specialty-icon,
+  .schedule-card:hover .specialty-icon {
+    background: #dceef9;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .specialty-icon { transition: none; }
+  .specialty-icon {
+    transition: none;
+  }
 }
