@@ -80,6 +80,48 @@ The planned system includes public pages, full-doctor-session booking with share
 
 ## Windows staff-access development foundation
 
+### Start Cedar Staff desktop launcher
+
+For an already prepared local staff runtime, the separate launcher checks the
+intended authenticated MongoDB on loopback 27018 and staff API on 4100, starts
+only missing services, and opens an explicitly selected packaged application.
+It does not prepare a database, bootstrap accounts, or change delivery settings.
+
+One-time shortcut setup (replace the two paths with your existing runtime and
+reviewed package):
+
+```cmd
+npm run staff:shortcut -- --demo-loopback --runtime "C:\path\to\CapstoneStaffDev" --app "apps\staff\release\reviewed-package\win-unpacked\Cedar Staff Development.exe"
+```
+
+Double-click **Start Cedar Staff** on the desktop. A separate blue-and-white
+window shows Checking database, Checking staff server, and Opening Cedar Staff.
+Closing Cedar Staff after successful startup leaves the services available.
+The same orchestration is available from a terminal:
+
+```cmd
+npm run staff:start -- --demo-loopback
+```
+
+Path-only selection is saved in ignored `.local/cedar-staff-launcher.json`.
+After reviewing a future package, update the explicit target, retaining the
+existing runtime:
+
+```cmd
+npm run staff:shortcut -- --demo-loopback --update --app "apps\staff\release\new-reviewed-package\win-unpacked\Cedar Staff Development.exe"
+```
+
+The launcher requires the existing Node, Electron dependency, MongoDB binary,
+protected runtime files, and complete selected package. It does not download
+missing software or silently choose an older package. An unexpected port owner
+is refused, never killed or moved to another port. Concurrent startup is locked;
+Cancel or failure cleans up only live processes started by that attempt. Once
+the final application-opening handoff begins, Cancel is disabled briefly.
+
+This remains explicitly enabled, same-computer HTTP demonstration mode, not LAN
+deployment, Windows boot startup, an installed service, or authenticated local
+server identity. No administrator elevation is required for ordinary shortcut use.
+
 `apps/staff` packages a trusted local React interface in Electron; `apps/staff-api` is a separate Express authority. This increment contains one-time first-Admin setup, complete synthetic profile entry, password sign-in, mandatory authenticator MFA for the four administrative roles, private single-use backup codes, a permission-checked workspace, sign-out, and server-enforced session expiry. It does not contain account management or operational appointment, schedule, patient, lab or billing screens.
 
 Use synthetic information only. The staff runtime never reads the public API's environment file or uses Atlas. It refuses targets other than its isolated loopback replica set and dedicated `capstone_staff_dev` / `capstone_staff_test` databases. One shared authority is intended; clients have no MongoDB credentials or independently writable database.

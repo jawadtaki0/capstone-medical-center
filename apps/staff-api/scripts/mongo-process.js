@@ -13,7 +13,7 @@ export const mongoBinary = join(
   "mongod.exe",
 );
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-export async function startPrivateMongo() {
+export async function startPrivateMongo(options = {}) {
   await access(mongoBinary);
   const child = spawn(
     mongoBinary,
@@ -33,15 +33,15 @@ export async function startPrivateMongo() {
       join(runtimeDirectory, "mongo.log"),
       "--logappend",
     ],
-    { windowsHide: true, stdio: "ignore" },
+    { ...options, windowsHide: true, stdio: "ignore", shell: false },
   );
   child.on("error", () => {});
   return child;
 }
-export function rootClient(authority) {
+export function rootClient(authority, options = {}) {
   return new MongoClient(
     `mongodb://staff_root:${encodeURIComponent(authority.rootPassword)}@127.0.0.1:27018/admin?replicaSet=capstoneStaffDev&directConnection=true`,
-    { serverSelectionTimeoutMS: 3000, connectTimeoutMS: 3000 },
+    { serverSelectionTimeoutMS: 3000, connectTimeoutMS: 3000, ...options },
   );
 }
 export async function checkOwnedMongo() {
