@@ -104,10 +104,8 @@ export function createAuthorityLifecycle({
   };
 }
 
-async function run() {
-  if (!process.argv.includes("--demo-loopback"))
-    throw new Error("Explicit demo mode required.");
-  const testMode = process.argv.includes("--test-database");
+export async function startStaffServer({ demoMode, testMode = false } = {}) {
+  if (!demoMode) throw new Error("Explicit demo mode required.");
   const port = testMode ? 4101 : 4100;
   const authority = createAuthorityLifecycle({
     database: testMode ? "capstone_staff_test" : "capstone_staff_dev",
@@ -120,6 +118,7 @@ async function run() {
     if (stopping) return;
     stopping = true;
     clearTimeout(timer);
+    server.closeIdleConnections();
     // Stop accepting requests and drain existing responses before destroying
     // the vault they use; in-flight refresh candidates are also cleaned up.
     await new Promise((resolveClose) => server.close(resolveClose));
@@ -147,12 +146,16 @@ async function run() {
       }, 5000);
   }
   await check();
+  return { stop };
 }
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  run().catch(() => {
+  startStaffServer({
+    demoMode: process.argv.includes("--demo-loopback"),
+    testMode: process.argv.includes("--test-database"),
+  }).catch(() => {
     console.error(
       "Staff API requires explicitly enabled local demo mode and the private runtime.",
     );

@@ -16,6 +16,8 @@
     "staff:db": "node apps/staff-api/scripts/start-mongo.js",
     "staff:bootstrap": "node apps/staff-api/scripts/bootstrap.js",
     "staff:api": "node apps/staff-api/src/server.js",
+    "staff:start": "node apps/staff-api/scripts/start-staff.js",
+    "staff:shortcut": "node apps/staff-api/scripts/install-launcher.js",
     "staff:app": "npm run start --workspace @medical-center/staff --",
     "staff:build": "npm run build --workspace @medical-center/staff",
     "staff:package": "npm run package --workspace @medical-center/staff",

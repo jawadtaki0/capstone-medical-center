@@ -20,6 +20,8 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 app.enableSandbox();
+if (process.platform === "win32")
+  app.setAppUserModelId("org.capstone.cedar.staff");
 
 function validatePayload(name, payload) {
   if (payload === undefined) return;
@@ -149,6 +151,7 @@ function createWindow() {
     minWidth: 360,
     minHeight: 500,
     title: "Cedar Staff — Development",
+    icon: resolve(directory, "../assets/cedar-staff.ico"),
     backgroundColor: "#eef6fc",
     autoHideMenuBar: true,
     webPreferences: {

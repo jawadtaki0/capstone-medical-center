@@ -33,13 +33,15 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "assets/**/*",
       "shared/PHONE_METADATA_NOTICE.md",
       "package.json"
     ],
     "asar": true,
     "win": {
       "target": "nsis",
-      "signAndEditExecutable": false
+      "icon": "assets/cedar-staff.ico",
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": false,

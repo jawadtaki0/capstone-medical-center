@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"
+    />
+    <title>Start Cedar Staff</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="renderer.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <span class="brand-mark" aria-hidden="true">+</span>
+      <div>
+        <strong>Cedar Staff</strong>
+        <p>Local system startup</p>
+      </div>
+    </header>
+    <main>
+      <h1 id="heading">Getting ready</h1>
+      <ol aria-label="Startup steps">
+        <li id="database">
+          <span class="step-check" aria-hidden="true">✓</span>Database
+        </li>
+        <li id="server">
+          <span class="step-check" aria-hidden="true">✓</span>Staff server
+        </li>
+        <li id="application">
+          <span class="step-check" aria-hidden="true">✓</span>Application
+        </li>
+      </ol>
+      <p id="status" role="status" aria-live="polite" aria-atomic="true">
+        <span id="status-label">Checking database</span>
+        <span class="startup-dots" aria-hidden="true"
+          ><span></span><span></span><span></span
+        ></span>
+      </p>
+      <button id="cancel" type="button">Cancel</button>
+    </main>
+  </body>
+</html>
