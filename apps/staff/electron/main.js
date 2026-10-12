@@ -63,6 +63,9 @@ function validatePayload(name, payload) {
     resendContactCode: ["type"],
     cancelContactChange: ["type"],
     completeContactChange: ["type", "code"],
+    startPasswordChange: ["password"],
+    completePasswordIdentity: ["method", "code"],
+    savePasswordChange: ["newPassword", "confirmation"],
   }[name];
   if (!fields || Object.keys(payload).some((key) => !fields.includes(key)))
     throw new Error("Unexpected action fields.");
@@ -118,6 +121,9 @@ function initialize() {
             "completeVerification",
             "startContactIdentity",
             "completeContactIdentity",
+            "startPasswordChange",
+            "completePasswordIdentity",
+            "savePasswordChange",
           ].includes(name)
         ) {
           if (authenticationBusy)

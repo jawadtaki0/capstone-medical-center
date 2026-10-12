@@ -16,6 +16,10 @@ const REQUEST_PATHS = new Set([
   "/auth/reverify/complete",
 ]);
 for (const path of [
+  "/password/change/start",
+  "/password/change/identity",
+  "/password/change/complete",
+  "/password/change/cancel",
   "/contacts/status",
   "/contacts/identity/start",
   "/contacts/identity/complete",

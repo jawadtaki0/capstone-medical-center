@@ -9,6 +9,7 @@ import {
   refreshedAddress,
 } from "../lib/staffManagement.js";
 import ContactChange from "./ContactChange.jsx";
+import PasswordChange from "./PasswordChange.jsx";
 import { savedPhone } from "../../shared/contact-input.js";
 
 export function ProfileDetails({ account, profile }) {
@@ -55,7 +56,12 @@ export function ProfileDetails({ account, profile }) {
   );
 }
 
-export default function StaffProfile({ api, onError, onPendingChange }) {
+export default function StaffProfile({
+  api,
+  onError,
+  onPendingChange,
+  onPasswordChanged,
+}) {
   const id = useId();
   const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +73,8 @@ export default function StaffProfile({ api, onError, onPendingChange }) {
   const [addressConflict, setAddressConflict] = useState(false);
   const [refreshNeeded, setRefreshNeeded] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const changePassword = useRef(null);
   const changeEmail = useRef(null),
     saving = useRef(false);
   const live = useRef(true);
@@ -222,6 +230,25 @@ export default function StaffProfile({ api, onError, onPendingChange }) {
       ) : (
         <>
           <ProfileDetails account={record.account} profile={record.profile} />
+          <button
+            ref={changePassword}
+            className="staff-button"
+            type="button"
+            disabled={busy || emailOpen}
+            onClick={() => setPasswordOpen(true)}
+          >
+            Change password
+          </button>
+          {passwordOpen && (
+            <PasswordChange
+              api={api}
+              onSaved={onPasswordChanged}
+              onError={onError}
+              onClose={() => setPasswordOpen(false)}
+              onPendingChange={onPendingChange}
+              returnFocus={changePassword}
+            />
+          )}
           {editing ? (
             <form onSubmit={save} className="staff-form staff-contact-editor">
               <h2>Edit profile</h2>

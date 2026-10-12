@@ -30,6 +30,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
   let verificationChallenge;
   let contactChallenge;
   let contactGeneration = 0;
+  let passwordChallenge;
+  let passwordGeneration = 0;
   let epoch = 0;
   async function call(
     path,
@@ -37,6 +39,7 @@ export function createBroker({ url, demoMode, request = fetch }) {
     authenticated = false,
     explicitToken = token,
     verification = false,
+    currentOperation = () => true,
   ) {
     const requestedEpoch = epoch;
     if (authenticated && !explicitToken)
@@ -56,7 +59,11 @@ export function createBroker({ url, demoMode, request = fetch }) {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         redirect: "error",
         signal: AbortSignal.timeout(
-          path.startsWith("/contacts/") ? 20000 : 5000,
+          path.startsWith("/password/change/")
+            ? 5 * 60000
+            : path.startsWith("/contacts/")
+              ? 20000
+              : 5000,
         ),
       });
     } catch {
@@ -69,7 +76,7 @@ export function createBroker({ url, demoMode, request = fetch }) {
     }
     const data = await response.json().catch(() => null);
     if (
-      requestedEpoch !== epoch &&
+      (requestedEpoch !== epoch || !currentOperation()) &&
       (authenticated || data?.token || data?.challenge)
     ) {
       if (data?.token) {
@@ -114,7 +121,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
     }
     if (data.token) token = data.token;
     if (data.challenge) {
-      if (verification === "contact") contactChallenge = data.challenge;
+      if (verification === "password") passwordChallenge = data.challenge;
+      else if (verification === "contact") contactChallenge = data.challenge;
       else if (verification) verificationChallenge = data.challenge;
       else challenge = data.challenge;
     }
@@ -153,6 +161,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
     claimSetup: (payload) => call("/setup/claim", payload),
     signIn: async (payload) => {
       epoch += 1;
+      passwordGeneration += 1;
+      passwordChallenge = undefined;
       token = undefined;
       challenge = undefined;
       verificationChallenge = undefined;
@@ -161,6 +171,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
     },
     activateAssignedAccount: async (payload) => {
       epoch += 1;
+      passwordGeneration += 1;
+      passwordChallenge = undefined;
       token = undefined;
       challenge = undefined;
       verificationChallenge = undefined;
@@ -179,6 +191,63 @@ export function createBroker({ url, demoMode, request = fetch }) {
     sessionStatus: () => call("/auth/session", undefined, true),
     activity: () => call("/auth/activity", { kind: "interaction" }, true),
     workspace: () => call("/workspace", undefined, true),
+    startPasswordChange: async (payload) => {
+      const generation = ++passwordGeneration;
+      return call(
+        "/password/change/start",
+        payload,
+        true,
+        token,
+        "password",
+        () => generation === passwordGeneration,
+      );
+    },
+    completePasswordIdentity: (payload) => {
+      if (!passwordChallenge)
+        throw Object.assign(new Error("Start the password check again."), {
+          code: "password_change_expired",
+        });
+      const generation = passwordGeneration;
+      return call(
+        "/password/change/identity",
+        { ...payload, challenge: passwordChallenge },
+        true,
+        token,
+        "password",
+        () => generation === passwordGeneration,
+      );
+    },
+    savePasswordChange: async (payload) => {
+      if (!passwordChallenge)
+        throw Object.assign(new Error("Start the password check again."), {
+          code: "password_change_expired",
+        });
+      const generation = passwordGeneration;
+      const result = await call(
+        "/password/change/complete",
+        { ...payload, challenge: passwordChallenge },
+        true,
+        token,
+        "password",
+        () => generation === passwordGeneration,
+      );
+      if (result.passwordChanged === true) {
+        epoch += 1;
+        passwordGeneration += 1;
+        token =
+          challenge =
+          verificationChallenge =
+          contactChallenge =
+          passwordChallenge =
+            undefined;
+      }
+      return result;
+    },
+    cancelPasswordChange: async () => {
+      passwordGeneration += 1;
+      passwordChallenge = undefined;
+      return call("/password/change/cancel", {}, true);
+    },
     staffDirectory: () => call("/staff", undefined, true),
     ownProfile: () => call("/profiles/me", undefined, true),
     staffProfile: (payload) =>
@@ -268,6 +337,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
     },
     signOut: async () => {
       epoch += 1;
+      passwordGeneration += 1;
+      passwordChallenge = undefined;
       const previous = token;
       token = undefined;
       challenge = undefined;
@@ -282,6 +353,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
       challenge = undefined;
       verificationChallenge = undefined;
       contactChallenge = undefined;
+      passwordChallenge = undefined;
+      passwordGeneration += 1;
     },
   };
 }

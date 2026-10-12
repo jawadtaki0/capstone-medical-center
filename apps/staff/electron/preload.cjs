@@ -32,6 +32,10 @@ const names = [
   "resendContactCode",
   "cancelContactChange",
   "completeContactChange",
+  "startPasswordChange",
+  "completePasswordIdentity",
+  "savePasswordChange",
+  "cancelPasswordChange",
 ];
 
 const api = Object.fromEntries(

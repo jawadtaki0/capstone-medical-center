@@ -161,6 +161,19 @@ export function createApp({
     "/workspace",
     route((service, request) => service.workspace(bearer(request))),
   );
+  for (const [path, action] of [
+    ["start", "start"],
+    ["identity", "identify"],
+    ["complete", "complete"],
+    ["cancel", "cancel"],
+  ]) {
+    app.post(
+      `/password/change/${path}`,
+      route((service, request) =>
+        service.passwordChange[action](bearer(request), request.body),
+      ),
+    );
+  }
   // Fixed, permission-checked staff operations; no generic collection browser.
   app.get(
     "/staff",

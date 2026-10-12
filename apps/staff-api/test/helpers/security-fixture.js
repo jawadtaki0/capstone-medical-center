@@ -20,6 +20,8 @@ export const STAFF_COLLECTIONS = Object.freeze([
   "contact_requests",
   "contact_counters",
   "contact_delivery_budgets",
+  "password_change_counters",
+  "staff_password_history",
 ]);
 
 export function digest(value) {
@@ -129,6 +131,9 @@ export async function createSecurityFixture({ contactDelivery } = {}) {
   }
 
   return {
+    get client() {
+      return connection.client;
+    },
     get db() {
       return connection.db;
     },
