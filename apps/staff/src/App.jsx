@@ -517,6 +517,12 @@ export default function App({ api = desktopApi }) {
                 timing={timing}
                 busy={busy || managementBusy || verification}
                 onPendingChange={setManagementBusy}
+                onPasswordChanged={() => {
+                  forgetAccess();
+                  setError(
+                    "Your password was changed. All your sessions were signed out. Sign in with your new password.",
+                  );
+                }}
                 onContinue={(event) => reportActivity(event.nativeEvent)}
               />
             ) : (

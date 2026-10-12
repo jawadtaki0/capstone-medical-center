@@ -44,6 +44,7 @@ export async function ensureIndexes(db) {
     "account_setup_codes",
     "contact_requests",
     "contact_counters",
+    "password_change_counters",
   ]) {
     await db
       .collection(name)
@@ -51,6 +52,9 @@ export async function ensureIndexes(db) {
   }
   await db.collection("staff_sessions").createIndex({ accountId: 1 });
   await db.collection("security_events").createIndex({ occurredAt: -1 });
+  await db
+    .collection("staff_password_history")
+    .createIndex({ accountId: 1, credentialVersion: 1 }, { unique: true }); // Permanent history: deliberately no TTL, age filter or retention limit.
   // Add only the serialized management-control anchor, never accounts or
   // guessed authentication proof. Existing staff IDs/factors stay untouched.
   await db.collection("staff_management_state").updateOne(

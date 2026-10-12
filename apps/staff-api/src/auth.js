@@ -21,6 +21,7 @@ import {
 } from "./validation.js";
 import { createManagementService } from "./management.js";
 import { createContactService } from "./contacts.js";
+import { createPasswordChangeService } from "./password-change.js";
 
 export const AUTH_COLLECTIONS = Object.freeze({
   installation: "installation_state",
@@ -130,6 +131,7 @@ export function createAuthService({
   clock = () => new Date(),
   contactDelivery,
   testSetupHash,
+  testPasswordWork,
 }) {
   if (!db || !client?.startSession || !vault?.encrypt || !vault?.decrypt)
     throw unavailable();
@@ -783,10 +785,25 @@ export function createAuthService({
     delivery: contactDelivery,
     recentVerificationExpiry,
   });
+  const passwordChange = createPasswordChangeService({
+    db,
+    client,
+    vault,
+    transaction,
+    guard,
+    authenticated,
+    now,
+    requiresMfa,
+    consumeFactor: consumeContactFactor,
+    hashOptions,
+    testWork: testPasswordWork,
+    idleMs: AUTH_POLICY.idleMs,
+  });
 
   return {
     management,
     contacts,
+    passwordChange,
     async health() {
       await db.command({ ping: 1 });
       return {

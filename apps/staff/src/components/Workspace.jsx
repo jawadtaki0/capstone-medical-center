@@ -25,6 +25,7 @@ export default function Workspace({
   onError,
   onSensitiveAction,
   onPendingChange,
+  onPasswordChanged,
 }) {
   const [view, setView] = useState("workspace");
   const content = useRef(null);
@@ -94,6 +95,7 @@ export default function Workspace({
             api={api}
             onError={onError}
             onPendingChange={onPendingChange}
+            onPasswordChanged={onPasswordChanged}
           />
         ) : view === "directory" && directoryAllowed ? (
           <StaffDirectory
