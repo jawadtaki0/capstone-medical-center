@@ -480,6 +480,8 @@ export function createContactService({
     });
   }
   return {
+    // Internal capability for recovery; never routed or returned to clients.
+    deliverySupport: { providerFor, reserveBudget },
     async releaseEmail(token, id, input) {
       allowFields(input, ["expectedVersion", "expectedRevision", "confirmed"]);
       const version = expectedVersion(input.expectedVersion),

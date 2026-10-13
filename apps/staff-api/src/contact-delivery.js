@@ -2,6 +2,8 @@ import nodemailer from "nodemailer";
 import {
   verificationEmail,
   emailChangedNotification,
+  recoveryEmail,
+  recoveryNotification,
 } from "./email-templates.js";
 import {
   readFile,
@@ -112,21 +114,35 @@ export async function loadDeliveryConfig({
     plain.fill(0);
   }
 }
-export async function saveDeliveryConfig(
-  value,
-  {
-    directory = join(runtimeDirectory, "delivery"),
-    wrap = (data) => dpapi(data, "Protect"),
-    prepare = protectDirectory,
-  } = {},
-) {
-  const config = validateDeliveryConfig(value);
-  await prepare(directory);
+
+async function withDeliveryLock(directory, action) {
   const lockPath = join(directory, "gmail.lock");
-  const lock = await open(lockPath, "wx"); // Do not steal a concurrent/stale lock.
+  let lock;
+  try {
+    lock = await open(lockPath, "wx");
+  } catch (error) {
+    if (error.code === "EEXIST")
+      throw new StaffError(
+        "delivery_configuration_busy",
+        "Another delivery configuration operation is in progress. Nothing changed; retry after it finishes. Do not remove its lock.",
+      );
+    throw error;
+  }
+  try {
+    return await action();
+  } finally {
+    try {
+      await lock.close();
+    } finally {
+      await unlink(lockPath);
+    }
+  }
+}
+
+async function writeDeliveryFile(value, directory, wrap) {
   const pending = join(directory, `gmail-${randomUUID()}.pending.dpapi`);
   try {
-    const plain = Buffer.from(JSON.stringify(config));
+    const plain = Buffer.from(JSON.stringify(value));
     try {
       await writeFile(pending, await wrap(plain), { flag: "wx", flush: true });
     } finally {
@@ -134,18 +150,115 @@ export async function saveDeliveryConfig(
     }
     await rename(pending, join(directory, "gmail.dpapi"));
   } finally {
-    try {
-      await unlink(pending).catch((error) => {
-        if (error.code !== "ENOENT") throw error;
-      });
-    } finally {
-      try {
-        await lock.close();
-      } finally {
-        await unlink(lockPath);
-      }
-    }
+    await unlink(pending).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+    });
   }
+}
+
+const configurationChanged = () =>
+  new StaffError(
+    "delivery_configuration_changed",
+    "Delivery settings changed since this operation was approved. Nothing was saved; check the current total and confirm again.",
+  );
+
+// Local operator only. No database, budget reset, provider call or activation.
+// Read under the same exclusive lock as credential/activation writes and retain
+// the raw configuration so unrelated/legacy settings are not normalized away.
+export async function increaseDeliveryAllowance(
+  input,
+  {
+    directory = join(runtimeDirectory, "delivery"),
+    wrap = (value) => dpapi(value, "Protect"),
+    unwrap = (value) => dpapi(value, "Unprotect"),
+  } = {},
+) {
+  if (
+    !input ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
+    Object.keys(input).some(
+      (key) =>
+        !["expectedAllowance", "newAllowance", "confirmation"].includes(key),
+    ) ||
+    !Number.isInteger(input.expectedAllowance) ||
+    input.expectedAllowance < 1 ||
+    !Number.isInteger(input.newAllowance) ||
+    input.newAllowance <= input.expectedAllowance ||
+    input.newAllowance > 20 ||
+    input.confirmation !==
+      `INCREASE ${input.expectedAllowance} TO ${input.newAllowance}`
+  )
+    throw new StaffError(
+      "delivery_allowance_input",
+      "Confirm an increase from the expected current total to a whole-number total no greater than 20. Decreases, resets and unrelated changes are not allowed.",
+    );
+  return withDeliveryLock(directory, async () => {
+    const plain = await unwrap(await readFile(join(directory, "gmail.dpapi")));
+    let existing;
+    try {
+      existing = JSON.parse(plain.toString("utf8"));
+      const checked = validateDeliveryConfig(existing);
+      if (
+        !checked.allowance ||
+        !/^[a-f0-9-]{36}$/.test(checked.approvalId ?? "")
+      )
+        throw new StaffError(
+          "delivery_allowance_missing",
+          "An existing approved budget identity is required. No configuration was created or replaced.",
+        );
+      if (checked.allowance !== input.expectedAllowance)
+        throw configurationChanged();
+      await writeDeliveryFile(
+        { ...existing, allowance: input.newAllowance },
+        directory,
+        wrap,
+      );
+      return {
+        previousAllowance: checked.allowance,
+        allowance: input.newAllowance,
+      };
+    } finally {
+      plain.fill(0);
+      existing = undefined;
+    }
+  });
+}
+
+export async function saveDeliveryConfig(
+  value,
+  {
+    directory = join(runtimeDirectory, "delivery"),
+    wrap = (data) => dpapi(data, "Protect"),
+    unwrap = (data) => dpapi(data, "Unprotect"),
+    prepare = protectDirectory,
+    expectedConfig,
+  } = {},
+) {
+  const config = validateDeliveryConfig(value);
+  await prepare(directory);
+  await withDeliveryLock(directory, async () => {
+    // Operator forms capture settings before user entry. Refuse stale saves so
+    // a concurrent allowance increase cannot be undone by that old snapshot.
+    if (expectedConfig !== undefined) {
+      let current = null;
+      try {
+        current = await loadDeliveryConfig({ directory, unwrap });
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      if (
+        JSON.stringify(current) !==
+        JSON.stringify(
+          expectedConfig === null
+            ? null
+            : validateDeliveryConfig(expectedConfig),
+        )
+      )
+        throw configurationChanged();
+    }
+    await writeDeliveryFile(config, directory, wrap);
+  });
 }
 export async function assertExistingAuthority() {
   // Never prepare/bootstrap or replace existing protected authority material.
@@ -174,14 +287,25 @@ export function createGmailDelivery({
       if (destination !== undefined) normalizeEmail(destination);
       return config;
     },
-    async send({ destination, code, expiresAt, notification = false }) {
+    async send({
+      destination,
+      code,
+      expiresAt,
+      notification = false,
+      purpose,
+    }) {
       destination = normalizeEmail(destination);
       const config = await this.configuration(destination);
       let smtp;
       try {
-        const message = notification
-          ? emailChangedNotification()
-          : verificationEmail({ code, expiresAt });
+        const message =
+          purpose === "recovery"
+            ? recoveryEmail({ code, expiresAt })
+            : purpose === "recovery_notice"
+              ? recoveryNotification()
+              : notification
+                ? emailChangedNotification()
+                : verificationEmail({ code, expiresAt });
         smtp = transport({
           host: "smtp.gmail.com",
           port: 465,

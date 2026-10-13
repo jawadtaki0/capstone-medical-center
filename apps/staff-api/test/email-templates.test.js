@@ -4,9 +4,35 @@ import {
   verificationEmail,
   emailChangedNotification,
   escapeHtml,
+  recoveryEmail,
+  recoveryNotification,
 } from "../src/email-templates.js";
 
 const expiresAt = new Date("2026-10-05T15:10:00.000Z");
+
+test("recovery email preserves zero-prefixed code, original deadline, escaping and MFA safety", () => {
+  const message = recoveryEmail({ code: "00123456", expiresAt });
+  for (const content of [message.text, message.html]) {
+    assert.match(content, /00123456/);
+    assert.match(content, /18:10:00/);
+    assert.match(content, /does not extend/);
+    assert.match(content, /Administrative accounts/);
+  }
+  assert.doesNotMatch(message.subject, /00123456/);
+  assert.doesNotMatch(
+    message.html.match(
+      /<!-- Preview text -->\s*<div[^>]*>([\s\S]*?)<\/div>/,
+    )[1],
+    /00123456/,
+  );
+  assert.doesNotMatch(
+    recoveryEmail({ code: '<img src="bad">', expiresAt }).html,
+    /<img/,
+  );
+  const notice = recoveryNotification();
+  assert.match(notice.html, /authorized administrator/);
+  assert.doesNotMatch(notice.html, /<img|href=|00123456/);
+});
 
 test("verification HTML and text share the code, instructions, original Beirut deadline and safety notes", () => {
   const message = verificationEmail({ code: "00123456", expiresAt });

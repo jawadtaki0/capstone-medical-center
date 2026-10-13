@@ -2,6 +2,10 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import * as argon2 from "argon2";
 import { StaffError, unavailable } from "./errors.js";
 import { boundedSecret, validatePassword } from "./validation.js";
+import {
+  checkRecordedPasswords,
+  archiveCurrentPassword,
+} from "./password-history.js";
 
 export const PASSWORD_CHANGE_POLICY = Object.freeze({
   authorizationMs: 5 * 60000,
@@ -89,7 +93,8 @@ export function createPasswordWorkGate() {
     },
   };
 }
-const processGate = createPasswordWorkGate();
+export const passwordProcessGate = createPasswordWorkGate();
+const processGate = passwordProcessGate;
 
 export function createPasswordChangeService({
   db,
@@ -443,31 +448,20 @@ export function createPasswordChangeService({
           transaction((session) =>
             liveJob(session, token, admitted, input.challenge),
           );
-        let reused = await checked(admitted, "history-current", () =>
-          argon2.verify(admitted.account.passwordHash, password),
-        );
         // Cursor and one-at-a-time verification: no age filter, result limit,
         // growing in-memory list, or weaker comparison fingerprint.
         const cursor = history()
           .find({ accountId: actor.account._id })
           .sort({ credentialVersion: 1 })
           .batchSize(16);
-        try {
-          for await (const entry of cursor) {
-            if (reused) break;
-            await check();
-            if (!Number.isInteger(entry.credentialVersion) || !entry.hashCipher)
-              throw unavailable();
-            const hash = vault.decrypt(entry.hashCipher);
-            if (!hash.startsWith("$argon2id$")) throw unavailable();
-            reused = await checked(admitted, "history", () =>
-              argon2.verify(hash, password),
-            );
-          }
-        } finally {
-          await cursor.close();
-        }
-        await check();
+        const reused = await checkRecordedPasswords({
+          password,
+          currentHash: admitted.account.passwordHash,
+          cursor,
+          vault,
+          check,
+          work: (stage, operation) => checked(admitted, stage, operation),
+        });
         if (reused)
           throw new StaffError(
             "password_reused",
@@ -484,15 +478,12 @@ export function createPasswordChangeService({
             input.challenge,
           );
           if (current.failure) return current;
-          await history().insertOne(
-            {
-              _id: randomUUID(),
-              accountId: current.account._id,
-              credentialVersion: current.account.version,
-              hashCipher: vault.encrypt(current.account.passwordHash),
-              retiredAt: current.at,
-            },
-            { session },
+          await archiveCurrentPassword(
+            db,
+            vault,
+            session,
+            current.account,
+            current.at,
           );
           const updated = await accounts().updateOne(
             {
@@ -508,6 +499,16 @@ export function createPasswordChangeService({
             { session },
           );
           if (updated.modifiedCount !== 1) throw expired();
+          await db.collection("staff_recovery_requests").updateMany(
+            { accountId: current.account._id, revokedAt: null },
+            {
+              $set: {
+                revokedAt: current.at,
+                revocationReason: "password_changed",
+              },
+            },
+            { session },
+          );
           await db.collection("staff_sessions").updateMany(
             { accountId: current.account._id, revokedAt: null },
             {

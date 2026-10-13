@@ -45,12 +45,19 @@ export async function ensureIndexes(db) {
     "contact_requests",
     "contact_counters",
     "password_change_counters",
+    "staff_recovery_requests",
+    "staff_recovery_counters",
   ]) {
     await db
       .collection(name)
       .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   }
   await db.collection("staff_sessions").createIndex({ accountId: 1 });
+  await db
+    .collection("staff_recovery_requests")
+    .createIndex({ accountId: 1, kind: 1 });
+  await db.collection("staff_recovery_requests").createIndex({ dispatch: 1 });
+  await db.collection("staff_recovery_cases").createIndex({ accountId: 1 });
   await db.collection("security_events").createIndex({ occurredAt: -1 });
   await db
     .collection("staff_password_history")

@@ -26,6 +26,11 @@ for (const path of [
   "/contacts/complete",
   "/contacts/resend",
   "/contacts/cancel",
+  "/recovery/status",
+  "/recovery/complete",
+  "/recovery/redeem",
+  "/recovery/enrollment",
+  "/recovery/acknowledge",
 ])
   REQUEST_PATHS.add(path);
 const permittedPath = (path) =>
