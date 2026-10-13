@@ -22,6 +22,8 @@ import {
 import { createManagementService } from "./management.js";
 import { createContactService } from "./contacts.js";
 import { createPasswordChangeService } from "./password-change.js";
+import { createRecoveryService } from "./recovery.js";
+import { createEmergencyRecovery } from "./emergency-recovery.js";
 
 export const AUTH_COLLECTIONS = Object.freeze({
   installation: "installation_state",
@@ -799,11 +801,35 @@ export function createAuthService({
     testWork: testPasswordWork,
     idleMs: AUTH_POLICY.idleMs,
   });
+  const recovery = createRecoveryService({
+    db,
+    client,
+    vault,
+    transaction,
+    guard,
+    authenticated,
+    now,
+    consumeFactor: consumeContactFactor,
+    recentVerificationExpiry,
+    deliverySupport: contacts.deliverySupport,
+    hashOptions,
+    testWork: testPasswordWork,
+  });
+  const emergency = createEmergencyRecovery({
+    db,
+    vault,
+    transaction,
+    guard,
+    now,
+    recovery,
+  });
 
   return {
     management,
     contacts,
     passwordChange,
+    recovery,
+    emergency,
     async health() {
       await db.command({ ping: 1 });
       return {
@@ -917,7 +943,11 @@ export function createAuthService({
           account?.passwordHash ?? (await dummyPasswordHash()),
           password,
         );
-        if (!passwordMatch || !usableAccount(account, true))
+        if (
+          !passwordMatch ||
+          !usableAccount(account, true) ||
+          account.recoveryCaseId
+        )
           return fail(
             session,
             username,

@@ -32,6 +32,9 @@ export function createBroker({ url, demoMode, request = fetch }) {
   let contactGeneration = 0;
   let passwordChallenge;
   let passwordGeneration = 0;
+  let recoveryChallenge;
+  let recoveryCancellation;
+  let recoveryGeneration = 0;
   let epoch = 0;
   async function call(
     path,
@@ -59,7 +62,7 @@ export function createBroker({ url, demoMode, request = fetch }) {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         redirect: "error",
         signal: AbortSignal.timeout(
-          path.startsWith("/password/change/")
+          path.startsWith("/password/change/") || path === "/recovery/complete"
             ? 5 * 60000
             : path.startsWith("/contacts/")
               ? 20000
@@ -121,7 +124,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
     }
     if (data.token) token = data.token;
     if (data.challenge) {
-      if (verification === "password") passwordChallenge = data.challenge;
+      if (verification === "recovery") recoveryChallenge = data.challenge;
+      else if (verification === "password") passwordChallenge = data.challenge;
       else if (verification === "contact") contactChallenge = data.challenge;
       else if (verification) verificationChallenge = data.challenge;
       else challenge = data.challenge;
@@ -155,11 +159,81 @@ export function createBroker({ url, demoMode, request = fetch }) {
     return encodeURIComponent(payload.accountId);
   };
   const withoutId = ({ accountId, ...body }) => body;
+  async function recoveryCall(action, payload = {}, starting = false) {
+    if (starting) {
+      if (recoveryCancellation)
+        throw Object.assign(
+          new Error(
+            "Confirm cancellation of the previous recovery request first.",
+          ),
+          { code: "recovery_cancellation_pending" },
+        );
+      recoveryGeneration++;
+      recoveryChallenge = undefined;
+    }
+    const generation = recoveryGeneration;
+    if (!starting && !recoveryChallenge)
+      throw Object.assign(new Error("Start recovery again."), {
+        code: "recovery_expired",
+      });
+    const result = await call(
+      `/recovery/${action}`,
+      { ...payload, ...(starting ? {} : { challenge: recoveryChallenge }) },
+      false,
+      undefined,
+      "recovery",
+      () => generation === recoveryGeneration,
+    );
+    if (generation !== recoveryGeneration)
+      throw Object.assign(new Error("Recovery is no longer current."), {
+        code: "ACTION_SUPERSEDED",
+      });
+    if (result.completed) {
+      recoveryGeneration++;
+      recoveryChallenge = undefined;
+    }
+    return result;
+  }
   return {
+    requestRecovery: (payload) => recoveryCall("request", payload, true),
+    verifyRecovery: (payload) => recoveryCall("verify", payload),
+    resendRecovery: () => recoveryCall("resend"),
+    verifyRecoveryFactor: (payload) => recoveryCall("factor", payload),
+    redeemRecovery: (payload) => recoveryCall("redeem", payload, true),
+    proveRecoveryPassword: (payload) =>
+      recoveryCall("provePassword", payload, true),
+    replaceRecoveryMfa: () => recoveryCall("replace", { confirmed: true }),
+    saveRecoveryPassword: (payload) => recoveryCall("complete", payload),
+    recoveryEnrollment: () => recoveryCall("enrollment"),
+    confirmRecoveryMfa: (payload) => recoveryCall("enroll", payload),
+    recoveryBackups: () => recoveryCall("backups"),
+    acknowledgeRecoveryBackups: () =>
+      recoveryCall("acknowledge", { confirmed: true }),
+    recoveryStatus: () => recoveryCall("status"),
+    cancelRecovery: async () => {
+      const previous = recoveryCancellation ?? recoveryChallenge;
+      recoveryGeneration++;
+      recoveryChallenge = undefined;
+      recoveryCancellation = previous;
+      if (previous) await call("/recovery/cancel", { challenge: previous });
+      if (recoveryCancellation === previous) recoveryCancellation = undefined;
+      return { cancelled: true };
+    },
+    assistStaffRecovery: (payload) =>
+      call(`/staff/${target(payload)}/recovery`, withoutId(payload), true),
+    revokeStaffRecovery: (payload) =>
+      call(
+        `/staff/${target(payload)}/recovery/revoke`,
+        withoutId(payload),
+        true,
+      ),
     status: () => call("/health"),
     setupStatus: () => call("/setup/status"),
     claimSetup: (payload) => call("/setup/claim", payload),
     signIn: async (payload) => {
+      recoveryCancellation = undefined;
+      recoveryGeneration++;
+      recoveryChallenge = undefined;
       epoch += 1;
       passwordGeneration += 1;
       passwordChallenge = undefined;
@@ -336,6 +410,9 @@ export function createBroker({ url, demoMode, request = fetch }) {
       return result;
     },
     signOut: async () => {
+      recoveryCancellation = undefined;
+      recoveryGeneration++;
+      recoveryChallenge = undefined;
       epoch += 1;
       passwordGeneration += 1;
       passwordChallenge = undefined;
@@ -348,6 +425,9 @@ export function createBroker({ url, demoMode, request = fetch }) {
       return { signedOut: true };
     },
     forget: () => {
+      recoveryCancellation = undefined;
+      recoveryGeneration++;
+      recoveryChallenge = undefined;
       epoch += 1;
       token = undefined;
       challenge = undefined;

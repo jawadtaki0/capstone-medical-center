@@ -175,6 +175,45 @@ export function createApp({
     );
   }
   // Fixed, permission-checked staff operations; no generic collection browser.
+  for (const action of [
+    "request",
+    "verify",
+    "resend",
+    "factor",
+    "redeem",
+    "complete",
+    "enrollment",
+    "enroll",
+    "backups",
+    "acknowledge",
+    "status",
+    "cancel",
+    "provePassword",
+    "replace",
+  ]) {
+    app.post(
+      `/recovery/${action}`,
+      route((service, request) =>
+        service.recovery[action](request.body, source(request)),
+      ),
+    );
+  }
+  app.post(
+    "/staff/:id/recovery",
+    route((service, request) =>
+      service.recovery.assist(bearer(request), request.params.id, request.body),
+    ),
+  );
+  app.post(
+    "/staff/:id/recovery/revoke",
+    route((service, request) =>
+      service.recovery.revokeAssistance(
+        bearer(request),
+        request.params.id,
+        request.body,
+      ),
+    ),
+  );
   app.get(
     "/staff",
     route((service, request) => service.management.directory(bearer(request))),

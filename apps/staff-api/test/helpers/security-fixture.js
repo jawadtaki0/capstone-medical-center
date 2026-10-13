@@ -22,6 +22,10 @@ export const STAFF_COLLECTIONS = Object.freeze([
   "contact_delivery_budgets",
   "password_change_counters",
   "staff_password_history",
+  "staff_recovery_requests",
+  "staff_recovery_counters",
+  "staff_recovery_cases",
+  "staff_emergency_state",
 ]);
 
 export function digest(value) {

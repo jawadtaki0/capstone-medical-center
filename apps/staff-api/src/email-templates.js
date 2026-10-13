@@ -112,3 +112,39 @@ export function emailChangedNotification() {
     }),
   };
 }
+
+export function recoveryEmail({ code, expiresAt }) {
+  const heading = "Recover your Cedar Staff password";
+  const instruction =
+    "Enter this code in the Cedar Staff application's Forgot password screen. Administrative accounts must also verify their existing authenticator or an unused backup code.";
+  const safety =
+    "Do not share this code. If you did not request recovery, ignore this message. This request does not change your password or remove MFA.";
+  const value = String(code),
+    expiry = expiryText(expiresAt);
+  return {
+    subject: "Password recovery — Cedar Staff",
+    text: `Cedar Staff\n\n${heading}\n\n${instruction}\n\nRecovery code: ${value}\n\n${expiry}\n\n${safety}`,
+    html: layout({
+      heading,
+      preview:
+        "Instructions for a requested Cedar Staff password recovery. Ignore this message if you did not request it.",
+      body: `${paragraph(instruction)}<p style="padding: 18px; border: 1px solid #d2e2ed; border-radius: 10px; background-color: #eaf4fb; color: #226b9d; font-family: Consolas, monospace; font-size: 30px; text-align: center; letter-spacing: 2px; user-select: text;">${escapeHtml(value)}</p>${paragraph(expiry)}${paragraph(safety)}`,
+    }),
+  };
+}
+
+export function recoveryNotification() {
+  const heading = "Your staff account recovery was completed";
+  const instruction =
+    "A password or authenticator recovery was completed for your Cedar Staff account. If you do not recognize this action, report it to an authorized administrator.";
+  return {
+    subject: "Account recovery completed — Cedar Staff",
+    text: `Cedar Staff\n\n${heading}\n\n${instruction}`,
+    html: layout({
+      heading,
+      preview:
+        "An account recovery was completed. Report unrecognized activity to an authorized administrator.",
+      body: paragraph(instruction),
+    }),
+  };
+}
