@@ -1,6 +1,22 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const names = [
+  "requestRecovery",
+  "verifyRecovery",
+  "resendRecovery",
+  "verifyRecoveryFactor",
+  "redeemRecovery",
+  "proveRecoveryPassword",
+  "replaceRecoveryMfa",
+  "saveRecoveryPassword",
+  "recoveryEnrollment",
+  "confirmRecoveryMfa",
+  "recoveryBackups",
+  "acknowledgeRecoveryBackups",
+  "recoveryStatus",
+  "cancelRecovery",
+  "assistStaffRecovery",
+  "revokeStaffRecovery",
   "status",
   "setupStatus",
   "claimSetup",

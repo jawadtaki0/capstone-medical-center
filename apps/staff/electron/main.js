@@ -33,6 +33,29 @@ function validatePayload(name, payload) {
   )
     throw new Error("Invalid action payload.");
   const fields = {
+    requestRecovery: ["username"],
+    verifyRecovery: ["code"],
+    resendRecovery: [],
+    verifyRecoveryFactor: ["method", "code"],
+    redeemRecovery: ["username", "handoff", "password"],
+    proveRecoveryPassword: ["username", "password", "method", "code", "resume"],
+    replaceRecoveryMfa: [],
+    saveRecoveryPassword: ["newPassword", "confirmation"],
+    recoveryEnrollment: [],
+    confirmRecoveryMfa: ["code"],
+    recoveryBackups: [],
+    acknowledgeRecoveryBackups: [],
+    recoveryStatus: [],
+    cancelRecovery: [],
+    assistStaffRecovery: [
+      "accountId",
+      "scope",
+      "version",
+      "identityConfirmed",
+      "purpose",
+      "confirmed",
+    ],
+    revokeStaffRecovery: ["accountId", "version", "confirmed"],
     claimSetup: ["code", "username", "password", "profile"],
     signIn: ["username", "password"],
     completeMfa: ["code"],
@@ -111,6 +134,18 @@ function initialize() {
         validatePayload(name, payload);
         if (
           [
+            "requestRecovery",
+            "verifyRecovery",
+            "resendRecovery",
+            "verifyRecoveryFactor",
+            "redeemRecovery",
+            "proveRecoveryPassword",
+            "replaceRecoveryMfa",
+            "saveRecoveryPassword",
+            "confirmRecoveryMfa",
+            "acknowledgeRecoveryBackups",
+            "assistStaffRecovery",
+            "revokeStaffRecovery",
             "claimSetup",
             "signIn",
             "activateAssignedAccount",

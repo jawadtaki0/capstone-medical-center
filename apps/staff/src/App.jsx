@@ -7,6 +7,7 @@ import {
 import { BackupCodesPanel, MfaPanel } from "./components/MfaPanel.jsx";
 import Workspace from "./components/Workspace.jsx";
 import ManagerVerification from "./components/ManagerVerification.jsx";
+import AccountRecovery from "./components/AccountRecovery.jsx";
 import {
   observeChallenge,
   observeSession,
@@ -30,6 +31,8 @@ export default function App({ api = desktopApi }) {
   const [backupCodes, setBackupCodes] = useState([]);
   const [now, setNow] = useState(Date.now);
   const [verification, setVerification] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const recoveryReturnFocus = useRef(null);
   const verificationPending = useRef(null);
   const stepRef = useRef(step);
   const generation = useRef(0);
@@ -531,6 +534,10 @@ export default function App({ api = desktopApi }) {
               >
                 {step === "sign-in" && (
                   <SignInForm
+                    onRecovery={() => {
+                      recoveryReturnFocus.current = document.activeElement;
+                      setRecovering(true);
+                    }}
                     busy={busy}
                     setupAvailable={setupAvailable}
                     onAssignedSetup={() => {
@@ -600,6 +607,17 @@ export default function App({ api = desktopApi }) {
               </section>
             )}
           </>
+        )}
+        {recovering && connection === "connected" && step === "sign-in" && (
+          <AccountRecovery
+            api={api}
+            returnFocus={recoveryReturnFocus}
+            onClose={() => setRecovering(false)}
+            onComplete={(message) => {
+              setRecovering(false);
+              setError(message);
+            }}
+          />
         )}
         {verification && step === "workspace" && (
           <ManagerVerification

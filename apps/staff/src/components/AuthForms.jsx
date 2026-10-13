@@ -13,6 +13,7 @@ export function SignInForm({
   setupAvailable,
   onSetup,
   onAssignedSetup,
+  onRecovery,
 }) {
   const id = useId();
   const [username, setUsername] = useState("");
@@ -69,6 +70,14 @@ export function SignInForm({
         If first setup stopped during MFA enrollment, sign in with the username
         and password you already chose. Do not create another administrator.
       </p>
+      <button
+        className="staff-button staff-button-link"
+        type="button"
+        onClick={onRecovery}
+        disabled={busy}
+      >
+        Forgot password / recover access
+      </button>
       {setupAvailable && (
         <button
           className="staff-button staff-button-link"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import StaffProfileFields from "./StaffProfileFields.jsx";
 import { ProfileDetails } from "./StaffProfile.jsx";
 import { suggestedUsername } from "../lib/profile.js";
+import AssistedRecovery from "./AssistedRecovery.jsx";
 import {
   accountStatusLabel,
   assertManagementActionLive,
@@ -695,6 +696,17 @@ export default function StaffDirectory({
                     account={record.account}
                     profile={record.profile}
                   />
+                  {user.roles.includes("Admin") &&
+                    user.id !== record.account.id &&
+                    record.account.status === "active" && (
+                      <AssistedRecovery
+                        key={record.account.id}
+                        account={record.account}
+                        api={api}
+                        onSensitiveAction={onSensitiveAction}
+                        onError={reportError}
+                      />
+                    )}
                   {canManageProfile(user, record.account) ? (
                     <button
                       className="staff-button staff-button-primary"
