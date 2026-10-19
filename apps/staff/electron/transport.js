@@ -323,6 +323,14 @@ export function createBroker({ url, demoMode, request = fetch }) {
       return call("/password/change/cancel", {}, true);
     },
     staffDirectory: () => call("/staff", undefined, true),
+    operationalState: () => call("/operations", undefined, true),
+    saveOperationalRecord: (payload) => call("/operations/save", payload, true),
+    assignOperationalScopes: (payload) =>
+      call("/operations/grants", payload, true),
+    publishOperationalDrafts: (payload) =>
+      call("/operations/publish", payload, true),
+    previewOperationalPublication: (payload) =>
+      call("/operations/preview", payload, true),
     ownProfile: () => call("/profiles/me", undefined, true),
     staffProfile: (payload) =>
       call(`/staff/${target(payload)}/profile`, undefined, true),

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import StaffDirectory from "./StaffDirectory.jsx";
 import StaffProfile from "./StaffProfile.jsx";
+import OperationsPanel from "./OperationsPanel.jsx";
 
 const labels = {
   admin: "Admin",
@@ -32,6 +33,8 @@ export default function Workspace({
   const roles = workspace.roles ?? user.roles ?? [];
   const directoryAllowed =
     workspace.permissions?.includes("staff:directory") === true;
+  const operationsAllowed =
+    workspace.permissions?.includes("operations:view") === true;
   useEffect(() => {
     content.current?.querySelector("h1")?.focus({ preventScroll: true });
   }, [view]);
@@ -43,6 +46,15 @@ export default function Workspace({
           ["workspace", "Workspace"],
           ["profile", "My Profile"],
           ...(directoryAllowed ? [["directory", "Staff Directory"]] : []),
+          ...(operationsAllowed
+            ? [
+                ["professionals", "Professionals"],
+                ["schedule", "Schedules"],
+                ...(roles.includes("Admin")
+                  ? [["registry", "Clinics & services"]]
+                  : []),
+              ]
+            : []),
         ].map(([key, label]) => (
           <button
             type="button"
@@ -90,7 +102,17 @@ export default function Workspace({
             </button>
           </div>
         )}
-        {view === "profile" ? (
+        {operationsAllowed &&
+        ["professionals", "schedule", "registry"].includes(view) ? (
+          <OperationsPanel
+            key={view}
+            api={api}
+            mode={view}
+            onError={onError}
+            onSensitiveAction={onSensitiveAction}
+            onPendingChange={onPendingChange}
+          />
+        ) : view === "profile" ? (
           <StaffProfile
             api={api}
             onError={onError}
@@ -121,8 +143,9 @@ export default function Workspace({
                 View your private profile, edit your address and request a
                 verified email replacement. Phone replacement remains
                 unavailable. Authorized managers can use the staff directory and
-                permitted account controls. Operational appointment, schedule,
-                patient and laboratory screens are not included.
+                permitted account controls. Authorized operational roles can
+                review professional and schedule drafts. Appointment, patient
+                and laboratory record workflows are not included.
               </p>
               <p className="staff-help">
                 Permissions are checked by the server. A department or visible

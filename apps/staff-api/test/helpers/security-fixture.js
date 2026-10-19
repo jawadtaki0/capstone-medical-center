@@ -5,9 +5,11 @@ import { generate, generateSecret } from "otplib";
 import { createApp } from "../../src/app.js";
 import { connectStaffDatabase } from "../../src/db.js";
 import { createVault } from "../../src/local-security.js";
+import { OPERATIONAL_COLLECTIONS } from "../../src/operations.js";
 
 export const TEST_DATABASE = "capstone_staff_test";
 export const STAFF_COLLECTIONS = Object.freeze([
+  ...Object.values(OPERATIONAL_COLLECTIONS),
   "installation_state",
   "accounts",
   "staff_profiles",

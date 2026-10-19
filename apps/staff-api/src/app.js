@@ -324,6 +324,18 @@ export function createApp({
       ),
     ),
   );
+  app.get(
+    "/operations",
+    route((service, request) => service.operations.read(bearer(request))),
+  );
+  for (const action of ["save", "grants", "publish", "preview"]) {
+    app.post(
+      `/operations/${action}`,
+      route((service, request) =>
+        service.operations[action](bearer(request), request.body),
+      ),
+    );
+  }
   app.use((_request, _response, next) =>
     next(
       new StaffError(

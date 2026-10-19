@@ -1,4 +1,3 @@
-import { getDatabase } from "./db.js";
 import { COLLECTIONS, validateScheduleDay } from "./schedule-model.js";
 
 const TIME_ZONE = "Asia/Beirut";
@@ -72,7 +71,7 @@ function publicSessions(sessions, profiles, referenceKey, nameKey, date) {
 // All operations here are reads. Seeding and future authorized publication are separate.
 export async function getScheduleForDate(date, database = undefined) {
   if (!isValidScheduleDate(date)) throw new RangeError("Invalid schedule date");
-  const db = database ?? getDatabase();
+  const db = database ?? (await import("./db.js")).getDatabase();
   const weekly = await db.collection(COLLECTIONS.weekly).findOne(
     {
       publicationStatus: "published",

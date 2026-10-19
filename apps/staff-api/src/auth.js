@@ -24,6 +24,7 @@ import { createContactService } from "./contacts.js";
 import { createPasswordChangeService } from "./password-change.js";
 import { createRecoveryService } from "./recovery.js";
 import { createEmergencyRecovery } from "./emergency-recovery.js";
+import { createOperationsService } from "./operations.js";
 
 export const AUTH_COLLECTIONS = Object.freeze({
   installation: "installation_state",
@@ -711,6 +712,14 @@ export function createAuthService({
     return { account, record, profile: await profileFor(session, account) };
   }
 
+  const operations = createOperationsService({
+    db,
+    transaction,
+    guard,
+    authenticated,
+    now,
+    recentVerificationExpiry,
+  });
   const management = createManagementService({
     db,
     collection,
@@ -826,6 +835,7 @@ export function createAuthService({
 
   return {
     management,
+    operations,
     contacts,
     passwordChange,
     recovery,
