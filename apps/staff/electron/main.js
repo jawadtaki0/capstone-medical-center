@@ -33,6 +33,22 @@ function validatePayload(name, payload) {
   )
     throw new Error("Invalid action payload.");
   const fields = {
+    operationalState: [],
+    saveOperationalRecord: ["type", "record", "expectedRevision"],
+    assignOperationalScopes: [
+      "accountId",
+      "scopeIds",
+      "expectedRevision",
+      "confirmed",
+    ],
+    publishOperationalDrafts: [
+      "scopeIds",
+      "expectedRevision",
+      "expectedHead",
+      "effectiveFrom",
+      "confirmed",
+    ],
+    previewOperationalPublication: ["date"],
     requestRecovery: ["username"],
     verifyRecovery: ["code"],
     resendRecovery: [],

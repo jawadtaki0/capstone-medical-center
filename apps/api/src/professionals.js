@@ -1,4 +1,3 @@
-import { getDatabase } from "./db.js";
 import { COLLECTIONS } from "./schedule-model.js";
 
 const PUBLIC_PROJECTION = Object.freeze({
@@ -39,7 +38,7 @@ function publicProfile(profile, kind) {
 // Independent of sessions: an eligible professional remains listed on days off.
 // No seeding, publication, indexes, or other database writes happen on this path.
 export async function getPublicProfessionals(database = undefined) {
-  const db = database ?? getDatabase();
+  const db = database ?? (await import("./db.js")).getDatabase();
   const readProfiles = async (collection, kind) => {
     const profiles = await db
       .collection(collection)

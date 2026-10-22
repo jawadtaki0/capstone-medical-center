@@ -34,6 +34,18 @@ export function permissionsFor(roles) {
     permissions.push("staff:directory", "staff:profiles", "staff:manage");
   }
   if (roles.includes("Admin")) permissions.push("staff:protected:manage");
+  if (
+    roles.some((role) =>
+      [
+        "Admin",
+        "Clinic Admin",
+        "Lab Admin",
+        "Clinic Receptionist",
+        "Lab Receptionist",
+      ].includes(role),
+    )
+  )
+    permissions.push("operations:view");
   return permissions;
 }
 

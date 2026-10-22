@@ -1,0 +1,158 @@
+.operational-page {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.operational-loading {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-inline-end: 0.5rem;
+  border: 2px solid var(--staff-line);
+  border-top-color: var(--staff-blue);
+  border-radius: 50%;
+  animation: operational-loading 800ms linear infinite;
+}
+.operational-search {
+  position: relative;
+}
+.operational-search > svg {
+  position: absolute;
+  width: 1.25rem;
+  height: 1.25rem;
+  top: 50%;
+  left: 0.9rem;
+  transform: translateY(-50%);
+  color: var(--staff-blue);
+  pointer-events: none;
+  transition: transform 360ms ease;
+}
+.operational-search[data-filled="true"] > svg {
+  transform: translate(-0.3rem, -50%) rotate(-90deg);
+}
+.operational-page .staff-field .operational-search > input {
+  width: 100%;
+  padding-inline-start: 2.8rem;
+}
+@keyframes operational-loading {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .operational-loading {
+    animation: none;
+  }
+  .operational-search > svg {
+    transition: none;
+  }
+}
+.operational-page button,
+.operational-dialog button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.operational-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+.operational-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--staff-line);
+  border-radius: var(--staff-radius);
+  background: white;
+  padding: 1rem;
+  min-width: 0;
+}
+.operational-list > li > div {
+  flex: 1 1 16rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.operational-list h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.operational-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+}
+.operational-toolbar > .staff-field {
+  flex: 1 1 15rem;
+}
+.operational-fields {
+  display: grid;
+  gap: 1rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.operational-fields fieldset {
+  min-width: 0;
+  border: 1px solid var(--staff-line);
+  border-radius: 8px;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.75rem;
+}
+.operational-dialog {
+  width: min(46rem, 100%);
+  overflow-wrap: anywhere;
+}
+.operational-page select,
+.operational-dialog select {
+  max-width: 100%;
+  min-width: 0;
+}
+.operational-page .staff-field select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #abc5d7;
+  border-radius: 10px;
+  background: white;
+  color: var(--staff-ink);
+  font: inherit;
+}
+.operational-page .staff-checkbox,
+.operational-dialog .staff-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: 44px;
+  padding-block: 0.5rem;
+  line-height: 1.5;
+}
+.operational-page .staff-checkbox input,
+.operational-dialog .staff-checkbox input {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--staff-blue);
+}
+.operational-page .staff-workspace-card {
+  display: grid;
+  gap: 1rem;
+}
+.operational-page .staff-field {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .operational-list > li {
+    align-items: stretch;
+  }
+  .operational-list .staff-button {
+    width: 100%;
+  }
+}

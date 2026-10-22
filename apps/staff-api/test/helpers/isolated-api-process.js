@@ -14,6 +14,11 @@ const REQUEST_PATHS = new Set([
   "/profiles/me",
   "/auth/reverify/start",
   "/auth/reverify/complete",
+  "/operations",
+  "/operations/save",
+  "/operations/grants",
+  "/operations/publish",
+  "/operations/preview",
 ]);
 for (const path of [
   "/password/change/start",

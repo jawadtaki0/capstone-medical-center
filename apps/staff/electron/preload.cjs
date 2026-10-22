@@ -1,6 +1,11 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const names = [
+  "operationalState",
+  "saveOperationalRecord",
+  "assignOperationalScopes",
+  "publishOperationalDrafts",
+  "previewOperationalPublication",
   "requestRecovery",
   "verifyRecovery",
   "resendRecovery",
