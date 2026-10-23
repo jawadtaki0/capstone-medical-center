@@ -10,6 +10,9 @@ import { OPERATIONAL_COLLECTIONS } from "../../src/operations.js";
 export const TEST_DATABASE = "capstone_staff_test";
 export const STAFF_COLLECTIONS = Object.freeze([
   ...Object.values(OPERATIONAL_COLLECTIONS),
+  "public_publication_outbox",
+  "public_accepted_publications",
+  "public_publication_state",
   "installation_state",
   "accounts",
   "staff_profiles",
@@ -77,7 +80,10 @@ export function syntheticPassword() {
   return `Synthetic only ${randomBytes(24).toString("base64url")}`;
 }
 
-export async function createSecurityFixture({ contactDelivery } = {}) {
+export async function createSecurityFixture({
+  contactDelivery,
+  publicationDeliveryConfigured = false,
+} = {}) {
   let connection = await connectStaffDatabase({
     database: TEST_DATABASE,
     demoMode: true,
@@ -131,6 +137,7 @@ export async function createSecurityFixture({ contactDelivery } = {}) {
       clock,
       demoMode: true,
       contactDelivery,
+      publicationDeliveryConfigured,
     }).listen(0, "127.0.0.1");
     await once(server, "listening");
     origin = `http://127.0.0.1:${server.address().port}`;
@@ -150,6 +157,7 @@ export async function createSecurityFixture({ contactDelivery } = {}) {
     advance(millisecondsToAdd) {
       milliseconds += millisecondsToAdd;
     },
+    stopServer: stopHttp,
     async reset() {
       await stopHttp();
       assertIsolatedTestTarget(connection); // Rechecked immediately before cleanup.

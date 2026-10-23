@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  makePublicationIntent,
+  PUBLICATION_OUTBOX,
+} from "./publication-delivery.js";
 import { StaffError } from "./errors.js";
 import { allowFields, expectedRevision } from "./management-validation.js";
 import {
@@ -56,6 +60,7 @@ export function createOperationsService({
   authenticated,
   now,
   recentVerificationExpiry,
+  publicationDeliveryConfigured = false,
 }) {
   const collection = (type) => db.collection(OPERATIONAL_COLLECTIONS[type]);
   const admin = (context) => context.account.roles.includes("Admin");
@@ -80,6 +85,7 @@ export function createOperationsService({
       professionals: [...values.doctors, ...values.specialists],
       revision: state?.revision ?? 0,
       head: state?.head ?? 0,
+      streamId: state?.streamId,
     };
   }
   const grantsFor = (data, id) =>
@@ -231,6 +237,33 @@ export function createOperationsService({
               ? data.hours
               : (publication?.hours ?? []),
           grants: admin(context) ? data.grants : [],
+          deliveryConfigured: publicationDeliveryConfigured,
+          deliveries: (
+            await db
+              .collection(PUBLICATION_OUTBOX)
+              .find({}, { session: _session })
+              .sort({ sequence: -1 })
+              .toArray()
+          )
+            .filter((job) =>
+              job.scopeIds.some((id) => access(context, data, id).view),
+            )
+            .slice(0, 20)
+            .map((job) => ({
+              id: job._id,
+              sequence: job.sequence,
+              effectiveFrom: job.effectiveFrom,
+              state: job.state,
+              attempts: job.attempts,
+              lastError: job.lastError ?? null,
+              nextAttemptAt: job.nextAttemptAt,
+              acceptedAt: job.acceptedAt ?? null,
+              acceptedSequence: job.acceptedSequence ?? null,
+              canRetry:
+                publicationDeliveryConfigured &&
+                job.scopeIds.every((id) => access(context, data, id).publish) &&
+                job.state !== "accepted",
+            })),
         };
       }),
     save: (token, input) =>
@@ -415,17 +448,71 @@ export function createOperationsService({
           { _id: next.id, ...next },
           { session },
         );
+        const streamId = data.streamId ?? `stream:${randomUUID()}`;
+        await db.collection(PUBLICATION_OUTBOX).insertOne(
+          makePublicationIntent(
+            streamId,
+            [...events, next].sort((a, b) => a.sequence - b.sequence),
+            at,
+          ),
+          { session },
+        );
         await changed(session, context, "publish", next.id, at);
         await collection("state").updateOne(
           { _id: "working" },
-          { $set: { head: data.head + 1 } },
+          { $set: { head: data.head + 1, streamId } },
           { session },
         );
         return {
           published: true,
           head: data.head + 1,
           boundary: "isolated-local-publication",
+          deliveryState: "pending",
         };
+      }),
+    retry: (token, input) =>
+      run(token, true, async (session, context, data, at) => {
+        allowFields(input, ["deliveryId"]);
+        if (!publicationDeliveryConfigured)
+          throw new StaffError(
+            "delivery_not_configured",
+            "Website delivery is not configured in this service.",
+            409,
+          );
+        const id = identifier(input.deliveryId),
+          outbox = db.collection(PUBLICATION_OUTBOX);
+        const job = await outbox.findOne({ _id: id }, { session });
+        if (!job) throw denied();
+        authorized(context, data, job.scopeIds, "publish");
+        recent(context, at);
+        if (job.state === "accepted")
+          return { retryScheduled: false, accepted: true };
+        if (job.state === "sending" && job.leaseUntil > at)
+          throw new StaffError(
+            "delivery_busy",
+            "Delivery is in progress. Reload its status shortly.",
+            409,
+          );
+        await outbox.updateOne(
+          { _id: id },
+          {
+            $set: { state: "pending", nextAttemptAt: at },
+            $unset: { leaseId: "", leaseUntil: "" },
+          },
+          { session },
+        );
+        await db.collection("security_events").insertOne(
+          {
+            _id: randomUUID(),
+            actorId: context.account._id,
+            targetId: id,
+            action: "operational_retry_delivery",
+            occurredAt: at,
+            outcome: "success",
+          },
+          { session },
+        );
+        return { retryScheduled: true };
       }),
     preview: (token, input) =>
       run(token, false, async (session, context, data) => {

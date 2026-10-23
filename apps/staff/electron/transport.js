@@ -331,6 +331,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
       call("/operations/publish", payload, true),
     previewOperationalPublication: (payload) =>
       call("/operations/preview", payload, true),
+    retryOperationalDelivery: (payload) =>
+      call("/operations/retry", payload, true),
     ownProfile: () => call("/profiles/me", undefined, true),
     staffProfile: (payload) =>
       call(`/staff/${target(payload)}/profile`, undefined, true),

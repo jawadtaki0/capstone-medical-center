@@ -36,8 +36,9 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
     <OperationalDialog titleId={`${id}-title`} busy={busy} onClose={onClose}>
       <h2 id={`${id}-title`}>Review and publish local snapshot</h2>
       <p>
-        This creates an immutable local version only. It does not update Atlas
-        or the live website.
+        This saves an immutable local version and delivery work. If a review
+        receiver is configured, it is updated only after validated acceptance.
+        Atlas and the normal website source remain unchanged in this review.
       </p>
       <p className="staff-help">
         Publish all linked clinics together for shared professional changes.
@@ -88,8 +89,8 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
               onChange={(e) => setConfirmed(e.target.checked)}
               required
             />
-            I reviewed these drafts and understand this is isolated publication,
-            not a live website update.
+            I reviewed these drafts and understand this is isolated publication
+            and delivery, not a live Atlas website update.
           </label>
         </fieldset>
         <div className="staff-actions">

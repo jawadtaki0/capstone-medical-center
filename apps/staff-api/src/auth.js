@@ -135,6 +135,7 @@ export function createAuthService({
   contactDelivery,
   testSetupHash,
   testPasswordWork,
+  publicationDeliveryConfigured = false,
 }) {
   if (!db || !client?.startSession || !vault?.encrypt || !vault?.decrypt)
     throw unavailable();
@@ -719,6 +720,7 @@ export function createAuthService({
     authenticated,
     now,
     recentVerificationExpiry,
+    publicationDeliveryConfigured,
   });
   const management = createManagementService({
     db,

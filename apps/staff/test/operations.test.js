@@ -36,6 +36,47 @@ const jsxHook = registerHooks({
 });
 after(() => jsxHook.deregister());
 
+test("delivery feedback distinguishes local pending/failure/acceptance without claiming premature visibility", async () => {
+  const { default: Delivery } =
+    await import("../src/components/PublicationDelivery.jsx");
+  const render = (state) =>
+    renderToStaticMarkup(
+      createElement(Delivery, {
+        configured: true,
+        deliveries: [
+          {
+            id: "publication:1",
+            sequence: 1,
+            effectiveFrom: "2099-01-01",
+            attempts: 1,
+            canRetry: true,
+            ...state,
+          },
+        ],
+        onRetry() {},
+        onRefresh() {},
+      }),
+    );
+  assert.match(render({ state: "pending" }), /Pending delivery/);
+  assert.match(
+    render({ state: "failed", lastError: "receiver_unavailable" }),
+    /Receiver unavailable/,
+  );
+  assert.match(
+    render({ state: "accepted", acceptedSequence: 1 }),
+    /Receiver accepted/,
+  );
+  assert.match(
+    render({ state: "accepted", acceptedSequence: 1 }),
+    /effective date/,
+  );
+  const disabled = renderToStaticMarkup(
+    createElement(Delivery, { configured: false, deliveries: [] }),
+  );
+  assert.match(disabled, /not configured/);
+  assert.doesNotMatch(disabled, /Retry delivery/);
+});
+
 test("search motion keeps text inset scoped above shared input styles and honors reduced motion", async () => {
   const css = readFileSync(
     new URL("../src/components/operations.css", import.meta.url),

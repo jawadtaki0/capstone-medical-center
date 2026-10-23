@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import OperationalEditor from "./OperationalEditor.jsx";
 import OperationalPublish from "./OperationalPublish.jsx";
 import OperationalRegistry from "./OperationalRegistry.jsx";
+import PublicationDelivery from "./PublicationDelivery.jsx";
 import {
   centerToday,
   cleanOperationalRecord,
@@ -98,8 +99,10 @@ export default function OperationsPanel({
         await load();
         setNotice(
           result.published
-            ? "Local snapshot published. The live website was not changed."
-            : "Saved to the local staff authority. Unpublished edits remain drafts.",
+            ? "Published locally. Website delivery is pending; receiver acceptance has not yet been confirmed."
+            : result.retryScheduled
+              ? "Retry scheduled. Waiting for receiver acknowledgement."
+              : "Saved to the local staff authority. Unpublished edits remain drafts.",
         );
         setPreview(null);
       }
@@ -195,6 +198,18 @@ export default function OperationsPanel({
             Draft revision {state.revision} · Published version {state.head}. No
             assigned scopes means no operational authority.
           </p>
+          <PublicationDelivery
+            configured={state.deliveryConfigured}
+            deliveries={state.deliveries}
+            busy={busy}
+            refreshing={refreshing}
+            onRefresh={() => load()}
+            onRetry={(deliveryId) =>
+              mutate(() => api.retryOperationalDelivery({ deliveryId })).catch(
+                () => {},
+              )
+            }
+          />
           {!state.scopes.length && !state.isAdmin && (
             <p role="status">
               No operational scopes are assigned to your current roles. Ask an

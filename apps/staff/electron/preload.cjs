@@ -6,6 +6,7 @@ const names = [
   "assignOperationalScopes",
   "publishOperationalDrafts",
   "previewOperationalPublication",
+  "retryOperationalDelivery",
   "requestRecovery",
   "verifyRecovery",
   "resendRecovery",

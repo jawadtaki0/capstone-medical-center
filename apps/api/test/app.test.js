@@ -2,6 +2,35 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createApp } from "../src/app.js";
 
+test("ordinary public source is unchanged and has no receiver-writing endpoint without explicit review injection", async (context) => {
+  const marker = { professionals: [] };
+  let reads = 0;
+  const server = createApp({
+    professionalsReader: async () => {
+      reads++;
+      return marker;
+    },
+  }).listen(0, "127.0.0.1");
+  context.after(() => server.close());
+  await new Promise((resolve) => server.once("listening", resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  assert.deepEqual(
+    await (await fetch(`${origin}/api/professionals`)).json(),
+    marker,
+  );
+  assert.equal(reads, 1);
+  assert.equal(
+    (
+      await fetch(`${origin}/api/publications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      })
+    ).status,
+    404,
+  );
+});
+
 test("GET /api/health reports the API and database state", async (context) => {
   const server = createApp({
     databaseHealthReader: async () => "connected",
