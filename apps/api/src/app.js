@@ -6,6 +6,10 @@ import { checkDatabaseHealth } from "./db.js";
 import { getPublicProfessionals } from "./professionals.js";
 import { createPublicDataGate } from "./public-data-gate.js";
 import {
+  MAX_PUBLICATION_BYTES,
+  PublicationError,
+} from "../../../shared/publication-contract.mjs";
+import {
   getBeirutToday,
   getScheduleForDate,
   isValidScheduleDate,
@@ -16,12 +20,55 @@ export function createApp({
   professionalsReader = getPublicProfessionals,
   databaseHealthReader = checkDatabaseHealth,
   publicDataGate = createPublicDataGate(),
+  publicationReceiver = null,
+  websiteDirectory = null,
 } = {}) {
   const app = express();
 
   app.disable("x-powered-by");
   app.use(helmet());
   app.use(cors({ origin: config.clientOrigin }));
+  if (publicationReceiver) {
+    scheduleReader = publicationReceiver.schedule;
+    professionalsReader = publicationReceiver.professionals;
+    databaseHealthReader = publicationReceiver.health;
+    app.use("/api", (_request, response, next) => {
+      response.set("Cache-Control", "no-store");
+      next();
+    });
+    app.post(
+      "/api/publications",
+      (request, response, next) =>
+        publicationReceiver.authorized(request)
+          ? next()
+          : response.status(401).json({
+              error: "publication_authentication_failed",
+              message: "Publication authentication is required.",
+            }),
+      express.json({ limit: MAX_PUBLICATION_BYTES, strict: true }),
+      async (request, response) => {
+        try {
+          response.json(await publicationReceiver.accept(request.body));
+        } catch (error) {
+          response
+            .status(error instanceof PublicationError ? error.status : 503)
+            .json({
+              error:
+                error instanceof PublicationError
+                  ? error.code
+                  : "publication_unavailable",
+              message:
+                "The publication was not accepted. The previous public version is unchanged.",
+            });
+        }
+      },
+      (error, _request, response, _next) =>
+        response.status(error.type === "entity.too.large" ? 413 : 400).json({
+          error: "invalid_publication",
+          message: "Send one complete publication within the permitted size.",
+        }),
+    );
+  }
   app.use(express.json({ limit: "100kb" }));
 
   app.get("/api/health", async (_request, response) => {
@@ -72,6 +119,12 @@ export function createApp({
     }),
   );
 
+  if (websiteDirectory) {
+    app.use(express.static(websiteDirectory));
+    app.get(["/", "/doctors", "/schedule"], (_request, response) =>
+      response.sendFile("index.html", { root: websiteDirectory }),
+    );
+  }
   app.use((request, response) => {
     response.status(404).json({
       error: "not_found",

@@ -49,6 +49,7 @@ function validatePayload(name, payload) {
       "confirmed",
     ],
     previewOperationalPublication: ["date"],
+    retryOperationalDelivery: ["deliveryId"],
     requestRecovery: ["username"],
     verifyRecovery: ["code"],
     resendRecovery: [],

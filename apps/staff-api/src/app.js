@@ -24,11 +24,19 @@ export function createApp({
   clock = () => new Date(),
   demoMode = false,
   contactDelivery,
+  publicationDeliveryConfigured = false,
 } = {}) {
   const app = express();
   const auth =
     db && client && vault
-      ? createAuthService({ db, client, vault, clock, contactDelivery })
+      ? createAuthService({
+          db,
+          client,
+          vault,
+          clock,
+          contactDelivery,
+          publicationDeliveryConfigured,
+        })
       : null;
   app.disable("x-powered-by");
   app.set("trust proxy", false);
@@ -328,7 +336,7 @@ export function createApp({
     "/operations",
     route((service, request) => service.operations.read(bearer(request))),
   );
-  for (const action of ["save", "grants", "publish", "preview"]) {
+  for (const action of ["save", "grants", "publish", "preview", "retry"]) {
     app.post(
       `/operations/${action}`,
       route((service, request) =>
