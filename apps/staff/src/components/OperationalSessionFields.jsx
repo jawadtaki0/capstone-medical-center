@@ -1,5 +1,9 @@
 import { useId } from "react";
 import { WEEKDAYS } from "../lib/operations.js";
+import {
+  parsePatientLimit,
+  validPatientLimit,
+} from "../../../../shared/session-capacity.mjs";
 
 export default function OperationalSessionFields({
   value,
@@ -39,6 +43,11 @@ export default function OperationalSessionFields({
                 ...value,
                 scopeId: e.target.value,
                 professionalId: null,
+                capacity:
+                  state.scopes.find((s) => s.id === e.target.value)?.kind ===
+                  "service"
+                    ? null
+                    : value.capacity,
               })
             }
             required
@@ -95,26 +104,33 @@ export default function OperationalSessionFields({
       {field("endTime", "Session end", "time", { required: true })}
       {scope?.kind === "clinic" && (
         <div className="staff-field">
-          <label htmlFor={`${id}-capacity`}>
-            Patient capacity (unconfirmed if blank)
-          </label>
+          <label htmlFor={`${id}-capacity`}>Patient limit</label>
           <input
             id={`${id}-capacity`}
-            type="number"
-            min="1"
-            step="1"
+            type="text"
+            inputMode="numeric"
             value={value.capacity ?? ""}
-            onChange={(e) =>
-              set(
-                "capacity",
-                e.target.value === "" ? null : Number(e.target.value),
-              )
-            }
+            aria-describedby={`${id}-capacity-help`}
+            aria-invalid={!validPatientLimit(value.capacity)}
+            onChange={(e) => {
+              try {
+                set("capacity", parsePatientLimit(e.target.value));
+              } catch {
+                set("capacity", e.target.value);
+              }
+            }}
           />
-          <p className="staff-help">
-            Full-session capacity, not appointment time slots. No default is
-            supplied.
+          <p className="staff-help" id={`${id}-capacity-help`}>
+            Optional positive whole number. Blank means not configured, not
+            unlimited. The schedule can publish without a limit; future booking
+            confirmation requires one. Hours and specialty edits preserve the
+            saved limit. This does not create appointment time slots.
           </p>
+          {!validPatientLimit(value.capacity) && (
+            <p className="staff-error" role="alert">
+              Enter a positive whole patient limit, or leave it blank.
+            </p>
+          )}
         </div>
       )}
       <div className="staff-field">

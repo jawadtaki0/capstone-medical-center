@@ -149,12 +149,20 @@ export default function OperationsPanel({
       <p className="staff-eyebrow">CENTER-LOCAL · ASIA/BEIRUT</p>
       <h1 tabIndex={-1}>{heading}</h1>
       <p className="staff-intro">
-        Isolated local management and publication review. Atlas and the live
-        website are unchanged. No booking, patient records or notifications.
+        Manage private drafts and authorized publications. Website updates
+        require receiver acceptance and explicit operator source activation. No
+        booking, patient records or notifications.
       </p>
       {error && (
         <p className="staff-error" role="alert">
           {error}
+        </p>
+      )}
+      {state?.publicationBlocked && (
+        <p className="staff-error" role="alert">
+          Publication configuration needs operator reconciliation. Drafts and
+          other local staff functions remain available; no replacement source is
+          created automatically.
         </p>
       )}
       {notice && (
@@ -178,7 +186,7 @@ export default function OperationsPanel({
         {canEdit && (
           <button
             className="staff-button staff-button-primary"
-            disabled={busy || refreshing}
+            disabled={busy || refreshing || state?.publicationBlocked}
             type="button"
             onClick={() => setPublishing(true)}
           >
@@ -399,8 +407,7 @@ export default function OperationsPanel({
                       </p>
                       {s.professionalId && (
                         <p>
-                          Capacity:{" "}
-                          {s.capacity ?? "Unconfirmed — cannot publish"}
+                          Patient limit: {s.capacity ?? "Not configured"}
                           {s.appointmentRequired
                             ? " · Appointment required"
                             : ""}

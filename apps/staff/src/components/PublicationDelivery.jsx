@@ -34,8 +34,8 @@ export default function PublicationDelivery({
       <p className="staff-help">
         Local Publish saves an immutable version and delivery work. Receiver
         acceptance is separate; public visibility follows each Beirut effective
-        date. This isolated review does not change the normal Atlas website
-        source.
+        date after operator source activation. Acceptance alone does not switch
+        a legacy website source.
       </p>
       {!configured && (
         <p role="status">
@@ -70,8 +70,8 @@ export default function PublicationDelivery({
                     {labels[job.state] ?? "Status unavailable"}
                   </p>
                   <p className="staff-help">
-                    Effective from {job.effectiveFrom} · Delivery attempts:{" "}
-                    {job.attempts}
+                    Effective from {job.effectiveFrom ?? "undated baseline"} ·
+                    Delivery attempts: {job.attempts}
                   </p>
                   {job.state === "accepted" && (
                     <p>

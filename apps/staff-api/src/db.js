@@ -1,9 +1,26 @@
 import { MongoClient } from "mongodb";
 import { loadConfig, validateTarget } from "./config.js";
+import { STAFF_ROLE_POLICY } from "../../../shared/staff-roles.mjs";
+
+export async function assertRoleStoragePolicy(db) {
+  const state = await db
+    .collection("staff_management_state")
+    .findOne({ _id: "staff-controls" });
+  if (state?.rolePolicy === STAFF_ROLE_POLICY) return;
+  if (await db.collection("accounts").findOne({}, { projection: { _id: 1 } }))
+    throw new Error(
+      "Staff role data requires the approved coordinated migration and matching API/package. Startup refused; no accounts were changed.",
+    );
+  if (state)
+    throw new Error(
+      "Unsupported or unmarked existing staff role policy. Startup refused; reconcile through the approved maintenance process.",
+    );
+}
 
 export async function connectStaffDatabase({
   database = "capstone_staff_dev",
   demoMode = false,
+  initializeIndexes = true,
 } = {}) {
   const config = await loadConfig({ database, demoMode });
   validateTarget(config);
@@ -22,7 +39,10 @@ export async function connectStaffDatabase({
     )
       throw new Error("Staff database topology is not ready.");
     const db = client.db(config.database);
-    await ensureIndexes(db);
+    if (initializeIndexes) {
+      await assertRoleStoragePolicy(db);
+      await ensureIndexes(db);
+    }
     return { client, db, config };
   } catch (error) {
     await client.close();
@@ -67,7 +87,11 @@ export async function ensureIndexes(db) {
   await db.collection("staff_management_state").updateOne(
     { _id: "staff-controls" },
     {
-      $setOnInsert: { revision: 0, createdAt: new Date() },
+      $setOnInsert: {
+        revision: 0,
+        createdAt: new Date(),
+        rolePolicy: STAFF_ROLE_POLICY,
+      },
     },
     { upsert: true },
   );

@@ -1,5 +1,6 @@
 import { StaffError } from "./errors.js";
 import { effectiveSessions, assertNoOverlap } from "./operational-model.js";
+import { validPatientLimit } from "../../../shared/session-capacity.mjs";
 
 const incomplete = (message) => {
   throw new StaffError("publication_incomplete", message, 409);
@@ -16,6 +17,10 @@ export function validatePublication(value) {
     );
   const scopes = new Map(value.scopes.map((s) => [s.id, s]));
   const profiles = new Map(value.professionals.map((p) => [p.id, p]));
+  if (value.professionals.some((p) => !["male", "female"].includes(p.gender)))
+    incomplete(
+      "Confirm Gender for every professional before publishing. Unconfirmed gender may remain in a draft.",
+    );
   const inspect = (sessions, day, date) => {
     const hours =
       value.hours.find((h) => h.id === date) ??
@@ -36,14 +41,17 @@ export function validatePublication(value) {
         incomplete(
           "A session has an inconsistent professional/clinic reference.",
         );
+      if (
+        !validPatientLimit(item.capacity) ||
+        (!item.professionalId && item.capacity !== null)
+      )
+        incomplete(
+          "Patient limits must be positive whole numbers or unset. Service-only hours have no patient limit.",
+        );
       if (item.status !== "active") continue;
       if (!scope.active || (item.professionalId && !profile.active))
         incomplete(
           "Cancel or explicitly revise affected sessions before publishing a deactivation. History is retained.",
-        );
-      if (item.professionalId && !Number.isInteger(item.capacity))
-        incomplete(
-          "Confirm a positive patient capacity for every applicable active session before publishing. No default is supplied.",
         );
       if (
         hours.closed ||

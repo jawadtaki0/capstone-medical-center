@@ -87,12 +87,12 @@ function pause(stage) {
 
 for (const roles of [
   ["Admin"],
-  ["System Admin"],
+  ["Clinic Admin"],
   ["Clinic Admin"],
   ["Lab Admin"],
-  ["Clinic Receptionist"],
-  ["Lab Receptionist"],
-  ["Clinic Receptionist", "Lab Admin"],
+  ["Receptionist"],
+  ["Receptionist"],
+  ["Receptionist", "Lab Admin"],
 ]) {
   test(`own password change and preserved profile/factors: ${roles.join(" + ")}`, async () => {
     const admin = roles.some((role) => role.includes("Admin"));

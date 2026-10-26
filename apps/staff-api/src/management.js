@@ -5,7 +5,11 @@ import {
   PHONE_COUNTRIES,
 } from "../../staff/shared/contact-input.js";
 import { StaffError, unavailable } from "./errors.js";
-import { ROLES, validRoles } from "./permissions.js";
+import {
+  ROLES,
+  validRoles,
+  requiresMfa as roleRequiresMfa,
+} from "./permissions.js";
 import {
   CONTACT_FIELDS,
   DEPARTMENTS,
@@ -29,9 +33,8 @@ export const MANAGEMENT_POLICY = Object.freeze({
   recentMs: 5 * 60000,
 });
 const manager = (account) =>
-  account.roles.includes("Admin") || account.roles.includes("System Admin");
-const protectedRoles = (roles) =>
-  roles.includes("Admin") || roles.includes("System Admin");
+  validRoles(account.roles) && account.roles.includes("Admin");
+const protectedRoles = (roles) => roles.includes("Admin");
 const denied = (
   message = "You do not have permission to perform this staff action.",
 ) => new StaffError("permission_denied", message, 403);
@@ -87,11 +90,7 @@ export function activationState(account) {
   if (account.status === "setup_pending") return "awaiting_password";
   if (
     account.status === "mfa_pending" ||
-    (validRoles(account.roles) &&
-      account.roles.some((role) =>
-        ["Admin", "System Admin", "Clinic Admin", "Lab Admin"].includes(role),
-      ) &&
-      account.mfa?.enabled !== true)
+    (roleRequiresMfa(account.roles) && account.mfa?.enabled !== true)
   )
     return "mfa_enrollment";
   if (account.mfa?.enabled === true && account.mfa.backupAcknowledged !== true)
@@ -438,7 +437,7 @@ export function createManagementService({
       protectedWorkFields.some((field) => Object.hasOwn(input.profile, field))
     ) {
       throw denied(
-        "Only another Admin may change an Admin or System Admin's departments or employment start date.",
+        "Only another Admin may change an Admin's departments or employment start date.",
       );
     }
     if (profileRevision(profile) !== input.expectedRevision) throw stale();

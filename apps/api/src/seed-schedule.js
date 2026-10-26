@@ -8,8 +8,61 @@ import {
   WEEKLY_SCHEDULE_ID,
 } from "./schedule-seed-data.js";
 import { COLLECTIONS, validateScheduleDay } from "./schedule-model.js";
+import { guardLegacyWrites, PUBLIC_AUTHORITY } from "./public-authority.js";
 
 export async function seedPublicSchedules(database) {
+  const authority = await database
+    .collection(PUBLIC_AUTHORITY)
+    .findOne({ _id: "source" });
+  if (authority && authority.mode !== "legacy")
+    throw new Error(
+      "Cedar is the operational authority. Legacy schedule writers are disabled.",
+    );
+  if (database.client) {
+    // DDL is prepared outside the record transaction; all actual seed writes
+    // serialize with activation. The in-memory unit adapter has no client.
+    await database.collection(COLLECTIONS.weekly).createIndex({
+      publicationStatus: 1,
+      effectiveFrom: -1,
+      publishedAt: -1,
+    });
+    await database.collection(COLLECTIONS.changes).createIndex({
+      weeklyScheduleId: 1,
+      date: 1,
+      publicationStatus: 1,
+      publishedAt: -1,
+    });
+    const session = database.client.startSession();
+    try {
+      return await session.withTransaction(
+        async () => {
+          await guardLegacyWrites(database, session);
+          const scoped = {
+            collection(name) {
+              const c = database.collection(name);
+              return {
+                findOne: (query) => c.findOne(query, { session }),
+                createIndex: async () => {},
+                updateOne: (query, update, options) =>
+                  c.updateOne(query, update, { ...options, session }),
+              };
+            },
+          };
+          return seedRecords(scoped);
+        },
+        {
+          readConcern: { level: "snapshot" },
+          writeConcern: { w: "majority" },
+          readPreference: "primary",
+        },
+      );
+    } finally {
+      await session.endSession();
+    }
+  }
+  return seedRecords(database);
+}
+async function seedRecords(database) {
   const completed = await database
     .collection(COLLECTIONS.seeds)
     .findOne({ _id: SEED_ID });

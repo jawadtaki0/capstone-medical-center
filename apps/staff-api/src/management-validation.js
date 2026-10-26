@@ -76,7 +76,7 @@ export function expectedVersion(value) {
 export function validateRoles(value) {
   if (!validRoles(value))
     throw invalid(
-      "Select at least one of the six staff roles without duplicates.",
+      "Select at least one of the four staff roles without duplicates.",
     );
   return [...value];
 }

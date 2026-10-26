@@ -130,7 +130,7 @@ export const payloadDigest = (value) =>
   createHash("sha256").update(canonicalJSON(value)).digest("hex");
 export function buildDelivery(streamId, events) {
   const result = {
-    schemaVersion: 1,
+    schemaVersion: events[0]?.effectiveFrom === null ? 2 : 1,
     streamId,
     sequence: events.length,
     events: events.map((event) => project("event", event)),
@@ -212,7 +212,7 @@ export function validateDelivery(value, byteLimit = MAX_PUBLICATION_BYTES) {
   id(value.streamId);
   array(value.events, 1000);
   if (
-    value.schemaVersion !== 1 ||
+    ![1, 2].includes(value.schemaVersion) ||
     !Number.isSafeInteger(value.sequence) ||
     value.sequence < 1 ||
     value.sequence !== value.events.length
@@ -221,7 +221,9 @@ export function validateDelivery(value, byteLimit = MAX_PUBLICATION_BYTES) {
   for (const [index, event] of value.events.entries()) {
     object(event, fields.event);
     id(event.id);
-    calendarDate(event.effectiveFrom);
+    if (value.schemaVersion === 2 && index === 0) {
+      if (event.effectiveFrom !== null) invalid();
+    } else calendarDate(event.effectiveFrom);
     bool(event.publishesHours);
     if (
       event.sequence !== index + 1 ||
@@ -267,7 +269,11 @@ export function validateDelivery(value, byteLimit = MAX_PUBLICATION_BYTES) {
       if (
         !["doctor", "specialist"].includes(p.kind) ||
         !p.id.startsWith(`${p.kind}:`) ||
-        !["male", "female", "neutral"].includes(p.avatarVariant)
+        !(
+          value.schemaVersion === 2
+            ? ["male", "female"]
+            : ["male", "female", "neutral"]
+        ).includes(p.avatarVariant)
       )
         invalid();
       array(p.scopeIds, 100);

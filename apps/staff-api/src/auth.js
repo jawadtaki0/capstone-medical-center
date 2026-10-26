@@ -20,6 +20,7 @@ import {
   validateProfile,
 } from "./validation.js";
 import { createManagementService } from "./management.js";
+import { STAFF_ROLE_POLICY } from "../../../shared/staff-roles.mjs";
 import { createContactService } from "./contacts.js";
 import { createPasswordChangeService } from "./password-change.js";
 import { createRecoveryService } from "./recovery.js";
@@ -136,6 +137,7 @@ export function createAuthService({
   testSetupHash,
   testPasswordWork,
   publicationDeliveryConfigured = false,
+  publicationDeliveryBlocked = false,
 }) {
   if (!db || !client?.startSession || !vault?.encrypt || !vault?.decrypt)
     throw unavailable();
@@ -208,7 +210,7 @@ export function createAuthService({
     // ensureIndexes creates this additive singleton before serving. Every
     // eligibility mutation shares its write, so stale snapshot decisions retry.
     const result = await collection("managementState").updateOne(
-      { _id: "staff-controls" },
+      { _id: "staff-controls", rolePolicy: STAFF_ROLE_POLICY },
       { $inc: { revision: 1 } },
       { session },
     );
@@ -616,6 +618,11 @@ export function createAuthService({
     };
   }
   async function authenticated(session, token, at, allowPending = false) {
+    const policy = await collection("managementState").findOne(
+      { _id: "staff-controls" },
+      { session },
+    );
+    if (policy?.rolePolicy !== STAFF_ROLE_POLICY) throw unavailable();
     const text = boundedSecret(token);
     const record = text
       ? await collection("sessions").findOne(
@@ -721,6 +728,7 @@ export function createAuthService({
     now,
     recentVerificationExpiry,
     publicationDeliveryConfigured,
+    publicationDeliveryBlocked,
   });
   const management = createManagementService({
     db,
@@ -847,6 +855,7 @@ export function createAuthService({
       return {
         status: "ok",
         service: "medical-center-staff-api",
+        rolePolicy: STAFF_ROLE_POLICY,
         database: "connected",
         serverNow: now().toISOString(),
       };
@@ -1289,14 +1298,10 @@ export function createAuthService({
         const context = await authenticated(session, token, at);
         if (context.failure) return context;
         const { account, record } = context;
-        if (
-          !account.roles.some((role) =>
-            ["Admin", "System Admin"].includes(role),
-          )
-        ) {
+        if (!requiresMfa(account.roles)) {
           throw new StaffError(
             "permission_denied",
-            "Staff management requires an authorized manager.",
+            "This action requires an administrative role. Verification does not grant additional permissions.",
             403,
           );
         }
@@ -1379,14 +1384,10 @@ export function createAuthService({
         const context = await authenticated(session, token, at);
         if (context.failure) return context;
         const { account, record, profile } = context;
-        if (
-          !account.roles.some((role) =>
-            ["Admin", "System Admin"].includes(role),
-          )
-        ) {
+        if (!requiresMfa(account.roles)) {
           throw new StaffError(
             "permission_denied",
-            "Staff management requires an authorized manager.",
+            "This action requires an administrative role. Verification does not grant additional permissions.",
             403,
           );
         }

@@ -141,24 +141,22 @@ describe(
             }),
           );
     }
-    async function person(roles = ["Clinic Receptionist"]) {
+    async function person(roles = ["Receptionist"]) {
       const account = await fixture.account({ roles, mfa: requiresMfa(roles) });
       return { ...account, ...(await login(account)) };
     }
     test("assigned receptionists without an enrolled MFA version can verify contact without a guessed account backfill", async () => {
       for (const roles of [
-        ["Clinic Receptionist"],
-        ["Lab Receptionist"],
-        ["Clinic Receptionist", "Lab Receptionist"],
+        ["Receptionist"],
+        ["Receptionist"],
+        ["Receptionist"],
       ]) {
         const account = await person(roles);
         await fixture.db.collection("accounts").updateOne(
           { _id: account.id },
           {
             $set: {
-              mfa: roles.includes("Clinic Receptionist")
-                ? null
-                : { enabled: false },
+              mfa: roles.includes("Receptionist") ? null : { enabled: false },
             },
           },
         );
@@ -258,7 +256,7 @@ describe(
     test("same verified normalized email rejects for every role without altering pending requests, factors, profiles, counters, budgets or messages", async () => {
       for (const roles of [
         ...ROLES.map((role) => [role]),
-        ["Admin", "System Admin"],
+        ["Admin", "Clinic Admin"],
       ]) {
         const account = await person(roles);
         // Prime meaningful nonempty state, including an existing pending code,
@@ -397,7 +395,7 @@ describe(
     test("all six roles and mixed roles can use previously unlisted emails with actual factors and possession proof", async () => {
       for (const roles of [
         ...ROLES.map((role) => [role]),
-        ["System Admin", "Clinic Receptionist"],
+        ["Clinic Admin", "Receptionist"],
       ]) {
         const account = await person(roles),
           before = await profile(account);
@@ -415,7 +413,7 @@ describe(
         assert.equal(own.profile.contactStatus.phone, "unverified");
         denied(await complete(account), "contact_verification_failed");
       }
-      assert.equal(messages.length, 7); // No notification to unverified legacy contacts.
+      assert.equal(messages.length, ROLES.length + 1); // All four singles plus a mixed-role account; no legacy notification.
       assert.equal(
         await fixture.db
           .collection("contact_delivery_budgets")

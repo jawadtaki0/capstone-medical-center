@@ -11,9 +11,16 @@ import { readLauncherConfig } from "../../staff-api/scripts/launcher/configurati
 import { seedPublicationAuthority } from "../../staff-api/test/helpers/publication-authority.js";
 import { startPublicationProcess } from "../../staff-api/test/helpers/publication-process.js";
 import { verifySyntheticManager } from "./operational-review-controls.js";
+import { BSON } from "mongodb";
+import { syntheticTransitionSnapshot } from "../../staff-api/test/helpers/public-baseline.js";
+import {
+  planPublicBaseline,
+  applyPublicBaseline,
+} from "../../staff-api/src/public-baseline-import.js";
 
 const args = process.argv.slice(2),
   interactive = args.includes("--interactive"),
+  transition = args.includes("--transition"),
   packageIndex = args.indexOf("--package");
 const executable =
   packageIndex < 0 ? undefined : resolve(args[packageIndex + 1]);
@@ -29,14 +36,7 @@ if (executable) {
 }
 await access(resolve("apps/staff/dist/index.html"));
 await access(resolve("apps/web/dist/index.html"));
-const roles = [
-  "Admin",
-  "System Admin",
-  "Clinic Admin",
-  "Lab Admin",
-  "Clinic Receptionist",
-  "Lab Receptionist",
-];
+const roles = ["Admin", "Clinic Admin", "Lab Admin", "Receptionist"];
 let selectedRole = "Admin",
   fixture,
   setup,
@@ -59,7 +59,7 @@ const people = new Map(),
   token = randomBytes(32).toString("base64url");
 let checkpoints = 0,
   stage = "preflight";
-const evidence = resolve(".local/public-publication-review"),
+const evidence = resolve(".local/four-role-manual-limits/native"),
   lockPath = resolve(".local/professional-schedule-review/review.lock");
 const pass = (text) => console.log(`PASS ${++checkpoints}: ${text}`);
 const today = () =>
@@ -129,6 +129,7 @@ async function setReceiver(enabled) {
       streamId,
       token,
       website: true,
+      staged: transition,
     });
 }
 async function setStaff(enabled) {
@@ -257,7 +258,11 @@ async function publish(date = today()) {
   await page
     .getByRole("button", { name: "Review publication", exact: true })
     .click();
-  await page.getByLabel("Synthetic Review Clinic", { exact: true }).check();
+  await page
+    .getByLabel(transition ? "Clinic" : "Synthetic Review Clinic", {
+      exact: true,
+    })
+    .check();
   await page
     .getByLabel("Effective from (Asia/Beirut)", { exact: true })
     .fill(date);
@@ -360,23 +365,63 @@ try {
     publicationDeliveryConfigured: true,
   });
   await fixture.reset();
-  setup = await seedPublicationAuthority(fixture, "review.publication.admin");
-  people.set("Admin", setup.admin);
-  await setup.save("professionals", {
-    ...setup.profile,
-    id: "specialist:synthetic",
-    kind: "specialist",
-    name: "Synthetic Review Therapist",
-    specialty: "Therapist",
-  });
-  await setup.save("scopes", {
-    id: "service:audio",
-    name: "Audiometry",
-    kind: "service",
-    active: true,
-  });
   const day = new Date(`${today()}T12:00:00Z`).getUTCDay();
-  for (const weekday of new Set([1, ...(day ? [day] : [])])) {
+  if (transition) {
+    const snapshot = syntheticTransitionSnapshot(day),
+      plan = planPublicBaseline(snapshot);
+    await applyPublicBaseline({
+      db: fixture.db,
+      client: fixture.client,
+      snapshot,
+      expectedDigest: plan.digest,
+      demoMode: true,
+    });
+    for (const [name, entry] of Object.entries(snapshot.collections))
+      if (entry.raw.length)
+        await fixture.db
+          .collection(name)
+          .insertMany(entry.raw.map((raw) => BSON.deserialize(raw)));
+    assert.equal(
+      (
+        await applyPublicBaseline({
+          db: fixture.db,
+          client: fixture.client,
+          snapshot,
+          expectedDigest: plan.digest,
+          demoMode: true,
+        })
+      ).status,
+      "already_imported",
+    );
+    assert.equal(
+      await fixture.db.collection("operational_grants").countDocuments(),
+      0,
+    );
+    pass(
+      "synthetic BSON baseline imported repeat-safely, with no automatic staff assignments",
+    );
+  }
+  setup = await seedPublicationAuthority(fixture, "review.publication.admin", {
+    imported: transition,
+  });
+  const clinicId = setup.profile.scopeIds[0];
+  people.set("Admin", setup.admin);
+  if (!transition)
+    await setup.save("professionals", {
+      ...setup.profile,
+      id: "specialist:synthetic",
+      kind: "specialist",
+      name: "Synthetic Review Therapist",
+      specialty: "Therapist",
+    });
+  if (!transition)
+    await setup.save("scopes", {
+      id: "service:audio",
+      name: "Audiometry",
+      kind: "service",
+      active: true,
+    });
+  for (const weekday of transition ? [] : new Set([1, ...(day ? [day] : [])])) {
     if (weekday !== 1)
       await setup.save("sessions", {
         id: `session:today:${weekday}`,
@@ -385,7 +430,7 @@ try {
         weekday,
         startTime: "09:00",
         endTime: "11:00",
-        capacity: 5,
+        capacity: 4,
         status: "active",
         appointmentRequired: false,
       });
@@ -396,7 +441,7 @@ try {
       weekday,
       startTime: "10:00",
       endTime: "11:00",
-      capacity: 3,
+      capacity: 4,
       status: "active",
       appointmentRequired: true,
     });
@@ -419,20 +464,23 @@ try {
       mfa: !role.includes("Receptionist"),
     });
     people.set(role, person);
-    if (role !== "System Admin")
-      setup.ok(
-        await setup.post("grants", {
-          accountId: person.id,
-          scopeIds: [
-            role.startsWith("Clinic") ? "clinic:synthetic" : "service:audio",
-          ],
-          expectedRevision: 0,
-          confirmed: true,
-        }),
-      );
+    setup.ok(
+      await setup.post("grants", {
+        accountId: person.id,
+        scopeIds:
+          role === "Receptionist"
+            ? [clinicId, "service:audio"]
+            : [role.startsWith("Clinic") ? clinicId : "service:audio"],
+        expectedRevision: 0,
+        confirmed: true,
+      }),
+    );
   }
   setup.ok(
-    await setup.publish("2026-01-01", ["clinic:synthetic", "service:audio"]),
+    await setup.publish(
+      transition ? null : "2026-01-01",
+      (await setup.state()).scopes.map((s) => s.id),
+    ),
   );
   streamId = (
     await fixture.db.collection("operational_state").findOne({ _id: "working" })
@@ -446,6 +494,28 @@ try {
   }, 250);
   await setReceiver(true);
   await setStaff(true);
+  if (transition) {
+    await until(
+      async () =>
+        Boolean(
+          (
+            await fixture.db
+              .collection("public_publication_state")
+              .findOne({ _id: streamId })
+          )?.sequence === 1,
+        ),
+      "Staged baseline was not accepted",
+    );
+    assert.equal((await receiver.control("source-mode")).mode, "legacy");
+    await receiver.control("activate-baseline");
+    assert.equal((await receiver.control("source-mode")).mode, "cedar");
+    await receiver.control("rollback-baseline");
+    assert.equal((await receiver.control("source-mode")).mode, "legacy");
+    await receiver.control("activate-baseline");
+    pass(
+      "owned receiver staged acceptance, seven-day comparison, explicit activation and baseline-only rollback persist correctly",
+    );
+  }
   browser = await chromium.launch({
     channel: "msedge",
     headless: !interactive,
@@ -461,6 +531,59 @@ try {
       external.push("website external request");
   });
   await openClient("Admin");
+  if (transition && !interactive) {
+    stage = "manual nullable patient-limit controls";
+    await page.getByRole("button", { name: "Schedules", exact: true }).click();
+    await page
+      .getByLabel("Recurring weekday", { exact: true })
+      .selectOption("1");
+    await page
+      .getByRole("button", { name: "Edit session", exact: true })
+      .first()
+      .click();
+    const savedCapacity = page.getByLabel("Patient limit", {
+      exact: true,
+    });
+    assert.equal(await savedCapacity.inputValue(), "");
+    assert.equal(await savedCapacity.getAttribute("readonly"), null);
+    await savedCapacity.fill("3");
+    await page.getByLabel("Session end", { exact: true }).fill("12:00");
+    assert.equal(await savedCapacity.inputValue(), "3");
+    await page.getByLabel("Session end", { exact: true }).fill("11:07");
+    assert.equal(await savedCapacity.inputValue(), "3");
+    await savedCapacity.fill("3.5");
+    await page
+      .getByText("Enter a positive whole patient limit, or leave it blank.", {
+        exact: true,
+      })
+      .waitFor();
+    await savedCapacity.fill("");
+    await page.getByText(/Blank means not configured/).waitFor();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Apply calculated capacity", exact: true })
+        .count(),
+      0,
+    );
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    await page
+      .getByRole("button", { name: "Professionals", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: /^Edit Dr\. Synthetic/ })
+      .first()
+      .click();
+    assert.equal(
+      await page.getByLabel("Gender", { exact: true }).inputValue(),
+      "female",
+    );
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    pass(
+      "actual patient-limit editor accepts manual 3 and blank, preserves limits on arbitrary valid hours, flags invalid input and keeps Gender without avatar preference",
+    );
+  }
   if (interactive) {
     await site.goto("http://127.0.0.1:4201/doctors");
     await interactiveLoop();
@@ -624,6 +747,60 @@ try {
       ),
       fullPage: true,
     });
+    for (const role of roles.filter((role) => role !== "Admin")) {
+      stage = `${role} current-role scoped UI`;
+      await openClient(role);
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Staff Directory", exact: true })
+          .count(),
+        0,
+      );
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Clinics & services", exact: true })
+          .count(),
+        0,
+      );
+      await page
+        .getByRole("button", { name: "Schedules", exact: true })
+        .click();
+      await page.getByText(/Draft revision/).waitFor();
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Review publication", exact: true })
+          .count(),
+        role === "Receptionist" ? 0 : 1,
+      );
+      assert.equal(
+        await page
+          .getByRole("button", {
+            name: "Add recurring session / service hours",
+            exact: true,
+          })
+          .count(),
+        role === "Receptionist" ? 0 : 1,
+      );
+      if (role === "Receptionist") {
+        assert.equal(
+          await page
+            .getByRole("button", { name: "Edit session", exact: true })
+            .count(),
+          0,
+        );
+        assert.equal(
+          await page
+            .getByRole("button", { name: /^Retry delivery for publication/ })
+            .count(),
+          0,
+        );
+      }
+      await page.setViewportSize({ width: 360, height: 760 });
+      await noOverflow(page);
+      pass(
+        `${role} explicit scope, read-only/mutation boundary and narrow layout in actual Electron`,
+      );
+    }
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     pass(

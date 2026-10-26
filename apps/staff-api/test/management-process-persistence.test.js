@@ -60,7 +60,7 @@ test("owned API process restart preserves managed profiles, single-use activatio
       token: manager.token,
       body: {
         username: "synthetic.process.staff",
-        roles: ["Clinic Receptionist"],
+        roles: ["Receptionist"],
         profile,
       },
     }),

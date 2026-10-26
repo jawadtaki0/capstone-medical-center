@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 import { connectStaffDatabase } from "./db.js";
 import { createVault } from "./local-security.js";
 import { createApp } from "./app.js";
+import {
+  loadPublicationConfig,
+  publicationEnvironment,
+} from "./publication-config.js";
+import { createPublicationWorker } from "./publication-delivery.js";
 
 // Own one captured connection/vault pair. Refreshes share a promise rather
 // than overlapping interval callbacks that can close a newer connection.
@@ -13,6 +18,8 @@ export function createAuthorityLifecycle({
   makeVault = createVault,
   makeApp = createApp,
   log = () => {},
+  publicationConfig = loadPublicationConfig,
+  makePublicationWorker = createPublicationWorker,
 } = {}) {
   let current;
   let refreshPromise;
@@ -28,6 +35,7 @@ export function createAuthorityLifecycle({
   async function dispose(candidate) {
     if (!candidate) return;
     try {
+      await candidate.worker?.stop().catch(() => {});
       await candidate.connection.client.close();
     } catch {
     } finally {
@@ -59,10 +67,49 @@ export function createAuthorityLifecycle({
         return;
       }
       candidate.vault = makeVault(connection.config.key);
+      let delivery = null,
+        publicationDeliveryBlocked = false;
+      try {
+        delivery =
+          database === "capstone_staff_dev" ? await publicationConfig() : null;
+        if (delivery) {
+          const state = await connection.db
+            .collection("operational_state")
+            .findOne({ _id: "working" });
+          const imported = await connection.db
+            .collection("operational_imports")
+            .findOne({ _id: "public-baseline-v1" });
+          if (
+            state?.streamId !== delivery.streamId ||
+            imported?.digest !== delivery.importDigest ||
+            imported?.rolledBackAt
+          )
+            throw new Error(
+              "Publication authority configuration does not match its import/stream.",
+            );
+        }
+        if (delivery)
+          candidate.worker = makePublicationWorker({
+            ...connection,
+            target: delivery.target,
+            token: delivery.token,
+            demoMode: true,
+            environment: publicationEnvironment(delivery),
+            streamId: delivery.streamId,
+          });
+      } catch {
+        delivery = null;
+        publicationDeliveryBlocked = true;
+        log(
+          "Publication configuration needs operator reconciliation. Other local staff functions remain available.",
+        );
+      }
       candidate.app = makeApp({
         ...connection,
         vault: candidate.vault,
         demoMode: true,
+        publicationDeliveryConfigured: Boolean(delivery),
+        publicationDeliveryBlocked,
       });
       if (stopping) {
         await dispose(candidate);

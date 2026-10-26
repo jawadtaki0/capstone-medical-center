@@ -34,7 +34,7 @@ const newProfile = (overrides = {}) =>
     },
     ...overrides,
   });
-const newInput = (roles = ["Clinic Receptionist"], overrides = {}) => ({
+const newInput = (roles = ["Receptionist"], overrides = {}) => ({
   username: `synthetic.${randomUUID().slice(0, 16)}`,
   roles,
   profile: newProfile(),
@@ -56,16 +56,14 @@ test("new staff profiles require role-appropriate qualifications and explicit le
       },
     });
     assert.equal(
-      validateCreate(
-        newInput(["Clinic Receptionist", "Lab Receptionist"], { profile }),
-        "2026-10-03",
-      ).profile.qualification.type,
+      validateCreate(newInput(["Receptionist"], { profile }), "2026-10-03")
+        .profile.qualification.type,
       type,
     );
-    for (const role of ROLES.slice(0, 4))
+    for (const role of ROLES.filter((role) => requiresMfa([role])))
       invalid(() =>
         validateCreate(
-          newInput(["Clinic Receptionist", role], { profile }),
+          newInput(["Receptionist", role], { profile }),
           "2026-10-03",
         ),
       );
@@ -217,7 +215,7 @@ test("only active fully enrolled acknowledged Admins count as replacements", () 
     { status: "setup_pending" },
     { status: "mfa_pending" },
     { status: "disabled" },
-    { roles: ["System Admin"] },
+    { roles: ["Clinic Admin"] },
     { passwordHash: null },
     { version: 0 },
     { mfa: { ...admin.mfa, backupAcknowledged: false } },
@@ -302,11 +300,7 @@ describe("guarded staff management authority", { concurrency: false }, () => {
     });
     return { ...person, ...(await signIn(person)) };
   }
-  async function createStaff(
-    actor,
-    roles = ["Clinic Receptionist"],
-    overrides = {},
-  ) {
+  async function createStaff(actor, roles = ["Receptionist"], overrides = {}) {
     return success(
       await post("/staff", actor.token, newInput(roles, overrides)),
     );
@@ -355,9 +349,9 @@ describe("guarded staff management authority", { concurrency: false }, () => {
         path(people[(index + 1) % people.length], "profile"),
         { token: person.token },
       );
-      if (index < 2) {
+      if (ROLES[index] === "Admin") {
         const data = success(directory);
-        assert.equal(data.staff.length, 6);
+        assert.equal(data.staff.length, ROLES.length);
         assert.deepEqual(data.roles, [...ROLES]);
         assert.deepEqual(data.departments, [...DEPARTMENTS]);
         for (const summary of data.staff)
@@ -414,8 +408,8 @@ describe("guarded staff management authority", { concurrency: false }, () => {
   test("all roles refuse real phone changes while retaining address edits and authorized sessions", async () => {
     for (const roles of [
       ...ROLES.map((role) => [role]),
-      ["System Admin", "Lab Receptionist"],
-      ["Admin", "System Admin"],
+      ["Clinic Admin", "Receptionist"],
+      ["Admin", "Clinic Admin"],
     ]) {
       const account = await fixture.account({ roles, mfa: requiresMfa(roles) });
       const person = { ...account, ...(await signIn(account)) };
@@ -472,9 +466,9 @@ describe("guarded staff management authority", { concurrency: false }, () => {
 
   test("managers cannot bypass phone delivery gate, including mixed patches, concurrency and restart", async () => {
     const admin = await managerAccount();
-    const system = await managerAccount("System Admin");
+    const system = await managerAccount("Admin");
     const target = await fixture.account({
-      roles: ["Clinic Receptionist", "Lab Receptionist"],
+      roles: ["Receptionist"],
     });
     const before = await collection("staff_profiles").findOne({
       accountId: target.id,
@@ -536,13 +530,13 @@ describe("guarded staff management authority", { concurrency: false }, () => {
   test("only another Admin edits identity and qualifications for all six roles and mixed accounts", async () => {
     const admin = await managerAccount();
     const bothPerson = await fixture.account({
-      roles: ["Admin", "System Admin"],
+      roles: ["Admin", "Clinic Admin"],
       mfa: true,
     });
     const both = { ...bothPerson, ...(await signIn(bothPerson)) };
-    const system = await managerAccount("System Admin");
+    const system = await managerAccount("Clinic Admin");
     const systemMixedPerson = await fixture.account({
-      roles: ["System Admin", "Lab Receptionist"],
+      roles: ["Clinic Admin", "Receptionist"],
       mfa: true,
     });
     const systemMixed = {
@@ -564,9 +558,9 @@ describe("guarded staff management authority", { concurrency: false }, () => {
     };
     for (const roles of [
       ...ROLES.map((role) => [role]),
-      ["Admin", "Clinic Receptionist"],
-      ["System Admin", "Lab Admin"],
-      ["Clinic Receptionist", "Lab Receptionist"],
+      ["Admin", "Receptionist"],
+      ["Clinic Admin", "Lab Admin"],
+      ["Receptionist"],
     ]) {
       const person = await fixture.account({ roles, mfa: requiresMfa(roles) });
       const before = await collection("staff_profiles").findOne({
@@ -635,7 +629,7 @@ describe("guarded staff management authority", { concurrency: false }, () => {
 
   test("creation transaction links account/profile and privately issues digest-only setup code", async () => {
     const actor = await managerAccount();
-    const input = newInput(["Clinic Receptionist", "Lab Receptionist"], {
+    const input = newInput(["Receptionist"], {
       username: "  synthetic.assigned  ",
     });
     const created = success(await post("/staff", actor.token, input));
@@ -722,14 +716,14 @@ describe("guarded staff management authority", { concurrency: false }, () => {
       assert.equal(Object.hasOwn(summary, field), false);
   });
 
-  test("System Admin can manage ordinary accounts but cannot grant/remove mixed protected roles", async () => {
+  test("Clinic Admin cannot manage any other staff account or profile, including ordinary and mixed roles", async () => {
     const admin = await managerAccount();
-    const system = await managerAccount("System Admin");
-    const ordinary = await createStaff(system, ["Clinic Admin"]);
+    const system = await managerAccount("Clinic Admin");
+    const ordinary = await createStaff(admin, ["Clinic Admin"]);
     for (const roles of [
       ["Admin"],
-      ["System Admin"],
-      ["Lab Receptionist", "Admin"],
+      ["Clinic Admin"],
+      ["Receptionist", "Admin"],
     ]) {
       rejected(
         await post("/staff", system.token, newInput(roles)),
@@ -744,13 +738,13 @@ describe("guarded staff management authority", { concurrency: false }, () => {
       );
     }
     const protectedPerson = await fixture.account({
-      roles: ["Clinic Receptionist", "Admin"],
+      roles: ["Receptionist", "Admin"],
       mfa: true,
     });
     rejected(
       await post(path(protectedPerson, "roles"), system.token, {
         expectedVersion: 1,
-        roles: ["Clinic Receptionist"],
+        roles: ["Receptionist"],
       }),
       "permission_denied",
     );
@@ -768,17 +762,19 @@ describe("guarded staff management authority", { concurrency: false }, () => {
       }),
       "permission_denied",
     );
-    success(
+    rejected(
       await post(path(protectedPerson, "profile"), system.token, {
         expectedRevision: 0,
         profile: { address: "Synthetic permitted address" },
       }),
+      "permission_denied",
     );
-    success(
+    rejected(
       await post(`/staff/${ordinary.account.id}/roles`, system.token, {
         expectedVersion: 1,
         roles: ["Lab Admin"],
       }),
+      "permission_denied",
     );
     const secondAdmin = await createStaff(admin, ["Admin"]);
     assert.deepEqual(secondAdmin.account.roles, ["Admin"]);
@@ -786,9 +782,9 @@ describe("guarded staff management authority", { concurrency: false }, () => {
 
   test("protected work fields require another Admin, including mixed roles and atomic mixed-patch rejection", async () => {
     const admin = await managerAccount();
-    const system = await managerAccount("System Admin");
+    const system = await managerAccount("Clinic Admin");
     const mixedSystemPerson = await fixture.account({
-      roles: ["System Admin", "Clinic Admin"],
+      roles: ["Clinic Admin", "Lab Admin"],
       mfa: true,
     });
     const mixedSystem = {
@@ -797,9 +793,9 @@ describe("guarded staff management authority", { concurrency: false }, () => {
     };
     for (const roles of [
       ["Admin"],
-      ["System Admin"],
-      ["Admin", "Lab Receptionist"],
-      ["System Admin", "Clinic Admin"],
+      ["Clinic Admin"],
+      ["Admin", "Receptionist"],
+      ["Clinic Admin"],
     ]) {
       const person = await fixture.account({ roles, mfa: true });
       const before = await collection("staff_profiles").findOne({
@@ -831,15 +827,16 @@ describe("guarded staff management authority", { concurrency: false }, () => {
           );
         }
       }
-      success(
+      rejected(
         await post(path(person, "profile"), system.token, {
           expectedRevision: 0,
           profile: { address: "Permitted synthetic address" },
         }),
+        "permission_denied",
       );
       const approved = success(
         await post(path(person, "profile"), admin.token, {
-          expectedRevision: 1,
+          expectedRevision: 0,
           profile: {
             departments: ["Administration"],
             employmentStartDate: "2026-01-02",
@@ -848,7 +845,7 @@ describe("guarded staff management authority", { concurrency: false }, () => {
       );
       assert.deepEqual(approved.profile.departments, ["Administration"]);
       assert.equal(approved.profile.employmentStartDate, "2026-01-02");
-      assert.equal(approved.profile.address, "Permitted synthetic address");
+      assert.equal(approved.profile.address, before.address);
       assert.equal(approved.profile.fatherName, before.fatherName);
     }
     const ownBefore = await collection("staff_profiles").findOne({
@@ -893,19 +890,19 @@ describe("guarded staff management authority", { concurrency: false }, () => {
     assert.equal(JSON.stringify(events).includes("Must not be saved"), false);
   });
 
-  test("System Admin work authority for ordinary targets uses current target roles inside the guard", async () => {
+  test("only Admin manages others' work details; promotion does not create Clinic Admin staff authority", async () => {
     const admin = await managerAccount();
-    const system = await managerAccount("System Admin");
+    const system = await managerAccount("Clinic Admin");
     for (const roles of [
       ["Clinic Admin"],
       ["Lab Admin"],
-      ["Clinic Receptionist"],
-      ["Lab Receptionist"],
-      ["Clinic Admin", "Lab Receptionist"],
+      ["Receptionist"],
+      ["Receptionist"],
+      ["Clinic Admin", "Receptionist"],
     ]) {
       const person = await fixture.account({ roles, mfa: requiresMfa(roles) });
       success(
-        await post(path(person, "profile"), system.token, {
+        await post(path(person, "profile"), admin.token, {
           expectedRevision: 0,
           profile: {
             departments: ["Clinic", "Laboratory"],
@@ -918,7 +915,7 @@ describe("guarded staff management authority", { concurrency: false }, () => {
     success(
       await post(path(promoted, "roles"), admin.token, {
         expectedVersion: 1,
-        roles: ["System Admin", "Clinic Receptionist"],
+        roles: ["Clinic Admin", "Receptionist"],
       }),
     );
     const before = await collection("staff_profiles").findOne({
@@ -1263,7 +1260,7 @@ describe("guarded staff management authority", { concurrency: false }, () => {
     const promoted = success(
       await post(path(person, "roles"), actor.token, {
         expectedVersion: 1,
-        roles: ["Clinic Receptionist", "Clinic Admin"],
+        roles: ["Receptionist", "Clinic Admin"],
       }),
     );
     assert.equal(promoted.account.status, "mfa_pending");
@@ -1286,7 +1283,7 @@ describe("guarded staff management authority", { concurrency: false }, () => {
     success(
       await post(path(enrolled, "roles"), actor.token, {
         expectedVersion: 1,
-        roles: ["Lab Receptionist"],
+        roles: ["Receptionist"],
       }),
     );
     const demoted = await record(enrolled.id);
@@ -1298,7 +1295,7 @@ describe("guarded staff management authority", { concurrency: false }, () => {
       401,
     );
     const receptionLogin = await signIn(enrolled);
-    assert.deepEqual(receptionLogin.user.roles, ["Lab Receptionist"]);
+    assert.deepEqual(receptionLogin.user.roles, ["Receptionist"]);
     assert.equal(receptionLogin.backupCodes, undefined);
   });
 
@@ -1387,7 +1384,7 @@ describe("guarded staff management authority", { concurrency: false }, () => {
       }),
       post(path(first, "roles"), second.token, {
         expectedVersion: 1,
-        roles: ["Clinic Receptionist"],
+        roles: ["Receptionist"],
       }),
     ]);
     assert.equal(

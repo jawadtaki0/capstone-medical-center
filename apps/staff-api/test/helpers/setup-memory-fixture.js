@@ -132,9 +132,11 @@ export function createSetupMemoryFixture() {
     async reset() {
       records = new Map();
       milliseconds = Math.floor(Date.now() / 30000) * 30000;
-      await db
-        .collection("staff_management_state")
-        .insertOne({ _id: "staff-controls", revision: 0 });
+      await db.collection("staff_management_state").insertOne({
+        _id: "staff-controls",
+        revision: 0,
+        rolePolicy: "four-roles-v1",
+      });
     },
     async issueSetup({ expiresIn = 30 * 60000 } = {}) {
       const code = randomBytes(32).toString("base64url");
@@ -148,7 +150,7 @@ export function createSetupMemoryFixture() {
       });
       return code;
     },
-    async account({ roles = ["Clinic Receptionist"], status = "active" } = {}) {
+    async account({ roles = ["Receptionist"], status = "active" } = {}) {
       const id = `synthetic:${randomUUID()}`;
       const username = `synthetic.${randomBytes(6).toString("hex")}`;
       const password = syntheticPassword();

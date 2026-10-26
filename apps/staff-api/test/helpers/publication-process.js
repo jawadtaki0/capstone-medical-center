@@ -110,7 +110,17 @@ export async function startPublicationProcess(options) {
           throw new Error("Owned sender did not claim the TEST job.");
       },
       control(action) {
-        if (!["tick", "pause", "resume"].includes(action) || exited)
+        if (
+          ![
+            "tick",
+            "pause",
+            "resume",
+            "activate-baseline",
+            "rollback-baseline",
+            "source-mode",
+          ].includes(action) ||
+          exited
+        )
           return Promise.reject(new Error("Invalid owned process control."));
         const id = ++serial;
         return new Promise((resolve, reject) => {

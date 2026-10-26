@@ -506,7 +506,7 @@ test("enrollment challenge expires at ten minutes without granting password-only
 });
 
 test("TOTP replay is rejected across distinct challenges, concurrent requests and restart", async () => {
-  const person = await fixture.account({ roles: ["System Admin"], mfa: true });
+  const person = await fixture.account({ roles: ["Clinic Admin"], mfa: true });
   const challenges = await Promise.all([login(person), login(person)]);
   const code = await fixture.totp(person.secret);
   const attempts = await Promise.all(
@@ -711,14 +711,7 @@ test("disabled accounts and later security-version changes invalidate existing s
 });
 
 test("all six explicit roles have only foundation access; departments and unknown roles grant nothing", async () => {
-  for (const role of [
-    "Admin",
-    "System Admin",
-    "Clinic Admin",
-    "Lab Admin",
-    "Clinic Receptionist",
-    "Lab Receptionist",
-  ]) {
+  for (const role of ["Admin", "Clinic Admin", "Lab Admin", "Receptionist"]) {
     const person = await fixture.account({
       roles: [role],
       mfa: role.endsWith("Admin"),
@@ -732,7 +725,7 @@ test("all six explicit roles have only foundation access; departments and unknow
     assert.ok(workspace.permissions.includes("profile:own:view"));
     assert.equal(
       workspace.permissions.includes("staff:directory"),
-      ["Admin", "System Admin"].includes(role),
+      role === "Admin",
     );
     assert.equal(workspace.permissions.includes("schedule:write"), false);
     assert.equal(

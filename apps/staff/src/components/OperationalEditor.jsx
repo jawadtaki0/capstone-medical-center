@@ -108,8 +108,9 @@ export default function OperationalEditor({
     <OperationalDialog titleId={`${id}-title`} busy={busy} onClose={onClose}>
       <h2 id={`${id}-title`}>{titles[type]}</h2>
       <p className="staff-help">
-        Saved as a staff-only draft. The live website is not connected to this
-        isolated publication workflow.
+        Saved as a staff-only draft. Website information changes only after
+        authorized publication, receiver acceptance and operator source
+        activation.
       </p>
       {error && (
         <p className="staff-error" role="alert">
@@ -159,8 +160,8 @@ export default function OperationalEditor({
                 required: true,
                 maxLength: 160,
               })}
-              {select("gender", "Confirmed avatar selection", [
-                ["neutral", "Neutral — not confirmed"],
+              {select("gender", "Gender", [
+                ["neutral", "Unconfirmed — draft only"],
                 ["male", "Male — confirmed"],
                 ["female", "Female — confirmed"],
               ])}

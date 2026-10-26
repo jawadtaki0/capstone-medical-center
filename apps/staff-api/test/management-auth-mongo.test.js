@@ -64,7 +64,7 @@ async function manager() {
   });
   return { person, session: await signIn(person) };
 }
-async function createEmployee(actor, roles = ["Clinic Receptionist"]) {
+async function createEmployee(actor, roles = ["Receptionist"]) {
   const profile = syntheticProfile({
     qualification: {
       type: "university",
@@ -583,7 +583,7 @@ test("recent actual login proof expires at five minutes; reverify does not exten
       "/staff",
       {
         username: "synthetic.expired.proof",
-        roles: ["Clinic Receptionist"],
+        roles: ["Receptionist"],
         profile,
       },
       actor.session.token,
@@ -624,7 +624,7 @@ test("recent actual login proof expires at five minutes; reverify does not exten
       "/staff",
       {
         username: "synthetic.fresh.proof",
-        roles: ["Clinic Receptionist"],
+        roles: ["Receptionist"],
         profile,
       },
       actor.session.token,
@@ -775,7 +775,7 @@ test("interrupted assigned MFA preserves chosen password and seed through disabl
 
 test("role promotion requires MFA and demotion preserves its factor/ack gate without reviving old authorization", async () => {
   const actor = await manager();
-  const employee = await fixture.account({ roles: ["Clinic Receptionist"] });
+  const employee = await fixture.account({ roles: ["Receptionist"] });
   const original = await signIn(employee);
   const promoted = success(
     await post(
@@ -812,7 +812,7 @@ test("role promotion requires MFA and demotion preserves its factor/ack gate wit
       staffPath(employee.id, "roles"),
       {
         expectedVersion: promoted.account.version,
-        roles: ["Clinic Receptionist"],
+        roles: ["Receptionist"],
       },
       actor.session.token,
     ),

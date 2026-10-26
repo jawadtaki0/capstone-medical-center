@@ -53,10 +53,7 @@ test("usernames normalize consistently without treating an admin name as a role"
     null,
   ])
     assert.throws(() => normalizeUsername(value), StaffError);
-  assert.equal(
-    hasPermission(["Clinic Receptionist"], "accounts:create"),
-    false,
-  );
+  assert.equal(hasPermission(["Receptionist"], "accounts:create"), false);
 });
 
 test("passphrases preserve Unicode and whitespace while enforcing length and offline blocklist", () => {
@@ -180,15 +177,18 @@ test("complete first-Admin profile is allowlisted with unverified individual rec
   assert.equal(validDate("2026-02-29"), false);
 });
 
-test("six explicit roles grant own-profile access and only managers gain staff management", () => {
+test("four explicit roles grant own-profile access and only Admin gains staff management", () => {
+  assert.deepEqual(ROLES, [
+    "Admin",
+    "Clinic Admin",
+    "Lab Admin",
+    "Receptionist",
+  ]);
   for (const role of ROLES) {
     assert.equal(validRoles([role]), true);
     assert.ok(permissionsFor([role]).includes("workspace:view"));
     assert.ok(permissionsFor([role]).includes("profile:own:view"));
-    assert.equal(
-      hasPermission([role], "staff:directory"),
-      ["Admin", "System Admin"].includes(role),
-    );
+    assert.equal(hasPermission([role], "staff:directory"), role === "Admin");
     assert.equal(
       hasPermission([role], "staff:protected:manage"),
       role === "Admin",
@@ -198,9 +198,9 @@ test("six explicit roles grant own-profile access and only managers gain staff m
   }
   assert.deepEqual(
     ROLES.filter((role) => requiresMfa([role])),
-    ["Admin", "System Admin", "Clinic Admin", "Lab Admin"],
+    ["Admin", "Clinic Admin", "Lab Admin"],
   );
-  assert.equal(requiresMfa(["Clinic Receptionist", "Clinic Admin"]), true);
+  assert.equal(requiresMfa(["Receptionist", "Clinic Admin"]), true);
   for (const roles of [
     [],
     ["Admin", "Admin"],
@@ -527,7 +527,7 @@ test("invalid or expired sessions are permanently revoked with one secret-free e
     const account = {
       _id: "account:synthetic-reception",
       username: "synthetic.reception",
-      roles: ["Clinic Receptionist"],
+      roles: ["Receptionist"],
       status: "active",
       version: variant === "invalid-version" ? 0 : 1,
     };
@@ -548,8 +548,14 @@ test("invalid or expired sessions are permanently revoked with one secret-free e
       (name) => {
         if (name === "staff_management_state")
           return {
+            async findOne() {
+              return { rolePolicy: "four-roles-v1" };
+            },
             async updateOne(filter) {
-              assert.deepEqual(filter, { _id: "staff-controls" });
+              assert.deepEqual(filter, {
+                _id: "staff-controls",
+                rolePolicy: "four-roles-v1",
+              });
               return { modifiedCount: 1 };
             },
           };

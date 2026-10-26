@@ -142,9 +142,12 @@ try {
   vault = createVault(connection.config.key);
   for (const name of STAFF_COLLECTIONS)
     await connection.db.collection(name).deleteMany({});
-  await connection.db
-    .collection("staff_management_state")
-    .insertOne({ _id: "staff-controls", revision: 0, createdAt: new Date() });
+  await connection.db.collection("staff_management_state").insertOne({
+    _id: "staff-controls",
+    revision: 0,
+    createdAt: new Date(),
+    rolePolicy: "four-roles-v1",
+  });
   await connection.db.collection("installation_state").insertOne({
     _id: "first-admin",
     status: "issued",

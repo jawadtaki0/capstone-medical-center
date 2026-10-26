@@ -21,6 +21,7 @@ export function createApp({
   databaseHealthReader = checkDatabaseHealth,
   publicDataGate = createPublicDataGate(),
   publicationReceiver = null,
+  publicAuthority = null,
   websiteDirectory = null,
 } = {}) {
   const app = express();
@@ -29,8 +30,16 @@ export function createApp({
   app.use(helmet());
   app.use(cors({ origin: config.clientOrigin }));
   if (publicationReceiver) {
-    scheduleReader = publicationReceiver.schedule;
-    professionalsReader = publicationReceiver.professionals;
+    const legacySchedule = scheduleReader,
+      legacyProfessionals = professionalsReader;
+    scheduleReader = async (date) =>
+      !publicAuthority || (await publicAuthority.mode()) === "cedar"
+        ? publicationReceiver.schedule(date)
+        : legacySchedule(date);
+    professionalsReader = async () =>
+      !publicAuthority || (await publicAuthority.mode()) === "cedar"
+        ? publicationReceiver.professionals()
+        : legacyProfessionals();
     databaseHealthReader = publicationReceiver.health;
     app.use("/api", (_request, response, next) => {
       response.set("Cache-Control", "no-store");

@@ -25,6 +25,7 @@ export function createApp({
   demoMode = false,
   contactDelivery,
   publicationDeliveryConfigured = false,
+  publicationDeliveryBlocked = false,
 } = {}) {
   const app = express();
   const auth =
@@ -36,6 +37,7 @@ export function createApp({
           clock,
           contactDelivery,
           publicationDeliveryConfigured,
+          publicationDeliveryBlocked,
         })
       : null;
   app.disable("x-powered-by");

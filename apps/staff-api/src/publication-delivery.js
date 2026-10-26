@@ -4,7 +4,7 @@ import {
   payloadDigest,
   canonicalJSON,
 } from "../../../shared/publication-contract.mjs";
-import { assertPublicationReviewStorage } from "../../../shared/publication-review-guard.mjs";
+import { assertPublicationStorage } from "../../../shared/publication-environment.mjs";
 
 export const PUBLICATION_OUTBOX = "public_publication_outbox";
 export function makePublicationIntent(streamId, events, at) {
@@ -26,14 +26,20 @@ export function makePublicationIntent(streamId, events, at) {
 }
 export const retryDelay = (attempts) =>
   Math.min(60000, 5000 * 2 ** Math.min(4, Math.max(0, attempts - 1)));
-export function validateReceiverTarget(value, demoMode) {
+export function validateReceiverTarget(
+  value,
+  demoMode,
+  environment = { mode: "test" },
+) {
   const url = new URL(value);
   if (
     demoMode !== true ||
     url.protocol !== "http:" ||
     url.hostname !== "127.0.0.1" ||
     !url.port ||
-    ["4000", "4100", "4101", "27018"].includes(url.port) ||
+    (environment.mode === "normal-local"
+      ? url.port !== "4000"
+      : ["4000", "4100", "4101", "27018"].includes(url.port)) ||
     url.pathname !== "/api/publications" ||
     url.username ||
     url.password ||
@@ -52,7 +58,7 @@ export function acknowledgementMatches(intent, ack) {
     !Array.isArray(ack) &&
     Object.keys(ack).length === 5 &&
     ack.accepted === true &&
-    ack.schemaVersion === 1 &&
+    ack.schemaVersion === intent.payload.schemaVersion &&
     ack.streamId === intent.streamId &&
     ack.sequence === intent.sequence &&
     ack.digest === intent.digest,
@@ -80,12 +86,21 @@ export function createPublicationWorker({
   request = fetch,
   clock = () => new Date(),
   automatic = true,
+  environment = { mode: "test" },
+  streamId,
 }) {
-  assertPublicationReviewStorage(db, client, demoMode);
-  const url = validateReceiverTarget(target, demoMode);
+  assertPublicationStorage(db, client, demoMode, "staff", environment);
+  const url = validateReceiverTarget(target, demoMode, environment);
   if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token))
     throw new Error("Missing private publication delivery credential.");
   const outbox = db.collection(PUBLICATION_OUTBOX);
+  if (
+    environment.mode === "normal-local" &&
+    (typeof streamId !== "string" || !/^stream:[a-f0-9-]{36}$/.test(streamId))
+  )
+    throw new Error(
+      "Normal delivery requires the configured immutable stream identity.",
+    );
   let stopped = false,
     running = null,
     timer;
@@ -94,6 +109,7 @@ export function createPublicationWorker({
       leaseId = randomUUID();
     const job = await outbox.findOneAndUpdate(
       {
+        ...(streamId ? { streamId } : {}),
         $or: [
           {
             state: { $in: ["pending", "failed"] },

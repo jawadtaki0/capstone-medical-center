@@ -8,7 +8,7 @@ import {
   composePublications,
   publicSnapshotDatabase,
 } from "../../../shared/published-timeline.mjs";
-import { assertPublicationReviewStorage } from "../../../shared/publication-review-guard.mjs";
+import { assertPublicationStorage } from "../../../shared/publication-environment.mjs";
 import { getPublicProfessionals } from "./professionals.js";
 import { getBeirutToday, getScheduleForDate } from "./schedule.js";
 
@@ -16,14 +16,78 @@ export const PUBLIC_COLLECTIONS = Object.freeze({
   versions: "public_accepted_publications",
   state: "public_publication_state",
 });
+export async function assertSinglePublicationStream(db, streamId, session) {
+  const authority = await db
+    .collection("public_data_authority")
+    .findOne({ _id: "source" }, { session });
+  if (
+    authority &&
+    (!["legacy", "cedar"].includes(authority.mode) ||
+      (authority.streamId && authority.streamId !== streamId))
+  )
+    throw new Error(
+      "Existing public authority requires explicit reconciliation.",
+    );
+  if (
+    (await db
+      .collection(PUBLIC_COLLECTIONS.state)
+      .findOne({ _id: { $ne: streamId } }, { session })) ||
+    (await db
+      .collection(PUBLIC_COLLECTIONS.versions)
+      .findOne({ "payload.streamId": { $ne: streamId } }, { session }))
+  )
+    throw new Error(
+      "A conflicting public publication stream already exists. History was not replaced.",
+    );
+}
+export async function initializePublicationStream({
+  db,
+  client,
+  streamId,
+  strict = false,
+}) {
+  const initialize = async (session) => {
+    if (strict) {
+      await db
+        .collection("public_data_authority")
+        .updateOne(
+          { _id: "source" },
+          { $inc: { revision: 1 }, $setOnInsert: { mode: "legacy" } },
+          { session, upsert: true },
+        );
+      await assertSinglePublicationStream(db, streamId, session);
+      await db
+        .collection("public_data_authority")
+        .updateOne({ _id: "source" }, { $set: { streamId } }, { session });
+    }
+    await db
+      .collection(PUBLIC_COLLECTIONS.state)
+      .updateOne(
+        { _id: streamId },
+        { $setOnInsert: { sequence: 0, revision: 0 } },
+        { session, upsert: true },
+      );
+  };
+  if (!strict) return initialize();
+  const session = client.startSession();
+  try {
+    return await session.withTransaction(() => initialize(session), {
+      readConcern: { level: "snapshot" },
+      writeConcern: { w: "majority" },
+    });
+  } finally {
+    await session.endSession();
+  }
+}
 export async function createPublicationReceiver({
   db,
   client,
   token,
   streamId,
   demoMode,
+  environment = { mode: "test" },
 }) {
-  assertPublicationReviewStorage(db, client, demoMode);
+  assertPublicationStorage(db, client, demoMode, "public", environment);
   if (
     typeof token !== "string" ||
     !/^[A-Za-z0-9_-]{43}$/.test(token) ||
@@ -33,14 +97,15 @@ export async function createPublicationReceiver({
     throw new Error("Missing private publication receiver configuration.");
   const state = db.collection(PUBLIC_COLLECTIONS.state),
     versions = db.collection(PUBLIC_COLLECTIONS.versions);
-  await state.updateOne(
-    { _id: streamId },
-    { $setOnInsert: { sequence: 0, revision: 0 } },
-    { upsert: true },
-  );
+  await initializePublicationStream({
+    db,
+    client,
+    streamId,
+    strict: environment.mode === "normal-local",
+  });
   const acknowledgement = (record) => ({
     accepted: true,
-    schemaVersion: 1,
+    schemaVersion: record.payload.schemaVersion,
     streamId,
     sequence: record.payload.sequence,
     digest: record.digest,

@@ -15,6 +15,7 @@ import {
   shouldReportActivity,
 } from "./lib/activity.js";
 import { desktopApi } from "./lib/desktopApi.js";
+import { assertCompatibleRolePolicy } from "../../../shared/staff-roles.mjs";
 
 export default function App({ api = desktopApi }) {
   const [connection, setConnection] = useState(
@@ -100,9 +101,13 @@ export default function App({ api = desktopApi }) {
         failure?.status === 503
       ) {
         forgetAccess();
-        setConnection("unavailable");
+        setConnection(
+          code === "role_policy_mismatch" ? "incompatible" : "unavailable",
+        );
         setError(
-          "The local staff authority is unavailable. Access is blocked until it is available again.",
+          code === "role_policy_mismatch"
+            ? message
+            : "The local staff authority is unavailable. Access is blocked until it is available again.",
         );
         // Main forgets its token even when the remote revocation cannot be sent.
         void api?.signOut().catch(() => {});
@@ -192,6 +197,7 @@ export default function App({ api = desktopApi }) {
     try {
       const health = await api.status();
       if (!isAccessCurrent(current)) return;
+      assertCompatibleRolePolicy(health.rolePolicy);
       if (health.status !== "ok" || health.database !== "connected") {
         const failure = new Error("The local staff authority is unavailable.");
         failure.code = "authority_unavailable";
@@ -482,13 +488,20 @@ export default function App({ api = desktopApi }) {
                 ? "Connecting to the local server…"
                 : connection === "missing-bridge"
                   ? "Open the Cedar Staff desktop app"
-                  : "Local staff server unavailable"}
+                  : connection === "incompatible"
+                    ? "Matching staff server required"
+                    : "Local staff server unavailable"}
             </h1>
             <p className="staff-intro">
               {connection === "missing-bridge"
                 ? "This interface needs its protected desktop bridge. Opening it in a regular browser does not provide staff access."
                 : "No cached or offline sign-in is available. The local server, database and network must be available; external internet is not needed for this local development setup."}
             </p>
+            {connection === "incompatible" && (
+              <p role="alert" className="staff-error">
+                {error}
+              </p>
+            )}
             {api && connection !== "checking" && (
               <button
                 className="staff-button staff-button-primary"

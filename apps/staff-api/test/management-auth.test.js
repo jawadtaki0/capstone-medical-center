@@ -169,7 +169,11 @@ function fixture(t) {
   const vault = createVault(randomBytes(32).toString("base64"));
   t.after(() => vault.destroy());
   let at = new Date("2040-10-02T08:00:00Z");
-  memory.seed("staff_management_state", { _id: "staff-controls", revision: 0 });
+  memory.seed("staff_management_state", {
+    _id: "staff-controls",
+    revision: 0,
+    rolePolicy: "four-roles-v1",
+  });
   const service = createAuthService({
     db: memory.db,
     client: memory.client,
@@ -251,7 +255,7 @@ function existingSession(f, account, proof = {}) {
   f.seed("staff_sessions", record);
   return { token, record: f.find("staff_sessions", record._id) };
 }
-function pendingAccount(f, roles = ["Clinic Receptionist"]) {
+function pendingAccount(f, roles = ["Receptionist"]) {
   const accountId = `account:synthetic-${randomUUID()}`;
   const code = randomBytes(32).toString("base64url");
   const account = {
@@ -529,7 +533,7 @@ test("assigned Admin requires MFA/ack, password selection is not verification, a
     () => f.service.workspace(completed.token),
     "backup_acknowledgement_required",
   );
-  user.account.roles = ["Clinic Receptionist"];
+  user.account.roles = ["Receptionist"];
   await rejectsCode(
     () => f.service.workspace(completed.token),
     "backup_acknowledgement_required",
@@ -552,7 +556,7 @@ test("assigned Admin requires MFA/ack, password selection is not verification, a
 
 test("interrupted MFA resumes the same pending seed through an actually verified password", async (t) => {
   const f = fixture(t);
-  const user = pendingAccount(f, ["System Admin"]);
+  const user = pendingAccount(f, ["Clinic Admin"]);
   const setup = await f.service.assignedAccountSetup({
     username: user.account.username,
     code: user.code,
@@ -854,7 +858,7 @@ test("account security-version changes invalidate outstanding proof and manager 
       }),
     "authentication_failed",
   );
-  const reception = await activeAccount(f, { roles: ["Clinic Receptionist"] });
+  const reception = await activeAccount(f, { roles: ["Receptionist"] });
   const ordinary = existingSession(f, reception.account);
   await rejectsCode(
     () =>
