@@ -13,6 +13,13 @@ export const STAFF_COLLECTIONS = Object.freeze([
   "public_publication_outbox",
   "public_accepted_publications",
   "public_publication_state",
+  "public_data_authority",
+  "operational_imports",
+  "doctor_profiles",
+  "specialist_profiles",
+  "weekly_schedules",
+  "schedule_date_changes",
+  "schedule_seed_runs",
   "installation_state",
   "accounts",
   "staff_profiles",
@@ -22,6 +29,7 @@ export const STAFF_COLLECTIONS = Object.freeze([
   "security_events",
   "account_setup_codes",
   "staff_management_state",
+  "staff_role_migrations",
   "contact_requests",
   "contact_counters",
   "contact_delivery_budgets",
@@ -163,9 +171,12 @@ export async function createSecurityFixture({
       assertIsolatedTestTarget(connection); // Rechecked immediately before cleanup.
       for (const name of STAFF_COLLECTIONS)
         await connection.db.collection(name).deleteMany({});
-      await connection.db
-        .collection("staff_management_state")
-        .insertOne({ _id: "staff-controls", revision: 0, createdAt: clock() });
+      await connection.db.collection("staff_management_state").insertOne({
+        _id: "staff-controls",
+        revision: 0,
+        createdAt: clock(),
+        rolePolicy: "four-roles-v1",
+      });
       milliseconds = Math.floor(Date.now() / 30000) * 30000;
       failAuditWrites = false;
       await startHttp();
@@ -229,7 +240,7 @@ export async function createSecurityFixture({
       return code;
     },
     async account({
-      roles = ["Clinic Receptionist"],
+      roles = ["Receptionist"],
       status = "active",
       username,
       mfa = false,

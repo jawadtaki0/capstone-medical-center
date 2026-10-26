@@ -13,6 +13,27 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { transformSync } from "rolldown/utils";
 import { after } from "node:test";
+import {
+  ROLES,
+  requiresMfa,
+  assertCompatibleRolePolicy,
+} from "../../../shared/staff-roles.mjs";
+
+test("review package requires a matching four-role API and explicit administrative MFA classification", () => {
+  assert.deepEqual(ROLES, [
+    "Admin",
+    "Clinic Admin",
+    "Lab Admin",
+    "Receptionist",
+  ]);
+  assert.doesNotThrow(() => assertCompatibleRolePolicy("four-roles-v1"));
+  for (const policy of [undefined, null, "six-roles", ""])
+    assert.throws(() => assertCompatibleRolePolicy(policy), {
+      code: "role_policy_mismatch",
+    });
+  assert.equal(requiresMfa(["Receptionist"]), false);
+  assert.equal(requiresMfa(["Receptionist", "Clinic Admin"]), true);
+});
 
 const sourceRoot = new URL("../src/", import.meta.url).href;
 const jsxHook = registerHooks({
@@ -35,6 +56,52 @@ const jsxHook = registerHooks({
   },
 });
 after(() => jsxHook.deregister());
+
+test("patient limit is a natural optional manual input independent of duration; Gender remains authoritative", async () => {
+  const { default: Fields } =
+    await import("../src/components/OperationalSessionFields.jsx");
+  const state = {
+    scopes: [
+      { id: "synthetic", kind: "clinic", active: true, access: { edit: true } },
+    ],
+    professionals: [
+      {
+        id: "doctor:synthetic",
+        specialty: "Dentistry",
+        scopeIds: ["synthetic"],
+      },
+    ],
+  };
+  const render = (endTime) =>
+    renderToStaticMarkup(
+      createElement(Fields, {
+        state,
+        onChange() {},
+        value: {
+          scopeId: "synthetic",
+          professionalId: "doctor:synthetic",
+          weekday: 1,
+          startTime: "09:00",
+          endTime,
+          capacity: 4,
+          status: "active",
+          appointmentRequired: true,
+        },
+      }),
+    );
+  const html = render("12:00");
+  assert.match(html, /Patient limit/);
+  assert.match(html, /value="4"/);
+  assert.doesNotMatch(html, /readonly=""/i);
+  assert.match(render("11:10"), /Blank means not configured/);
+  assert.doesNotMatch(render("11:10"), /Apply calculated capacity/);
+  const source = readFileSync(
+    new URL("../src/components/OperationalEditor.jsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /select\("gender", "Gender"/);
+  assert.doesNotMatch(source, /Confirmed avatar selection/);
+});
 
 test("delivery feedback distinguishes local pending/failure/acceptance without claiming premature visibility", async () => {
   const { default: Delivery } =
@@ -125,7 +192,7 @@ test("scope validation rejects missing, unknown, inactive and unassigned scope b
   assert.equal(
     operations.operationalScopeError(
       "sessions",
-      { scopeId: "clinic" },
+      { scopeId: "clinic", capacity: null },
       reviewState,
     ),
     "",

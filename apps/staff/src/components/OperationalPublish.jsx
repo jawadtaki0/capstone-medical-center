@@ -7,6 +7,7 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
     submitting = useRef(false);
   const [selected, setSelected] = useState([]),
     [date, setDate] = useState(centerToday()),
+    [baseline, setBaseline] = useState(false),
     [confirmed, setConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -21,7 +22,7 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
         scopeIds: selected,
         expectedRevision: state.revision,
         expectedHead: state.head,
-        effectiveFrom: date,
+        effectiveFrom: baseline ? null : date,
         confirmed,
       });
       onClose();
@@ -36,15 +37,17 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
     <OperationalDialog titleId={`${id}-title`} busy={busy} onClose={onClose}>
       <h2 id={`${id}-title`}>Review and publish local snapshot</h2>
       <p>
-        This saves an immutable local version and delivery work. If a review
-        receiver is configured, it is updated only after validated acceptance.
-        Atlas and the normal website source remain unchanged in this review.
+        This saves an immutable local version and delivery work. A configured
+        receiver is updated only after validated acceptance. The website uses
+        accepted information only when its operator has explicitly activated the
+        Cedar source.
       </p>
       <p className="staff-help">
         Publish all linked clinics together for shared professional changes.
-        Missing capacities, inconsistent references or overlaps prevent
+        Unconfirmed gender, inconsistent references or overlaps prevent
         publication. New snapshots take effect on the chosen Beirut date;
-        earlier versions remain stored.
+        earlier versions remain stored. Blank patient limits may publish and
+        remain not configured.
       </p>
       {error && (
         <p role="alert" className="staff-error">
@@ -73,13 +76,32 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
               </label>
             ))}
           <div className="staff-field">
+            {state.isAdmin && state.head === 0 && (
+              <label className="staff-checkbox">
+                <input
+                  type="checkbox"
+                  checked={baseline}
+                  onChange={(e) => {
+                    setBaseline(e.target.checked);
+                    if (e.target.checked)
+                      setSelected(
+                        state.scopes
+                          .filter((s) => s.access.publish)
+                          .map((s) => s.id),
+                      );
+                  }}
+                />
+                Publish the first undated baseline (all scopes)
+              </label>
+            )}
             <label htmlFor={`${id}-date`}>Effective from (Asia/Beirut)</label>
             <input
               type="date"
               id={`${id}-date`}
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              required
+              required={!baseline}
+              disabled={baseline}
             />
           </div>
           <label className="staff-checkbox">
@@ -89,8 +111,8 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
               onChange={(e) => setConfirmed(e.target.checked)}
               required
             />
-            I reviewed these drafts and understand this is isolated publication
-            and delivery, not a live Atlas website update.
+            I reviewed these drafts and understand publication, delivery
+            acceptance and website source activation are separate steps.
           </label>
         </fieldset>
         <div className="staff-actions">

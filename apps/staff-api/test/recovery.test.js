@@ -47,7 +47,7 @@ after(async () => {
 afterEach(async () => {
   await service?.recovery.flushDelivery();
 });
-async function eligible(roles = ["Clinic Receptionist"]) {
+async function eligible(roles = ["Receptionist"]) {
   const person = await fixture.account({
     roles,
     mfa: roles.some((role) => role.includes("Admin")),
@@ -86,12 +86,12 @@ async function emailProof(person) {
 }
 for (const roles of [
   ["Admin"],
-  ["System Admin"],
+  ["Clinic Admin"],
   ["Clinic Admin"],
   ["Lab Admin"],
-  ["Clinic Receptionist"],
-  ["Lab Receptionist"],
-  ["Admin", "Lab Receptionist"],
+  ["Receptionist"],
+  ["Receptionist"],
+  ["Admin", "Receptionist"],
 ]) {
   test(`email recovery preserves profile and uses role MFA: ${roles}`, async () => {
     const person = await eligible(roles);
@@ -304,7 +304,7 @@ test("assistance is bound to the authorizing Admin's current role/version", asyn
     .collection("accounts")
     .updateOne(
       { _id: actor.id },
-      { $set: { roles: ["System Admin"] }, $inc: { version: 1 } },
+      { $set: { roles: ["Clinic Admin"] }, $inc: { version: 1 } },
     );
   await assert.rejects(
     service.recovery.redeem(
@@ -389,8 +389,8 @@ test("recovery audit failure rolls back password, history and session revocation
   );
   assert.equal((await service.readSession(bearer)).user.id, target.id);
 });
-test("System Admin alone and self-assistance are denied without superseding authority", async () => {
-  const actor = await fixture.account({ roles: ["System Admin"], mfa: true });
+test("Clinic Admin alone and self-assistance are denied without superseding authority", async () => {
+  const actor = await fixture.account({ roles: ["Clinic Admin"], mfa: true });
   const target = await eligible();
   await assert.rejects(assist(actor, target, "password"), {
     code: "recovery_forbidden",
@@ -830,12 +830,12 @@ test("emergency rotation/revocation and wrong-key counters persist without a boo
     "completed",
   );
 });
-test("emergency targeting rejects receptionist, disabled, pending and System Admin-only accounts", async () => {
+test("emergency targeting rejects receptionist, disabled, pending and Clinic Admin-only accounts", async () => {
   const actor = await fixture.account({ roles: ["Admin"], mfa: true });
   const key = await custody(actor);
   for (const options of [
-    { roles: ["Clinic Receptionist"] },
-    { roles: ["System Admin"], mfa: true },
+    { roles: ["Receptionist"] },
+    { roles: ["Clinic Admin"], mfa: true },
     { roles: ["Admin"], mfa: true, status: "disabled" },
     { roles: ["Admin"], mfa: true, backupAcknowledged: false },
   ]) {
@@ -1289,7 +1289,7 @@ test("ineligible saved contacts/accounts stay indistinguishable and never reserv
   );
 });
 test("concurrent recovery MFA consumes only one backup and rejects missing/invalid proof", async () => {
-  const target = await eligible(["Admin", "Clinic Receptionist"]),
+  const target = await eligible(["Admin", "Receptionist"]),
     proof = await emailProof(target);
   await assert.rejects(
     service.recovery.factor(

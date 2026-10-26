@@ -100,7 +100,7 @@ const server = createServer(async (request, response) => {
   if (path === "/staff")
     return reply(response, {
       staff: [employee],
-      roles: ["Admin", "System Admin", "Lab Admin"],
+      roles: ["Admin", "Clinic Admin", "Lab Admin"],
       departments: ["Laboratory"],
     });
   if (path === "/staff/synthetic%3Aemployee/profile")

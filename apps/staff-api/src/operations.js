@@ -61,6 +61,7 @@ export function createOperationsService({
   now,
   recentVerificationExpiry,
   publicationDeliveryConfigured = false,
+  publicationDeliveryBlocked = false,
 }) {
   const collection = (type) => db.collection(OPERATIONAL_COLLECTIONS[type]);
   const admin = (context) => context.account.roles.includes("Admin");
@@ -86,6 +87,7 @@ export function createOperationsService({
       revision: state?.revision ?? 0,
       head: state?.head ?? 0,
       streamId: state?.streamId,
+      publicationPaused: state?.publicationPaused === true,
     };
   }
   const grantsFor = (data, id) =>
@@ -238,6 +240,7 @@ export function createOperationsService({
               : (publication?.hours ?? []),
           grants: admin(context) ? data.grants : [],
           deliveryConfigured: publicationDeliveryConfigured,
+          publicationBlocked: publicationDeliveryBlocked,
           deliveries: (
             await db
               .collection(PUBLICATION_OUTBOX)
@@ -369,6 +372,18 @@ export function createOperationsService({
           "confirmed",
         ]);
         const scopeIds = listIds(input.scopeIds);
+        if (publicationDeliveryBlocked)
+          throw new StaffError(
+            "publication_configuration_conflict",
+            "Publication configuration needs operator reconciliation. Sign-in and other local work remain available; no replacement stream or credentials were created.",
+            409,
+          );
+        if (data.publicationPaused)
+          throw new StaffError(
+            "publication_paused",
+            "Publication admission is paused for an explicit operator transition. Drafts remain private.",
+            409,
+          );
         authorized(context, data, scopeIds, "publish");
         recent(context, at);
         if (input.confirmed !== true)
@@ -381,7 +396,20 @@ export function createOperationsService({
           expectedRevision(input.expectedHead) !== data.head
         )
           throw stale();
-        const effectiveFrom = dateOnly(input.effectiveFrom);
+        const effectiveFrom =
+          input.effectiveFrom === null ? null : dateOnly(input.effectiveFrom);
+        if (
+          effectiveFrom === null &&
+          (!admin(context) ||
+            data.head !== 0 ||
+            scopeIds.length !== data.scopes.length ||
+            !data.scopes.every((s) => scopeIds.includes(s.id)))
+        )
+          throw new StaffError(
+            "publication_conflict",
+            "Only Admin may publish the first undated baseline, including every clinic/service and all seven opening days.",
+            409,
+          );
         const events = await collection("publications")
           .find({}, { session })
           .toArray();
@@ -437,7 +465,11 @@ export function createOperationsService({
         validatePublication(next);
         for (const boundary of new Set(
           events
-            .filter((event) => event.effectiveFrom > effectiveFrom)
+            .filter(
+              (event) =>
+                event.effectiveFrom !== null &&
+                (effectiveFrom === null || event.effectiveFrom > effectiveFrom),
+            )
             .map((event) => event.effectiveFrom),
         )) {
           const future = composePublications([...events, next], boundary);

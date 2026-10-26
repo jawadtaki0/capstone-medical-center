@@ -186,6 +186,64 @@ test("authority serializes concurrent connection and recovery attempts", async (
   assert.equal(options.vaults[0].destroys, 1);
 });
 
+test("publication configuration failure blocks publishing without taking down local authentication", async () => {
+  const candidate = connection();
+  const options = dependencies(async () => candidate);
+  let appOptions;
+  options.publicationConfig = async () => {
+    throw new Error("Synthetic invalid configuration");
+  };
+  options.makeApp = (input) => {
+    appOptions = input;
+    return (_request, response) => response.end("ready");
+  };
+  const lifecycle = createAuthorityLifecycle(options);
+  await lifecycle.refresh();
+  assert.equal(responseFor(lifecycle).body, "ready");
+  assert.equal(appOptions.publicationDeliveryBlocked, true);
+  assert.equal(appOptions.publicationDeliveryConfigured, false);
+  await lifecycle.stop();
+  assert.equal(candidate.client.closes, 1);
+});
+
+test("captured normal delivery worker stops before its own connection and vault are disposed", async () => {
+  const order = [],
+    candidate = connection();
+  candidate.db.collection = (name) => ({
+    findOne: async () =>
+      name === "operational_state"
+        ? { streamId: "stream:synthetic" }
+        : { digest: "synthetic-import" },
+  });
+  candidate.client.close = async () => {
+    order.push("connection");
+  };
+  const options = dependencies(async () => candidate);
+  options.publicationConfig = async () => ({
+    streamId: "stream:synthetic",
+    importDigest: "synthetic-import",
+    target: "http://127.0.0.1:4000/api/publications",
+    token: "synthetic-only",
+    publicDatabase: "medical-center-dev",
+    publicSrvHost: "synthetic.mongodb.net",
+  });
+  options.makePublicationWorker = (input) => {
+    assert.equal(input.environment.mode, "normal-local");
+    assert.equal(input.streamId, "stream:synthetic");
+    return {
+      stop: async () => {
+        order.push("worker");
+      },
+    };
+  };
+  const lifecycle = createAuthorityLifecycle(options);
+  await lifecycle.refresh();
+  assert.equal(responseFor(lifecycle).body, "ready");
+  await lifecycle.stop();
+  assert.deepEqual(order, ["worker", "connection"]);
+  assert.equal(options.vaults[0].destroys, 1);
+});
+
 test("failed captured connection is disposed once before recovery; overlapping pings cannot close its replacement", async () => {
   const ping = deferred();
   const first = connection(() => ping.promise);

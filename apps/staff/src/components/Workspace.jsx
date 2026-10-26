@@ -5,11 +5,9 @@ import OperationsPanel from "./OperationsPanel.jsx";
 
 const labels = {
   admin: "Admin",
-  system_admin: "System Admin",
   clinic_admin: "Clinic Admin",
   lab_admin: "Lab Admin",
-  clinic_receptionist: "Clinic Receptionist",
-  lab_receptionist: "Lab Receptionist",
+  receptionist: "Receptionist",
 };
 
 export function roleLabel(role) {

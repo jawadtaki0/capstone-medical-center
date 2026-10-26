@@ -7,10 +7,17 @@ import { createApp as createPublicApp } from "../../../api/src/app.js";
 import { createPublicationReceiver } from "../../../api/src/publication-receiver.js";
 import { createPublicationWorker } from "../../src/publication-delivery.js";
 import { assertPublicationReviewStorage } from "../../../../shared/publication-review-guard.mjs";
+import {
+  createPublicAuthority,
+  legacyFingerprint,
+} from "../../../api/src/public-authority.js";
+import { getScheduleForDate } from "../../../api/src/schedule.js";
+import { getPublicProfessionals } from "../../../api/src/professionals.js";
 
 let connection,
   server,
   worker,
+  authority,
   vault,
   booted = false,
   stopping,
@@ -77,6 +84,17 @@ async function boot(options) {
     });
     server = createPublicApp({
       publicationReceiver: receiver,
+      ...(options.staged
+        ? {
+            publicAuthority: (authority = createPublicAuthority({
+              db,
+              client,
+              streamId: options.streamId,
+            })),
+            scheduleReader: (date) => getScheduleForDate(date, db),
+            professionalsReader: () => getPublicProfessionals(db),
+          }
+        : {}),
       ...(options.website
         ? { websiteDirectory: resolve("apps/web/dist") }
         : {}),
@@ -141,6 +159,26 @@ process.on("message", (message) => {
     } else if (message.action === "resume") {
       paused = false;
       result = { paused: false };
+    } else if (
+      ["activate-baseline", "rollback-baseline"].includes(message.action) &&
+      authority
+    ) {
+      const source = await connection.db
+        .collection("public_data_authority")
+        .findOne({ _id: "source" });
+      const accepted = await connection.db
+        .collection("public_publication_state")
+        .findOne({});
+      result = await authority.switch({
+        mode: message.action === "activate-baseline" ? "cedar" : "legacy",
+        expectedRevision: source?.revision ?? 0,
+        expectedSequence: 1,
+        expectedDigest: accepted?.digest,
+        expectedLegacyFingerprint: await legacyFingerprint(connection.db),
+        confirmed: true,
+      });
+    } else if (message.action === "source-mode" && authority) {
+      result = { mode: await authority.mode() };
     } else throw new Error("Invalid TEST control");
     process.send?.({ type: "result", id: message.id, ok: true, result });
   })().catch(() =>

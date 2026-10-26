@@ -1,3 +1,4 @@
+import { validPatientLimit } from "../../../../shared/session-capacity.mjs";
 export const WEEKDAYS = [
   "Sunday",
   "Monday",
@@ -19,6 +20,12 @@ export function centerToday() {
 }
 // Feedback only: the API remains authoritative for current roles and scopes.
 export function operationalScopeError(type, record, state) {
+  const sessions =
+    type === "sessions"
+      ? [record]
+      : type === "exceptions" && !record.closed
+        ? (record.sessions ?? [])
+        : [];
   const allowed = (id, clinicOnly = false) =>
     state.scopes.some(
       (scope) =>
@@ -29,6 +36,8 @@ export function operationalScopeError(type, record, state) {
     );
   if (["sessions", "exceptions"].includes(type) && !allowed(record.scopeId))
     return "Choose a valid assigned scope.";
+  if (sessions.some((s) => !validPatientLimit(s.capacity)))
+    return "Enter a positive whole patient limit, or leave it blank.";
   if (
     type === "professionals" &&
     (!record.scopeIds?.length ||

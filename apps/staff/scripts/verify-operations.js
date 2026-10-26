@@ -28,14 +28,7 @@ if (executable) {
 }
 const roleIndex = args.indexOf("--role");
 let chosenRole = roleIndex < 0 ? "Admin" : args[roleIndex + 1];
-const roles = [
-  "Admin",
-  "System Admin",
-  "Clinic Admin",
-  "Lab Admin",
-  "Clinic Receptionist",
-  "Lab Receptionist",
-];
+const roles = ["Admin", "Clinic Admin", "Lab Admin", "Receptionist"];
 assert.ok(roles.includes(chosenRole));
 let fixture,
   reviewLock,
@@ -196,7 +189,7 @@ async function interactiveReview() {
         } else if (command === "reopen" || command.startsWith("role ")) {
           const role = command === "reopen" ? chosenRole : command.slice(5);
           if (!roles.includes(role))
-            throw new Error("Use one of the six exact staff role names.");
+            throw new Error("Use one of the four exact staff role names.");
           if (
             page &&
             !page.isClosed() &&
@@ -212,7 +205,7 @@ async function interactiveReview() {
           );
         } else
           console.log(
-            `Current role: ${chosenRole}. Commands: verify | reopen | role Admin | role Clinic Admin | role Lab Admin | role Clinic Receptionist | role Lab Receptionist | role System Admin | quit`,
+            `Current role: ${chosenRole}. Commands: verify | reopen | role Admin | role Clinic Admin | role Lab Admin | role Receptionist | quit`,
           );
       } catch {
         console.log(
@@ -328,13 +321,14 @@ try {
         ? { startTime: "08:00", endTime: day === 6 ? "13:00" : "17:00" }
         : {}),
     });
-  for (const role of roles.filter((r) => r !== "Admin" && r !== "System Admin"))
+  for (const role of roles.filter((r) => r !== "Admin"))
     ok(
       await post("grants", {
         accountId: people.get(role).id,
-        scopeIds: [
-          role.startsWith("Clinic") ? "review-clinic" : "review-audio",
-        ],
+        scopeIds:
+          role === "Receptionist"
+            ? ["review-clinic", "review-audio"]
+            : [role.startsWith("Clinic") ? "review-clinic" : "review-audio"],
         expectedRevision: 0,
         confirmed: true,
       }),
@@ -406,7 +400,7 @@ try {
     stage = `interactive ${chosenRole}`;
     await launch(chosenRole);
     console.log(
-      `Opened isolated synthetic ${chosenRole}. Assignments: Clinic roles -> Synthetic Clinic One; Lab roles -> Audiometry; Admin all; System Admin none. Keep CMD open: closing the window does not reset this review. Use quit to stop its owned services and clear expendable TEST data. Do not run TEST suites concurrently.`,
+      `Opened isolated synthetic ${chosenRole}. Assignments: Clinic Admin -> Synthetic Clinic One; Lab Admin -> Audiometry; Receptionist -> both, read-only; Admin all. Keep CMD open: closing the window does not reset this review. Use quit to stop its owned services and clear expendable TEST data. Do not run TEST suites concurrently.`,
     );
     await interactiveReview();
   } else {
@@ -804,14 +798,7 @@ try {
     for (const role of roles.slice(1)) {
       stage = `${role} UI`;
       await launch(role);
-      if (role === "System Admin") {
-        assert.equal(
-          await page
-            .getByRole("button", { name: "Schedules", exact: true })
-            .count(),
-          0,
-        );
-      } else {
+      {
         await page
           .getByRole("button", { name: "Schedules", exact: true })
           .click();

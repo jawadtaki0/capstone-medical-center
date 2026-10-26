@@ -177,7 +177,7 @@ test("A's five failures block only A; B completes password plus MFA without clea
 });
 
 test("29 distinct failures permit a valid MFA login; failure 30 blocks new authentication but not an existing session", async () => {
-  const person = await fixture.account({ roles: ["System Admin"], mfa: true });
+  const person = await fixture.account({ roles: ["Clinic Admin"], mfa: true });
   for (let index = 0; index < 29; index += 1)
     refused(
       await wrongUnknown(index, {

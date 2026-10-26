@@ -257,12 +257,12 @@ try {
   stage = "native role flows and busy input preservation";
   for (const roles of [
     ["Admin"],
-    ["System Admin"],
+    ["Clinic Admin"],
     ["Clinic Admin"],
     ["Lab Admin"],
-    ["Clinic Receptionist"],
-    ["Lab Receptionist"],
-    ["Clinic Receptionist", "Lab Admin"],
+    ["Receptionist"],
+    ["Receptionist"],
+    ["Receptionist", "Lab Admin"],
   ]) {
     await launch(roles);
     await open();

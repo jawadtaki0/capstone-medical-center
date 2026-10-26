@@ -63,16 +63,30 @@ test("date exceptions replace only their scope/day and include changed hours in 
   });
   assert.equal(effectiveSessions(sessions, changes, "2026-10-20").length, 0);
 });
-test("validation rejects forged properties, impossible dates, overnight hours and slots; capacity may remain an incomplete draft", () => {
+test("validation accepts nullable/manual safe-integer limits and rejects invalid hours, forged properties and service capacity", () => {
   const input = weekly("a", "one", "09:00", "11:00");
   assert.equal(
     validateOperationalRecord("sessions", { ...input, capacity: null })
       .capacity,
     null,
   );
+  for (const capacity of [3, 101, Number.MAX_SAFE_INTEGER])
+    assert.equal(
+      validateOperationalRecord("sessions", {
+        ...input,
+        endTime: "10:07",
+        capacity,
+      }).capacity,
+      capacity,
+    );
   for (const patch of [
     { startTime: "23:00", endTime: "01:00" },
     { capacity: 0 },
+    { capacity: -1 },
+    { capacity: 3.5 },
+    { capacity: "3" },
+    { capacity: Number.MAX_SAFE_INTEGER + 1 },
+    { professionalId: null, capacity: 3 },
     { weekday: 7 },
     { roles: ["Admin"] },
     { slots: [] },
@@ -108,17 +122,16 @@ test("explicit service assignment permits Lab Admin Audiometry without hardcodin
     false,
   );
   assert.equal(
-    operationalAccess(["System Admin"], ["audio"], service).view,
+    operationalAccess(["Clinic Admin"], ["audio"], service).view,
     false,
   );
   assert.equal(operationalAccess(["Clinic Admin"], [], clinic).view, false);
   assert.equal(
-    operationalAccess(["Clinic Receptionist"], ["clinic"], clinic).edit,
+    operationalAccess(["Receptionist"], ["clinic"], clinic).edit,
     false,
   );
   assert.equal(
-    operationalAccess(["System Admin", "Clinic Admin"], ["clinic"], clinic)
-      .edit,
+    operationalAccess(["Clinic Admin"], ["clinic"], clinic).edit,
     true,
   );
   assert.equal(operationalAccess(["Admin"], [], clinic).publish, true);

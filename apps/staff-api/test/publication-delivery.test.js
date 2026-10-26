@@ -90,7 +90,7 @@ test("receiver-down failure retains work; exact retry acknowledgement updates th
   });
   assert.equal((await offline.tick()).accepted, false);
   assert.equal((await jobs().findOne({})).state, "failed");
-  const denied = await signInSynthetic(f, ["System Admin"]);
+  const denied = await signInSynthetic(f, ["Clinic Admin"]);
   assert.equal(
     (await setup.post("retry", { deliveryId: "publication:1" }, denied.token))
       .status,
@@ -158,17 +158,16 @@ test("invalid acknowledgements never claim success; concurrent workers deliver t
   );
 });
 
-test("retry enforces every current role/scope and mixed role without granting System Admin or receptionists publication authority", async () => {
+test("retry enforces every current role/scope and mixed role without granting receptionists publication authority", async () => {
   setup.ok(await setup.publish());
   for (const [roles, allowed] of [
     [["Admin"], true],
     [["Clinic Admin"], true],
     [["Lab Admin"], false],
-    [["Clinic Receptionist"], false],
-    [["Lab Receptionist"], false],
-    [["System Admin"], false],
-    [["System Admin", "Clinic Admin"], true],
-    [["System Admin", "Lab Admin"], false],
+    [["Receptionist"], false],
+    [["Clinic Admin", "Receptionist"], true],
+    [["Lab Admin", "Receptionist"], false],
+    [["Clinic Admin", "Lab Admin"], true],
   ]) {
     const actor = await signInSynthetic(f, roles);
     setup.ok(

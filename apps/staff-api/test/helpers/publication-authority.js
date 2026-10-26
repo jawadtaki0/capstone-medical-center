@@ -27,7 +27,11 @@ export async function signInSynthetic(fixture, roles = ["Admin"], username) {
     );
   return { ...person, ...result };
 }
-export async function seedPublicationAuthority(fixture, username) {
+export async function seedPublicationAuthority(
+  fixture,
+  username,
+  { imported = false } = {},
+) {
   const admin = await signInSynthetic(fixture, ["Admin"], username);
   const ok = (r) => {
     if (r.status !== 200)
@@ -42,34 +46,45 @@ export async function seedPublicationAuthority(fixture, username) {
     ok(await post("save", { type, record, expectedRevision }));
   const state = async () =>
     ok(await fixture.request("/operations", { token: admin.token }));
-  await save("scopes", {
-    id: "clinic:synthetic",
-    name: "Synthetic Review Clinic",
-    kind: "clinic",
-    active: true,
-  });
-  const profile = {
-    id: "doctor:synthetic",
-    name: "Dr. Synthetic Review",
-    specialty: "Dentistry",
-    kind: "doctor",
-    gender: "neutral",
-    active: true,
-    scopeIds: ["clinic:synthetic"],
-  };
-  await save("professionals", profile);
-  await save("sessions", {
-    id: "session:synthetic",
-    scopeId: "clinic:synthetic",
-    professionalId: profile.id,
-    weekday: 1,
-    startTime: "09:00",
-    endTime: "11:00",
-    capacity: 5,
-    status: "active",
-    appointmentRequired: false,
-  });
-  for (let day = 0; day < 7; day++)
+  if (!imported)
+    await save("scopes", {
+      id: "clinic:synthetic",
+      name: "Synthetic Review Clinic",
+      kind: "clinic",
+      active: true,
+    });
+  const savedProfile = imported
+    ? await fixture.db.collection("doctor_profile_drafts").findOne({})
+    : null;
+  const profile = savedProfile
+    ? Object.fromEntries(
+        ["id", "name", "specialty", "kind", "gender", "active", "scopeIds"].map(
+          (key) => [key, savedProfile[key]],
+        ),
+      )
+    : {
+        id: "doctor:synthetic",
+        name: "Dr. Synthetic Review",
+        specialty: "Dentistry",
+        kind: "doctor",
+        gender: "male",
+        active: true,
+        scopeIds: ["clinic:synthetic"],
+      };
+  if (!imported) await save("professionals", profile);
+  if (!imported)
+    await save("sessions", {
+      id: "session:synthetic",
+      scopeId: "clinic:synthetic",
+      professionalId: profile.id,
+      weekday: 1,
+      startTime: "09:00",
+      endTime: "11:00",
+      capacity: 4,
+      status: "active",
+      appointmentRequired: false,
+    });
+  for (let day = 0; !imported && day < 7; day++)
     await save("hours", {
       id: String(day),
       closed: day === 0,

@@ -47,7 +47,7 @@ describe(
       name: "Dr. Synthetic Professional",
       specialty: "Dentistry",
       kind: "doctor",
-      gender: "neutral",
+      gender: "male",
       active: true,
       scopeIds: ["clinic-one"],
       ...extra,
@@ -59,7 +59,7 @@ describe(
       weekday: 1,
       startTime: "09:00",
       endTime: "11:00",
-      capacity: 5,
+      capacity: 4,
       status: "active",
       appointmentRequired: false,
       ...extra,
@@ -110,10 +110,10 @@ describe(
       for (const roles of [
         ["Clinic Admin"],
         ["Lab Admin"],
-        ["Clinic Receptionist"],
-        ["Lab Receptionist"],
-        ["System Admin"],
-        ["System Admin", "Clinic Admin"],
+        ["Receptionist"],
+        ["Clinic Admin", "Receptionist"],
+        ["Lab Admin", "Receptionist"],
+        ["Clinic Admin", "Lab Admin"],
       ]) {
         const a = await actor(roles);
         assert.equal((await read(a.token)).scopes.length, 0);
@@ -130,20 +130,18 @@ describe(
           audio = state.scopes.find((s) => s.id === "audiometry");
         assert.equal(
           Boolean(clinic),
-          roles.some((r) =>
-            ["Clinic Admin", "Clinic Receptionist"].includes(r),
-          ),
+          roles.some((r) => ["Clinic Admin", "Receptionist"].includes(r)),
         );
         assert.equal(
           Boolean(audio),
-          roles.some((r) => ["Lab Admin", "Lab Receptionist"].includes(r)),
+          roles.some((r) => ["Lab Admin", "Receptionist"].includes(r)),
         );
         if (roles.includes("Lab Admin")) {
           ok(
             await save(
               "sessions",
               session({
-                id: "audio-hour",
+                id: `audio-hour:${a.id}`,
                 scopeId: "audiometry",
                 professionalId: null,
                 capacity: null,
@@ -161,10 +159,10 @@ describe(
                 a.token,
               )
             ).status,
-            403,
+            roles.includes("Clinic Admin") ? 200 : 403,
           );
         }
-        if (roles.some((r) => r.includes("Receptionist")))
+        if (!roles.includes("Clinic Admin"))
           assert.equal(
             (await save("sessions", session(), 0, a.token)).status,
             403,
@@ -208,6 +206,45 @@ describe(
         }),
       );
       assert.equal((await save("sessions", session(), 0, a.token)).status, 403);
+    });
+    test("manual 3 and null persist through hours/specialty edits and dated replacement publication without public leakage", async () => {
+      await setup();
+      ok(await save("sessions", session({ capacity: 3, endTime: "10:07" })));
+      ok(await save("professionals", profile({ specialty: "Therapist" }), 1));
+      assert.equal((await read()).sessions[0].capacity, 3);
+      ok(
+        await save(
+          "sessions",
+          session({ capacity: 3, startTime: "09:07", endTime: "10:13" }),
+          1,
+        ),
+      );
+      ok(
+        await save("exceptions", {
+          id: "manual-date",
+          scopeId: "clinic-one",
+          date: "2026-10-19",
+          closed: false,
+          sessions: [
+            session({ capacity: null, startTime: "10:13", endTime: "11:07" }),
+          ],
+        }),
+      );
+      ok(await publish());
+      const projected = ok(
+        await post(admin.token, "preview", { date: "2026-10-19" }),
+      );
+      assert.equal(projected.schedule.doctorSessions[0].startTime, "10:13");
+      assert.equal(JSON.stringify(projected).includes('"capacity"'), false);
+      const data = await read();
+      assert.equal(data.sessions[0].capacity, 3);
+      assert.equal(data.exceptions[0].sessions[0].capacity, null);
+      const before = structuredClone(data);
+      assert.equal(
+        (await save("sessions", session({ capacity: 3.5 }), 2)).status,
+        400,
+      );
+      assert.deepEqual((await read()).sessions, before.sessions);
     });
     test("concurrent cross-clinic overlaps have one winner; adjacency and scope-only dated closures work", async () => {
       await setup();
@@ -253,10 +290,11 @@ describe(
       assert.equal(projected.exceptions.length, 1);
       assert.equal(projected.sessions.length, 2);
     });
-    test("publication isolates drafts; missing capacities fail; stale publish and inactive professionals cannot silently break references", async () => {
+    test("publication isolates drafts; unset limits publish privately; stale publish and inactive professionals cannot silently break references", async () => {
       await setup();
       ok(await save("sessions", session({ capacity: null })));
-      assert.equal((await publish()).body.error.code, "publication_incomplete");
+      ok(await publish());
+      assert.equal((await read()).sessions[0].capacity, null);
       ok(await save("sessions", session(), 1));
       ok(await publish());
       const snapshot = ok(
@@ -293,7 +331,7 @@ describe(
       assert.equal(retired.schedule.doctorSessions[0].status, "cancelled");
       assert.equal(
         await f.db.collection("operational_publications").countDocuments({}),
-        2,
+        3,
       );
       assert.equal((await read()).professionals[0].active, false);
     });
@@ -539,6 +577,7 @@ describe(
             scopeId: "clinic-two",
             startTime: "12:00",
             endTime: "13:00",
+            capacity: 2,
           }),
         ),
       );
@@ -609,7 +648,7 @@ describe(
         assert.equal(
           ok(await child.request("/operations", { token: admin.token }))
             .sessions[0].capacity,
-          5,
+          4,
         );
         const state = await read(),
           payload = {
@@ -719,6 +758,7 @@ describe(
             scopeId: "clinic-two",
             startTime: "14:00",
             endTime: "15:00",
+            capacity: 2,
           }),
         ),
       );
@@ -731,6 +771,7 @@ describe(
             scopeId: "clinic-two",
             startTime: "12:00",
             endTime: "13:00",
+            capacity: 2,
           }),
           1,
         ),
@@ -753,6 +794,7 @@ describe(
             scopeId: "clinic-two",
             startTime: "14:00",
             endTime: "15:00",
+            capacity: 2,
           }),
           2,
         ),
@@ -760,7 +802,7 @@ describe(
       ok(
         await save(
           "sessions",
-          session({ startTime: "12:30", endTime: "13:30" }),
+          session({ startTime: "12:30", endTime: "13:30", capacity: 2 }),
           1,
         ),
       );
@@ -782,7 +824,7 @@ describe(
     test("receptionist sees only current published schedules, not pending draft changes", async () => {
       await setup();
       ok(await save("sessions", session()));
-      const receptionist = await actor(["Clinic Receptionist"]);
+      const receptionist = await actor(["Receptionist"]);
       ok(
         await post(admin.token, "grants", {
           accountId: receptionist.id,

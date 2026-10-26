@@ -75,7 +75,7 @@ const bootstrapInput = (code) => ({
   profile: syntheticProfile(),
   code,
 });
-async function pendingAccount(roles = ["Clinic Receptionist"]) {
+async function pendingAccount(roles = ["Receptionist"]) {
   const person = await fixture.account({ roles, status: "setup_pending" });
   const code = randomBytes(32).toString("base64url");
   await fixture.db.collection("accounts").updateOne(

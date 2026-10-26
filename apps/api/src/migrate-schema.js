@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BSON, MongoClient } from "mongodb";
 import { config } from "./config.js";
+import { guardLegacyWrites, PUBLIC_AUTHORITY } from "./public-authority.js";
 import { MIGRATION_LOCK } from "./public-data-gate.js";
 import {
   BACKUP_COLLECTIONS,
@@ -161,6 +162,7 @@ export function assertSnapshotUnchanged(
 export async function applyDocumentPlan(database, plan, session) {
   if (!session?.inTransaction())
     throw new Error("Record remapping requires an active transaction.");
+  if (database.client) await guardLegacyWrites(database, session);
   for (const { collection, oldId, document } of plan.operations) {
     const target = database.collection(collection);
     if (oldId !== document._id) {
@@ -275,6 +277,13 @@ export async function runSchemaCleanup({
     ),
   );
   if (!apply) return { status: "dry_run", plan };
+  const authority = await database
+    .collection(PUBLIC_AUTHORITY)
+    .findOne({ _id: "source" });
+  if (authority && authority.mode !== "legacy")
+    throw new Error(
+      "Cedar is the operational authority. Legacy migration writes are disabled.",
+    );
 
   // Every apply, including a no-op rerun, captures a fresh verified local backup.
   const backup = await writeBackup(databaseName, before);

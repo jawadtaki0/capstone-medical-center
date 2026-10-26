@@ -504,9 +504,12 @@ try {
   assertIsolatedTestTarget(connection);
   for (const name of STAFF_COLLECTIONS)
     await connection.db.collection(name).deleteMany({});
-  await connection.db
-    .collection("staff_management_state")
-    .insertOne({ _id: "staff-controls", revision: 0, createdAt: clock() });
+  await connection.db.collection("staff_management_state").insertOne({
+    _id: "staff-controls",
+    revision: 0,
+    createdAt: clock(),
+    rolePolicy: "four-roles-v1",
+  });
   // A disposable, acknowledged Admin fixture is not a development account or a
   // provisioning route. Bootstrap/DEV/key files are never replaced by this run.
   actorBackupCodes = Array.from({ length: 10 }, () =>
@@ -1063,9 +1066,7 @@ try {
       .evaluate((element) => element === document.activeElement),
     true,
   );
-  await page
-    .getByLabel("Role", { exact: true })
-    .selectOption("Clinic Receptionist");
+  await page.getByLabel("Role", { exact: true }).selectOption("Receptionist");
   await page
     .getByText("No staff match your search and filters.", { exact: true })
     .waitFor();
@@ -1090,7 +1091,7 @@ try {
   await page
     .getByRole("button", { name: "Create staff account", exact: true })
     .click();
-  await page.getByLabel("Clinic Receptionist", { exact: true }).check();
+  await page.getByLabel("Receptionist", { exact: true }).check();
   await fillProfile(employeeProfile);
   stage = "country-aware phone and consistent email validation";
   assert.equal(
@@ -1649,7 +1650,8 @@ try {
   await dimensions(1080);
   pass(stage);
 
-  stage = "System Admin read-only identity and protected work-details";
+  stage =
+    "Clinic Admin has no staff-directory authority and own identity/work remain read-only";
   await signOut();
   assertIsolatedTestTarget(connection);
   const system = {
@@ -1666,7 +1668,7 @@ try {
   await connection.db.collection("accounts").insertOne({
     _id: system.id,
     username: system.username,
-    roles: ["System Admin", "Lab Receptionist"],
+    roles: ["Clinic Admin", "Receptionist"],
     status: "active",
     version: 1,
     passwordHash: await argon2.hash(system.password, {
@@ -1696,16 +1698,14 @@ try {
   await page
     .getByRole("heading", { name: "Staff workspace", exact: true })
     .waitFor();
-  await openDirectory();
-  await page
-    .getByRole("button", {
-      name: `View profile for ${actorProfile.firstName} ${actorProfile.lastName}`,
-      exact: true,
-    })
-    .click();
-  await page
-    .getByRole("button", { name: "Edit this staff profile", exact: true })
-    .click();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Staff Directory", exact: true })
+      .count(),
+    0,
+  );
+  await page.getByRole("button", { name: "My Profile", exact: true }).click();
+  await page.getByRole("button", { name: "Edit profile", exact: true }).click();
   assert.equal(
     await page
       .getByLabel("Employment start date", { exact: true })
@@ -1738,17 +1738,17 @@ try {
   await safeScreenshot("protected-work-locked-desktop");
   const protectedBefore = await connection.db
     .collection("staff_profiles")
-    .findOne({ accountId: actor.id });
+    .findOne({ accountId: system.id });
   await page
     .getByLabel("Address", { exact: true })
     .fill("Synthetic System permitted address");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await page
-    .getByRole("button", { name: "Save staff profile", exact: true })
-    .click();
-  await page.getByText("Staff profile updated.", { exact: true }).waitFor();
+    .getByRole("button", { name: "Edit profile", exact: true })
+    .waitFor();
   const protectedAfter = await connection.db
     .collection("staff_profiles")
-    .findOne({ accountId: actor.id });
+    .findOne({ accountId: system.id });
   assert.equal(protectedAfter.fatherName, protectedBefore.fatherName);
   assert.equal(protectedAfter.address, "Synthetic System permitted address");
   assert.deepEqual(protectedAfter.departments, protectedBefore.departments);

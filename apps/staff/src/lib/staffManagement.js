@@ -4,6 +4,7 @@ import {
   EMAIL_INPUT_MESSAGE,
   PHONE_INPUT_MESSAGE,
 } from "../../shared/contact-input.js";
+import { validRoles, requiresMfa } from "../../../../shared/staff-roles.mjs";
 
 export const QUALIFICATION_TYPES = Object.freeze([
   { value: "university", label: "University degree" },
@@ -17,13 +18,7 @@ export const QUALIFICATION_TYPES = Object.freeze([
 // escaped even at the end of this character class. Server validation remains
 // authoritative; this only mirrors its existing username character policy.
 export const USERNAME_PATTERN = "[A-Za-z0-9._\\-]{3,40}";
-const administrativeRoles = new Set([
-  "Admin",
-  "System Admin",
-  "Clinic Admin",
-  "Lab Admin",
-]);
-const protectedRoles = new Set(["Admin", "System Admin"]);
+const protectedRoles = new Set(["Admin"]);
 const statuses = {
   active: "Active",
   setup_pending: "Password setup pending",
@@ -77,7 +72,7 @@ export function assertManagementActionLive(alive) {
     );
 }
 export function canViewStaffDirectory(user) {
-  return user?.roles?.some((role) => protectedRoles.has(role)) === true;
+  return validRoles(user?.roles) && user.roles.includes("Admin");
 }
 export function canManageProfile(user, target) {
   return (
@@ -239,10 +234,7 @@ export function validateManagementProfile(
   ) {
     return "Enter the qualification level. Existing missing information is not filled in automatically.";
   }
-  if (
-    roles.some((role) => administrativeRoles.has(role)) &&
-    profile.qualification.type !== "university"
-  ) {
+  if (requiresMfa(roles) && profile.qualification.type !== "university") {
     return "Every administrative role requires a relevant university degree. Review all selected roles and the actual qualification.";
   }
   if (

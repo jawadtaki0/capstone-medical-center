@@ -69,7 +69,7 @@ describe(
             }),
           );
     }
-    async function person(roles = ["Clinic Receptionist"]) {
+    async function person(roles = ["Receptionist"]) {
       const actor = await fixture.account({ roles, mfa: requiresMfa(roles) });
       return { ...actor, ...(await login(actor)) };
     }
@@ -166,7 +166,7 @@ describe(
       await proof(owner, "reserved@example.com.lb");
       for (const roles of [
         ...ROLES.map((role) => [role]),
-        ["Admin", "System Admin"],
+        ["Admin", "Clinic Admin"],
       ]) {
         const actor = await person(roles);
         const before = await fingerprints(),
@@ -374,7 +374,7 @@ describe(
 
     test("release requires Admin, another disabled account, confirmation, current revisions and actual recent factors", async () => {
       const admin = await person(["Admin"]),
-        system = await person(["System Admin", "Clinic Admin"]),
+        system = await person(["Clinic Admin"]),
         owner = await person();
       await proof(owner, "permission@example.org");
       const activeInput = await releaseInput(owner);
@@ -526,7 +526,7 @@ describe(
       const initial = ok(
         await post("/staff", admin, {
           username: "synthetic.international",
-          roles: ["Clinic Receptionist"],
+          roles: ["Receptionist"],
           profile: syntheticProfile({
             phone: "+1 (213) 373-4253",
             qualification: {

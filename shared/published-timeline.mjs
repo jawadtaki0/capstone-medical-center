@@ -13,10 +13,20 @@ function effectiveSessions(sessions, exceptions, date) {
 }
 export function composePublications(events, date) {
   const selected = events
-    .filter((event) => event.effectiveFrom <= date)
+    .filter(
+      (event) =>
+        event.effectiveFrom === null ||
+        (date !== null && event.effectiveFrom <= date),
+    )
     .sort(
       (a, b) =>
-        a.effectiveFrom.localeCompare(b.effectiveFrom) ||
+        (a.effectiveFrom === b.effectiveFrom
+          ? 0
+          : a.effectiveFrom === null
+            ? -1
+            : b.effectiveFrom === null
+              ? 1
+              : a.effectiveFrom.localeCompare(b.effectiveFrom)) ||
         a.sequence - b.sequence,
     );
   if (!selected.length) return null;
@@ -117,6 +127,7 @@ export function publicSnapshotDatabase(snapshot, purpose = "directory") {
         .filter((s) => s.professionalId === null)
         .map((s) => ({
           ...common(s),
+          id: s.scopeId,
           name: snapshot.scopes.find((scope) => scope.id === s.scopeId).name,
         })),
     };

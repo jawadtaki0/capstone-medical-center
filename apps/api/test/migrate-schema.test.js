@@ -138,6 +138,11 @@ function fakeMongo({ failTransaction = false, failDdl = false } = {}) {
       const requireTransaction = (session) =>
         assert.equal(session?.inTransaction(), true);
       return {
+        async findOne(query) {
+          assert.equal(name, "public_data_authority");
+          assert.deepEqual(query, { _id: "source" });
+          return null;
+        },
         find(query, { raw, session } = {}) {
           assert.deepEqual(query, {});
           assert.equal(raw, true);

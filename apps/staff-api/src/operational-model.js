@@ -1,6 +1,8 @@
 import { StaffError } from "./errors.js";
 import { allowFields } from "./management-validation.js";
 import { validDate } from "./validation.js";
+import { validPatientLimit } from "../../../shared/session-capacity.mjs";
+import { validRoles } from "./permissions.js";
 
 const invalid = (message) => new StaffError("invalid_input", message);
 export function identifier(value) {
@@ -39,6 +41,7 @@ function hours(value) {
   return { startTime: value.startTime, endTime: value.endTime };
 }
 export function operationalAccess(roles, grants, scope) {
+  if (!validRoles(roles)) return { view: false, edit: false, publish: false };
   const admin = roles.includes("Admin");
   const assigned = scope.active && grants.includes(scope.id);
   const clinic = scope.kind === "clinic";
@@ -46,12 +49,7 @@ export function operationalAccess(roles, grants, scope) {
     admin ||
     Boolean(assigned && roles.includes(clinic ? "Clinic Admin" : "Lab Admin"));
   return {
-    view:
-      edit ||
-      Boolean(
-        assigned &&
-        roles.includes(clinic ? "Clinic Receptionist" : "Lab Receptionist"),
-      ),
+    view: edit || Boolean(assigned && roles.includes("Receptionist")),
     edit,
     publish: edit,
   };
@@ -105,7 +103,7 @@ export function validateOperationalRecord(type, value) {
       new Set(value.scopeIds).size !== value.scopeIds.length
     )
       throw invalid(
-        "Choose a professional kind, confirmed avatar gender or neutral, and unique clinic assignments.",
+        "Choose a professional kind, Gender (or unconfirmed draft), and unique clinic assignments.",
       );
     if (!id.startsWith(`${value.kind}:`))
       throw invalid(
@@ -159,13 +157,11 @@ export function validateOperationalRecord(type, value) {
     value.weekday < 0 ||
     value.weekday > 6 ||
     !["active", "cancelled"].includes(value.status) ||
-    !(
-      value.capacity === null ||
-      (Number.isSafeInteger(value.capacity) && value.capacity > 0)
-    )
+    !validPatientLimit(value.capacity) ||
+    (value.professionalId === null && value.capacity !== null)
   )
     throw invalid(
-      "Choose a weekday, active/cancelled status and positive whole capacity (or leave the draft unconfirmed).",
+      "Choose a weekday, active/cancelled status and a positive whole patient limit or null. Service-only hours must have no limit.",
     );
   return {
     id,

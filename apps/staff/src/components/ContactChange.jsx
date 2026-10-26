@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import EmailInput from "./EmailInput.jsx";
+import { requiresMfa } from "../../../../shared/staff-roles.mjs";
 import {
   normalizedEmail,
   EMAIL_INPUT_MESSAGE,
@@ -29,9 +30,7 @@ export default function ContactChange({
     identityExpiry = useRef(null);
   const savedResult = useRef(null),
     cancelRef = useRef(null);
-  const administrative = roles.some((role) =>
-    ["Admin", "System Admin", "Clinic Admin", "Lab Admin"].includes(role),
-  );
+  const administrative = requiresMfa(roles);
   const [status, setStatus] = useState(null),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true);

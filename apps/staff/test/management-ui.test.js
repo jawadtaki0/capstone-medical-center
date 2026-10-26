@@ -49,14 +49,7 @@ const jsxHook = registerHooks({
 });
 after(() => jsxHook.deregister());
 
-const roles = [
-  "Admin",
-  "System Admin",
-  "Clinic Admin",
-  "Lab Admin",
-  "Clinic Receptionist",
-  "Lab Receptionist",
-];
+const roles = ["Admin", "Clinic Admin", "Lab Admin", "Receptionist"];
 const actor = (assignedRoles, id = "actor") => ({ id, roles: assignedRoles });
 const target = (assignedRoles, id = "target") => ({ id, roles: assignedRoles });
 const staff = [
@@ -72,7 +65,7 @@ const staff = [
     id: "two",
     name: "Synthetic Two",
     username: "synthetic.two",
-    roles: ["Lab Receptionist", "Clinic Receptionist"],
+    roles: ["Receptionist"],
     departments: ["Laboratory", "Clinic"],
     status: "setup_pending",
   },
@@ -140,7 +133,7 @@ test("directory searches names/secondary usernames with case and whitespace norm
 test("role, department and status filters combine and mixed assignments remain discoverable", () => {
   assert.deepEqual(
     filterStaff(staff, {
-      role: "Clinic Receptionist",
+      role: "Receptionist",
       department: "Laboratory",
       status: "setup_pending",
     }).map(({ id }) => id),
@@ -194,36 +187,33 @@ test("closed management screens cannot start or retry a pending protected action
     (error) => error.code === "action_cancelled",
   );
 });
-test("presentation permissions hide self controls and protect every mixed Admin/System Admin target", () => {
+test("presentation permissions hide self controls and protect every mixed Admin/Clinic Admin target", () => {
   for (const role of roles)
-    assert.equal(
-      canViewStaffDirectory(actor([role])),
-      ["Admin", "System Admin"].includes(role),
-    );
+    assert.equal(canViewStaffDirectory(actor([role])), role === "Admin");
   assert.equal(
-    canManageProfile(actor(["System Admin"]), target(["Admin"])),
-    true,
+    canManageProfile(actor(["Clinic Admin"]), target(["Admin"])),
+    false,
   );
   assert.equal(
     canControlAccount(
-      actor(["System Admin"]),
-      target(["Admin", "Clinic Receptionist"]),
+      actor(["Clinic Admin"]),
+      target(["Admin", "Receptionist"]),
     ),
     false,
   );
   assert.equal(
     canControlAccount(
-      actor(["System Admin"]),
-      target(["System Admin", "Lab Admin"]),
+      actor(["Clinic Admin"]),
+      target(["Clinic Admin", "Lab Admin"]),
     ),
     false,
   );
   assert.equal(
-    canControlAccount(actor(["System Admin"]), target(["Clinic Admin"])),
-    true,
+    canControlAccount(actor(["Clinic Admin"]), target(["Clinic Admin"])),
+    false,
   );
   assert.equal(
-    canControlAccount(actor(["Admin"]), target(["System Admin"])),
+    canControlAccount(actor(["Admin"]), target(["Clinic Admin"])),
     true,
   );
   for (const role of roles)
@@ -231,34 +221,28 @@ test("presentation permissions hide self controls and protect every mixed Admin/
       canControlAccount(actor([role]), target([role], "actor")),
       false,
     );
-  assert.deepEqual(
-    assignableRoles(actor(["System Admin"]), roles),
-    roles.slice(2),
-  );
+  assert.deepEqual(assignableRoles(actor(["Clinic Admin"]), roles), []);
   assert.deepEqual(assignableRoles(actor(["Admin"]), roles), roles);
   assert.deepEqual(assignableRoles(actor(["Lab Admin"]), roles), []);
 });
 test("work-detail editability distinguishes other protected accounts without restricting personal fields", () => {
   for (const protectedTarget of [
     ["Admin"],
-    ["System Admin"],
-    ["Admin", "Clinic Receptionist"],
-    ["System Admin", "Lab Admin"],
+    ["Clinic Admin"],
+    ["Admin", "Receptionist"],
+    ["Clinic Admin", "Lab Admin"],
   ]) {
     assert.equal(
-      canManageWorkDetails(actor(["System Admin"]), target(protectedTarget)),
+      canManageWorkDetails(actor(["Clinic Admin"]), target(protectedTarget)),
       false,
     );
     assert.equal(
-      canManageWorkDetails(
-        actor(["System Admin", "Clinic Admin"]),
-        target(protectedTarget),
-      ),
+      canManageWorkDetails(actor(["Clinic Admin"]), target(protectedTarget)),
       false,
     );
     assert.equal(
-      canManageProfile(actor(["System Admin"]), target(protectedTarget)),
-      true,
+      canManageProfile(actor(["Clinic Admin"]), target(protectedTarget)),
+      false,
     );
     assert.equal(
       canManageWorkDetails(actor(["Admin"]), target(protectedTarget)),
@@ -266,7 +250,7 @@ test("work-detail editability distinguishes other protected accounts without res
     );
     assert.equal(
       canManageWorkDetails(
-        actor(["System Admin", "Admin"]),
+        actor(["Clinic Admin", "Admin"]),
         target(protectedTarget),
       ),
       true,
@@ -277,10 +261,10 @@ test("work-detail editability distinguishes other protected accounts without res
       canManageWorkDetails(actor([role]), target([role], "actor")),
       false,
     );
-    if (!["Admin", "System Admin"].includes(role)) {
+    if (!["Admin", "Clinic Admin"].includes(role)) {
       assert.equal(
-        canManageWorkDetails(actor(["System Admin"]), target([role])),
-        true,
+        canManageWorkDetails(actor(["Clinic Admin"]), target([role])),
+        false,
       );
       assert.equal(
         canManageWorkDetails(actor([role]), target(["Admin"])),
@@ -392,7 +376,7 @@ test("changed profile patches keep address/phone-only edits separate from sensit
 test("qualifications validate the full role list; technical levels never silently become university degrees", () => {
   const profile = managementProfile(profileData());
   assert.equal(
-    validateManagementProfile(profile, ["Admin", "Lab Receptionist"]),
+    validateManagementProfile(profile, ["Admin", "Receptionist"]),
     "",
   );
   const vocational = {
@@ -403,9 +387,9 @@ test("qualifications validate the full role list; technical levels never silentl
       level: "TS",
     },
   };
-  assert.equal(validateManagementProfile(vocational, ["Lab Receptionist"]), "");
+  assert.equal(validateManagementProfile(vocational, ["Receptionist"]), "");
   assert.match(
-    validateManagementProfile(vocational, ["Lab Receptionist", "Clinic Admin"]),
+    validateManagementProfile(vocational, ["Receptionist", "Clinic Admin"]),
     /university/,
   );
   const baccalaureate = {
@@ -416,10 +400,7 @@ test("qualifications validate the full role list; technical levels never silentl
       level: "General Baccalaureate",
     },
   };
-  assert.equal(
-    validateManagementProfile(baccalaureate, ["Clinic Receptionist"]),
-    "",
-  );
+  assert.equal(validateManagementProfile(baccalaureate, ["Receptionist"]), "");
   assert.match(
     validateManagementProfile(
       { ...profile, qualification: { ...profile.qualification, level: "BT" } },
@@ -690,23 +671,23 @@ test("contact screen is honest about pending verification, unavailable WhatsApp 
 test("identity permission is other-Admin-only independently of target roles", () => {
   for (const roles of [
     ["Admin"],
-    ["System Admin"],
+    ["Clinic Admin"],
     ["Clinic Admin"],
     ["Lab Admin"],
-    ["Clinic Receptionist"],
-    ["Lab Receptionist"],
-    ["Admin", "System Admin"],
-    ["System Admin", "Lab Receptionist"],
+    ["Receptionist"],
+    ["Receptionist"],
+    ["Admin", "Clinic Admin"],
+    ["Clinic Admin", "Receptionist"],
   ]) {
     const user = actor(roles);
     for (const targetRoles of [
       ["Admin"],
-      ["System Admin"],
+      ["Clinic Admin"],
       ["Clinic Admin"],
       ["Lab Admin"],
-      ["Clinic Receptionist"],
-      ["Lab Receptionist"],
-      ["Admin", "Lab Receptionist"],
+      ["Receptionist"],
+      ["Receptionist"],
+      ["Admin", "Receptionist"],
     ]) {
       assert.equal(
         canManageIdentity(user, { id: "other", roles: targetRoles }),
@@ -720,7 +701,7 @@ test("identity permission is other-Admin-only independently of target roles", ()
   }
 });
 
-test("identity and qualification controls remain visible but read-only for System Admin", async () => {
+test("identity and qualification controls remain visible but read-only for Clinic Admin", async () => {
   const { default: Fields } =
     await import("../src/components/StaffProfileFields.jsx");
   const html = renderToStaticMarkup(
@@ -800,14 +781,14 @@ test("email dialog uses native modal focus containment, safe cancellation and on
 test("release controls require another disabled account, Admin authority and authoritative derived proof status", () => {
   for (const roleList of [
     ...roles.map((role) => [role]),
-    ["Admin", "System Admin"],
-    ["System Admin", "Lab Admin"],
+    ["Admin", "Clinic Admin"],
+    ["Clinic Admin", "Lab Admin"],
   ]) {
     const user = actor(roleList);
     for (const email of ["verified", "test_only", "unverified", "released"]) {
       const record = {
         account: {
-          ...target(["Admin", "Clinic Receptionist"]),
+          ...target(["Admin", "Receptionist"]),
           status: "disabled",
         },
         profile: { contactStatus: { email } },
