@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import StaffDirectory from "./StaffDirectory.jsx";
 import StaffProfile from "./StaffProfile.jsx";
 import OperationsPanel from "./OperationsPanel.jsx";
+import PatientRegistry from "./PatientRegistry.jsx";
+import { PATIENT_ROLES } from "../../shared/patient-input.js";
 
 const labels = {
   admin: "Admin",
@@ -31,6 +33,8 @@ export default function Workspace({
   const roles = workspace.roles ?? user.roles ?? [];
   const directoryAllowed =
     workspace.permissions?.includes("staff:directory") === true;
+  const patientsAllowed =
+    roles.length > 0 && roles.every((role) => PATIENT_ROLES.includes(role));
   const operationsAllowed =
     workspace.permissions?.includes("operations:view") === true;
   useEffect(() => {
@@ -43,6 +47,7 @@ export default function Workspace({
         {[
           ["workspace", "Workspace"],
           ["profile", "My Profile"],
+          ...(patientsAllowed ? [["patients", "Patients"]] : []),
           ...(directoryAllowed ? [["directory", "Staff Directory"]] : []),
           ...(operationsAllowed
             ? [
@@ -100,8 +105,14 @@ export default function Workspace({
             </button>
           </div>
         )}
-        {operationsAllowed &&
-        ["professionals", "schedule", "registry"].includes(view) ? (
+        {view === "patients" && patientsAllowed ? (
+          <PatientRegistry
+            api={api}
+            onError={onError}
+            onPendingChange={onPendingChange}
+          />
+        ) : operationsAllowed &&
+          ["professionals", "schedule", "registry"].includes(view) ? (
           <OperationsPanel
             key={view}
             api={api}
@@ -142,8 +153,9 @@ export default function Workspace({
                 verified email replacement. Phone replacement remains
                 unavailable. Authorized managers can use the staff directory and
                 permitted account controls. Authorized operational roles can
-                review professional and schedule drafts. Appointment, patient
-                and laboratory record workflows are not included.
+                review professional and schedule drafts. The Patients registry
+                supports basic records only. Appointment and clinical/laboratory
+                workflows are not included.
               </p>
               <p className="staff-help">
                 Permissions are checked by the server. A department or visible

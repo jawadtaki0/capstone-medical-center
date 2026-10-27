@@ -185,6 +185,14 @@ export function createApp({
     );
   }
   // Fixed, permission-checked staff operations; no generic collection browser.
+  for (const action of ["search", "read", "check", "create", "update"]) {
+    app.post(
+      `/patients/${action}`,
+      route((service, request) =>
+        service.patients[action](bearer(request), request.body),
+      ),
+    );
+  }
   for (const action of [
     "request",
     "verify",

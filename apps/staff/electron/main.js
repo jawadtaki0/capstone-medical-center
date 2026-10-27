@@ -33,6 +33,26 @@ function validatePayload(name, payload) {
   )
     throw new Error("Invalid action payload.");
   const fields = {
+    searchPatients: [
+      "firstName",
+      "fatherName",
+      "lastName",
+      "motherFirstName",
+      "dateOfBirth",
+      "phone",
+      "patientNumber",
+      "cursor",
+    ],
+    readPatient: ["patientId"],
+    checkPatientDuplicates: ["record", "patientId", "expectedRevision"],
+    createPatient: ["record", "reviewDigest", "duplicateOverride"],
+    updatePatient: [
+      "patientId",
+      "expectedRevision",
+      "record",
+      "reviewDigest",
+      "duplicateOverride",
+    ],
     operationalState: [],
     saveOperationalRecord: ["type", "record", "expectedRevision"],
     assignOperationalScopes: [

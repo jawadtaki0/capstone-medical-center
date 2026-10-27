@@ -323,6 +323,11 @@ export function createBroker({ url, demoMode, request = fetch }) {
       return call("/password/change/cancel", {}, true);
     },
     staffDirectory: () => call("/staff", undefined, true),
+    searchPatients: (payload) => call("/patients/search", payload, true),
+    readPatient: (payload) => call("/patients/read", payload, true),
+    checkPatientDuplicates: (payload) => call("/patients/check", payload, true),
+    createPatient: (payload) => call("/patients/create", payload, true),
+    updatePatient: (payload) => call("/patients/update", payload, true),
     operationalState: () => call("/operations", undefined, true),
     saveOperationalRecord: (payload) => call("/operations/save", payload, true),
     assignOperationalScopes: (payload) =>
