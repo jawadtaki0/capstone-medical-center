@@ -6,6 +6,11 @@ import { eligibleAdmin } from "./management.js";
 import { revokeCredentialAuthorities } from "./password-history.js";
 import { assertPublicationStorage } from "../../../shared/publication-environment.mjs";
 import { STAFF_ROLE_POLICY } from "../../../shared/staff-roles.mjs";
+import {
+  assertNormalRoleTarget,
+  assertRoleBackupCurrent,
+  roleBackupDigest,
+} from "./role-cutover-backup.js";
 
 export const ROLE_POLICY = STAFF_ROLE_POLICY;
 const LEGACY_ROLES = [
@@ -82,19 +87,35 @@ export async function roleSnapshot(db, session) {
   const options = { session };
   const accounts = await db
     .collection("accounts")
-    .find(
-      {},
-      {
-        ...options,
-        projection: {
-          _id: 1,
-          roles: 1,
-          version: 1,
-          status: 1,
-          passwordHash: 1,
-          mfa: 1,
+    .aggregate(
+      [
+        {
+          $project: {
+            _id: 1,
+            roles: 1,
+            version: 1,
+            status: 1,
+            hasPassword: {
+              $and: [
+                { $eq: [{ $type: "$passwordHash" }, "string"] },
+                { $ne: ["$passwordHash", ""] },
+              ],
+            },
+            mfaEnabled: { $eq: ["$mfa.enabled", true] },
+            mfaVersion: "$mfa.version",
+            backupAcknowledged: { $eq: ["$mfa.backupAcknowledged", true] },
+            factorPresent: {
+              $and: [
+                { $ne: [{ $type: "$mfa.secretCipher" }, "missing"] },
+                { $ne: ["$mfa.secretCipher", null] },
+                { $ne: ["$mfa.secretCipher", ""] },
+                { $ne: ["$mfa.secretCipher", false] },
+              ],
+            },
+          },
         },
-      },
+      ],
+      options,
     )
     .sort({ _id: 1 })
     .toArray();
@@ -108,6 +129,8 @@ export async function roleSnapshot(db, session) {
     .findOne({ _id: "staff-controls" }, options);
   if (!state || !Number.isSafeInteger(state.revision))
     refuse("Missing management guard.");
+  if (state.rolePolicy != null && state.rolePolicy !== ROLE_POLICY)
+    refuse("Unexpected role policy. Reconcile before migration.");
   const grants = await db
     .collection("operational_grants")
     .find({}, options)
@@ -120,20 +143,37 @@ export async function roleSnapshot(db, session) {
     .toArray();
   const result = {
     revision: state.revision,
-    accounts: accounts.map((a) => ({
-      id: a._id,
-      roles: a.roles,
-      version: a.version,
-      status: a.status,
-      eligibleAdmin:
-        a.roles?.includes("Admin") && eligibleAdmin({ ...a, roles: ["Admin"] }),
-      mfaComplete: eligibleAdmin({ ...a, status: "active", roles: ["Admin"] }),
-      mfaEnabled: a.mfa?.enabled === true,
-      hasPassword: typeof a.passwordHash === "string" && !!a.passwordHash,
-      profileIds: profiles
-        .filter((p) => p.accountId === a._id)
-        .map((p) => p._id),
-    })),
+    rolePolicy: state.rolePolicy ?? null,
+    accounts: accounts.map((a) => {
+      // Reuse activation eligibility with presence markers, NEVER credential values.
+      const eligibility = {
+        ...a,
+        roles: ["Admin"],
+        status: "active",
+        passwordHash: a.hasPassword ? "present" : null,
+        mfa: {
+          enabled: a.mfaEnabled,
+          version: a.mfaVersion,
+          secretCipher: a.factorPresent ? "present" : null,
+          backupAcknowledged: a.backupAcknowledged,
+        },
+      };
+      const complete = eligibleAdmin(eligibility);
+      return {
+        id: a._id,
+        roles: a.roles,
+        version: a.version,
+        status: a.status,
+        eligibleAdmin:
+          a.roles?.includes("Admin") && a.status === "active" && complete,
+        mfaComplete: complete,
+        mfaEnabled: a.mfaEnabled === true,
+        hasPassword: a.hasPassword === true,
+        profileIds: profiles
+          .filter((p) => p.accountId === a._id)
+          .map((p) => p._id),
+      };
+    }),
     grants: grants.map((g) => ({
       id: g._id,
       accountId: g.id,
@@ -327,8 +367,13 @@ export async function inspectRoleMigration({
   client,
   mappings = {},
   demoMode,
+  context,
 }) {
-  assertPublicationStorage(db, client, demoMode, "staff", { mode: "test" });
+  if (context?.mode === "normal-local") {
+    if (demoMode !== true) refuse("Explicit loopback mode required.");
+    assertNormalRoleTarget(db, client, context);
+  } else
+    assertPublicationStorage(db, client, demoMode, "staff", { mode: "test" });
   const session = client.startSession();
   try {
     return await session.withTransaction(
@@ -348,9 +393,18 @@ export async function applyRoleMigration({
   maintenanceAcknowledged,
   demoMode,
   failBeforeCommit = async () => {},
+  context,
+  backup,
+  expectedBackupDigest,
 }) {
-  // Normal inventory/apply is deliberately unavailable in this reviewed slice.
-  assertPublicationStorage(db, client, demoMode, "staff", { mode: "test" });
+  const normal = context?.mode === "normal-local";
+  if (normal) {
+    if (demoMode !== true) refuse("Explicit loopback mode required.");
+    assertNormalRoleTarget(db, client, context);
+    if (!backup || roleBackupDigest(backup) !== expectedBackupDigest)
+      refuse("An exact verified protected backup is required.");
+  } else
+    assertPublicationStorage(db, client, demoMode, "staff", { mode: "test" });
   if (maintenanceAcknowledged !== true)
     refuse(
       "Stop older APIs and select the matching new API/package before acknowledging coordinated maintenance cutover.",
@@ -380,6 +434,17 @@ export async function applyRoleMigration({
           refuse(
             "Roles, grants, scopes, versions or approvals changed. Regenerate the dry-run.",
           );
+        if (backup) {
+          if (roleBackupDigest(backup) !== expectedBackupDigest)
+            refuse("Protected backup identity differs.");
+          await assertRoleBackupCurrent(
+            db,
+            session,
+            backup,
+            context,
+            current.snapshotDigest,
+          );
+        }
         const guard = await db
           .collection("staff_management_state")
           .updateOne(

@@ -140,3 +140,17 @@ test("client-construction errors also leave a retryable unavailable state", asyn
   assert.equal(await connection.health(), "connected");
   await connection.close();
 });
+
+test("healthy refreshes preserve the database handle with real-driver-style fresh db objects", async () => {
+  let handles = 0;
+  const client = fakeClient();
+  client.db = () => ({ ...client.database, handle: ++handles });
+  const connection = connectionWith(() => client);
+  const original = await connection.connect();
+  await connection.health();
+  assert.equal(await connection.connect(), original);
+  assert.equal(connection.get(), original);
+  assert.equal(handles, 1);
+  assert.equal(client.calls.ping, 3);
+  await connection.close();
+});

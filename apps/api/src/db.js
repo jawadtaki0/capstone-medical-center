@@ -32,7 +32,9 @@ export function createDatabaseConnection({
           if (!database) state = "connecting";
           await candidate.connect();
           if (attemptGeneration !== generation) return null;
-          const nextDatabase = candidate.db(dbName);
+          // MongoClient.db() creates a new handle even for the same live pool.
+          // Preserve its identity until a failed connection or close clears it.
+          const nextDatabase = database ?? candidate.db(dbName);
           await nextDatabase.command({ ping: 1 }, { maxTimeMS: 3000 });
           if (attemptGeneration !== generation) return null;
           database = nextDatabase;

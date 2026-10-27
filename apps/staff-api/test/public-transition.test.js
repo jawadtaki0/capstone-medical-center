@@ -10,6 +10,8 @@ import {
   setPublicationPause,
 } from "../src/public-baseline-import.js";
 import { syntheticBaselineSnapshot } from "./helpers/public-baseline.js";
+import { importRevisionFromBackup } from "../scripts/public-transition.js";
+import { captureBsonSnapshot } from "../../api/src/public-data-backup.js";
 import { signInSynthetic } from "./helpers/publication-authority.js";
 import {
   createPublicationReceiver,
@@ -96,6 +98,83 @@ test("real Mongo import refuses collisions without partial records", async () =>
     await f.db.collection("doctor_profile_drafts").countDocuments(),
     0,
   );
+});
+
+test("import from an initialized working revision retains its exact rollback boundary", async () => {
+  const { snapshot, plan, apply } = await imported();
+  await f.db
+    .collection("operational_state")
+    .insertOne({ _id: "working", revision: 1, head: 0 });
+  await assert.rejects(apply({ expectedRevision: 0 }), /Target revision/);
+  assert.equal(await f.db.collection("operational_scopes").countDocuments(), 0);
+  const targetBackup = await captureBsonSnapshot(f.db, ["operational_state"]);
+  const expectedRevision = importRevisionFromBackup(targetBackup);
+  const outcomes = await Promise.all([
+    apply({ expectedRevision }),
+    apply({ expectedRevision }),
+  ]);
+  assert.deepEqual(outcomes.map((result) => result.status).sort(), [
+    "already_imported",
+    "imported",
+  ]);
+  assert.equal(
+    (
+      await f.db
+        .collection("operational_imports")
+        .findOne({ _id: "public-baseline-v1" })
+    ).importRevision,
+    2,
+  );
+  assert.equal(
+    (await f.db.collection("operational_state").findOne({ _id: "working" }))
+      .revision,
+    2,
+  );
+  assert.equal(
+    (
+      await undoPublicBaseline({
+        ...f,
+        snapshot,
+        expectedDigest: plan.digest,
+        demoMode: true,
+      })
+    ).status,
+    "rolled_back",
+  );
+  assert.equal(
+    (await f.db.collection("operational_state").findOne({ _id: "working" }))
+      .revision,
+    1,
+  );
+});
+
+test("initialized-revision import refuses concurrent changes and rollback after later work", async () => {
+  const { snapshot, plan, apply } = await imported();
+  await f.db
+    .collection("operational_state")
+    .insertOne({ _id: "working", revision: 1, head: 0 });
+  await f.db
+    .collection("operational_state")
+    .updateOne({ _id: "working" }, { $inc: { revision: 1 } });
+  await assert.rejects(apply({ expectedRevision: 1 }), /Target revision/);
+  assert.equal(
+    await f.db.collection("operational_imports").countDocuments(),
+    0,
+  );
+  await apply({ expectedRevision: 2 });
+  await f.db
+    .collection("operational_state")
+    .updateOne({ _id: "working" }, { $inc: { revision: 1 } });
+  await assert.rejects(
+    undoPublicBaseline({
+      ...f,
+      snapshot,
+      expectedDigest: plan.digest,
+      demoMode: true,
+    }),
+    /subsequent work/,
+  );
+  assert.ok(await f.db.collection("doctor_profile_drafts").findOne({}));
 });
 
 test("old formula-era plans and marker-only tampering reject before writes; historical completion is retained", async () => {

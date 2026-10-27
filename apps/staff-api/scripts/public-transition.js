@@ -2,7 +2,7 @@ import { readFile, mkdir, realpath } from "node:fs/promises";
 import { resolve, join, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "dotenv";
-import { MongoClient } from "mongodb";
+import { BSON, MongoClient } from "mongodb";
 import { connectStaffDatabase } from "../src/db.js";
 import { protectDirectory, runtimeDirectory } from "../src/local-security.js";
 import { withPublicationOperatorLock } from "../src/publication-operator-lock.js";
@@ -90,6 +90,32 @@ const confirmed = (args, phrase) => {
   if (args["--confirm"] !== phrase)
     throw new Error(`Explicit confirmation required: ${phrase}`);
 };
+// The role cutover may initialize working revision 1 before any public import.
+// Bind admission to the verified target backup, never an assumed empty revision.
+export function importRevisionFromBackup(backup) {
+  const state = backup?.collections?.operational_state;
+  if (
+    !state ||
+    typeof state.exists !== "boolean" ||
+    !Array.isArray(state.raw) ||
+    state.raw.length > 1 ||
+    (!state.exists && state.raw.length)
+  )
+    throw new Error("Invalid target working-state backup.");
+  if (!state.raw.length) return 0;
+  const value = BSON.deserialize(state.raw[0]);
+  if (
+    value._id !== "working" ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 0 ||
+    value.revision >= Number.MAX_SAFE_INTEGER ||
+    value.head !== 0
+  )
+    throw new Error(
+      "Target backup has an invalid revision or existing publication.",
+    );
+  return value.revision;
+}
 async function run(args) {
   const action = args["--action"];
   if (action === "plan") {
@@ -409,6 +435,7 @@ async function run(args) {
         ...staff,
         snapshot,
         expectedDigest: plan.digest,
+        expectedRevision: importRevisionFromBackup(targetBackup),
         demoMode: true,
         environment,
       });
