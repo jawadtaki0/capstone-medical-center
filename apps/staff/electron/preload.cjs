@@ -1,6 +1,11 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const names = [
+  "searchPatients",
+  "readPatient",
+  "checkPatientDuplicates",
+  "createPatient",
+  "updatePatient",
   "operationalState",
   "saveOperationalRecord",
   "assignOperationalScopes",

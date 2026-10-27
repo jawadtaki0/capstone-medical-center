@@ -26,6 +26,7 @@ import { createPasswordChangeService } from "./password-change.js";
 import { createRecoveryService } from "./recovery.js";
 import { createEmergencyRecovery } from "./emergency-recovery.js";
 import { createOperationsService } from "./operations.js";
+import { createPatientService } from "./patients.js";
 
 export const AUTH_COLLECTIONS = Object.freeze({
   installation: "installation_state",
@@ -720,6 +721,13 @@ export function createAuthService({
     return { account, record, profile: await profileFor(session, account) };
   }
 
+  const patients = createPatientService({
+    db,
+    transaction,
+    guard,
+    authenticated,
+    now,
+  });
   const operations = createOperationsService({
     db,
     transaction,
@@ -846,6 +854,7 @@ export function createAuthService({
   return {
     management,
     operations,
+    patients,
     contacts,
     passwordChange,
     recovery,

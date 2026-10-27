@@ -1,0 +1,149 @@
+.patient-registry {
+  min-width: 0;
+}
+.patient-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.patient-contact-grid .patient-phone-field {
+  display: contents;
+}
+.patient-contact-grid .staff-phone-country {
+  grid-column: 2;
+  grid-row: 1;
+}
+.patient-contact-grid .staff-phone-entry {
+  grid-column: 1;
+  grid-row: 2;
+}
+.patient-contact-grid .patient-field-gender {
+  grid-column: 2;
+  grid-row: 2;
+}
+@media (max-width: 700px) {
+  .patient-contact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .patient-contact-grid .staff-phone-country,
+  .patient-contact-grid .staff-phone-entry,
+  .patient-contact-grid .patient-field-gender {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+.patient-search {
+  padding: 1.25rem;
+  border: 1px solid var(--staff-line);
+  border-radius: var(--staff-radius);
+  background: #fff;
+}
+.patient-results-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+.patient-results,
+.patient-candidates {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.patient-results > li,
+.patient-candidates > li {
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--staff-line);
+  border-radius: var(--staff-radius);
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.patient-results > li {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.patient-results h3,
+.patient-candidates h4 {
+  margin: 0 0 0.5rem;
+  color: var(--staff-deep);
+}
+.patient-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 1.5rem;
+  margin: 0.7rem 0;
+}
+.patient-summary > div {
+  min-width: 0;
+}
+.patient-summary dt {
+  font-size: 0.82rem;
+  color: var(--staff-muted);
+}
+.patient-summary dd {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+}
+.patient-duplicate-review {
+  border: 1px solid var(--staff-line);
+  padding: 1rem;
+  border-radius: var(--staff-radius);
+  background: var(--staff-pale);
+}
+.patient-duplicate-review h3 {
+  margin-top: 0;
+}
+.patient-duplicate-review h3:focus-visible {
+  outline: 2px solid var(--staff-blue);
+  outline-offset: 4px;
+}
+.patient-date-warning {
+  font-weight: 650;
+  color: var(--staff-deep);
+}
+.patient-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  line-height: 1.5;
+}
+.patient-ack input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+.patient-discard {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 1rem;
+  border: 1px solid var(--staff-line);
+  border-radius: var(--staff-radius);
+}
+.patient-discard p {
+  width: 100%;
+  margin: 0;
+}
+@media (max-width: 650px) {
+  .patient-results > li {
+    display: block;
+  }
+  .patient-results > li > button {
+    margin-top: 1rem;
+  }
+  .patient-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .patient-search {
+    padding: 1rem;
+  }
+}

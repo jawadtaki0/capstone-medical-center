@@ -1,6 +1,7 @@
 import { MongoClient } from "mongodb";
 import { loadConfig, validateTarget } from "./config.js";
 import { STAFF_ROLE_POLICY } from "../../../shared/staff-roles.mjs";
+import { ensurePatientIndexes } from "./patients.js";
 
 export async function assertRoleStoragePolicy(db) {
   const state = await db
@@ -51,6 +52,7 @@ export async function connectStaffDatabase({
 }
 
 export async function ensureIndexes(db) {
+  await ensurePatientIndexes(db);
   await db
     .collection("accounts")
     .createIndex({ username: 1 }, { unique: true });
