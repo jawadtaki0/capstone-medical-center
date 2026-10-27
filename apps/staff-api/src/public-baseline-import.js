@@ -272,6 +272,12 @@ export async function applyPublicBaseline({
     throw new Error(
       "Import plan changed or uses a superseded rule. Regenerate the plan and repeat reconciliation.",
     );
+  if (
+    !Number.isSafeInteger(expectedRevision) ||
+    expectedRevision < 0 ||
+    expectedRevision >= Number.MAX_SAFE_INTEGER
+  )
+    throw new Error("Invalid expected target revision.");
   const session = client.startSession();
   try {
     return await session.withTransaction(
@@ -346,6 +352,7 @@ export async function applyPublicBaseline({
             digest: plan.digest,
             sourceDigest: plan.sourceDigest,
             capacityRule: plan.capacityRule,
+            importRevision: expectedRevision + 1,
             lineage: plan.lineage,
             completedAt: new Date(),
             importedIds: Object.fromEntries(
@@ -402,7 +409,16 @@ export async function undoPublicBaseline({
         const state = await db
           .collection("operational_state")
           .findOne({ _id: "working" }, { session });
-        if (state?.head !== 0 || state?.revision !== 1)
+        // Older completion records came from revision-zero admission; preserve
+        // that boundary while newer imports record the exact admitted revision.
+        const importRevision =
+          ledger.importRevision === undefined ? 1 : ledger.importRevision;
+        if (
+          !Number.isSafeInteger(importRevision) ||
+          importRevision < 1 ||
+          state?.head !== 0 ||
+          state?.revision !== importRevision
+        )
           throw new Error(
             "Import has subsequent work/publications. Reconcile; rollback refused.",
           );
@@ -440,13 +456,17 @@ export async function undoPublicBaseline({
                 { _id: { $in: values.map((v) => v.id) } },
                 { session },
               );
-        await db
-          .collection("operational_state")
-          .updateOne(
-            { _id: "working" },
-            { $set: { revision: 0, head: 0, publicationPaused: true } },
-            { session },
-          );
+        await db.collection("operational_state").updateOne(
+          { _id: "working" },
+          {
+            $set: {
+              revision: importRevision - 1,
+              head: 0,
+              publicationPaused: true,
+            },
+          },
+          { session },
+        );
         await db
           .collection(IMPORT_COLLECTION)
           .updateOne(

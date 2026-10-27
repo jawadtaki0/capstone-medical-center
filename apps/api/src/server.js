@@ -7,7 +7,7 @@ import {
   getDatabase,
 } from "./db.js";
 import {
-  normalPublicationReaders,
+  createPublicationLifecycle,
   assertLegacyReaderMode,
 } from "./normal-publication.js";
 import { getScheduleForDate } from "./schedule.js";
@@ -21,37 +21,40 @@ if (publicationEnabled && config.port !== 4000)
   );
 if (process.env.CAPSTONE_PUBLICATION_MODE && !publicationEnabled)
   throw new Error("Unsupported explicit publication mode.");
-let publication;
-async function activePublication() {
-  const db = getDatabase();
-  if (!publication || publication.db !== db)
-    publication = {
-      db,
-      ...(await normalPublicationReaders(db, { enabled: true })),
-    };
-  return publication;
-}
+const publication = publicationEnabled
+  ? createPublicationLifecycle({ getDatabase })
+  : null;
 const receiverProxy = publicationEnabled
   ? {
-      authorized: (request) =>
-        Boolean(publication?.receiver.authorized(request)),
+      authorized: (request) => {
+        try {
+          return publication.ready().receiver.authorized(request);
+        } catch {
+          return false;
+        }
+      },
       accept: async (payload) =>
-        (await activePublication()).receiver.accept(payload),
+        publication.withReady(({ receiver }) => receiver.accept(payload)),
       health: async () => {
         try {
-          return (await activePublication()).receiver.health();
+          return await publication.withReady(({ receiver }) =>
+            receiver.health(),
+          );
         } catch {
           return "unavailable";
         }
       },
       schedule: async (date) =>
-        (await activePublication()).receiver.schedule(date),
+        publication.withReady(({ receiver }) => receiver.schedule(date)),
       professionals: async () =>
-        (await activePublication()).receiver.professionals(),
+        publication.withReady(({ receiver }) => receiver.professionals()),
     }
   : null;
 const authorityProxy = publicationEnabled
-  ? { mode: async () => (await activePublication()).authority.mode() }
+  ? {
+      mode: async () =>
+        publication.withReady(({ authority }) => authority.mode()),
+    }
   : null;
 
 let stopping = false;
@@ -61,7 +64,8 @@ let lastReportedState = null;
 async function refreshDatabase() {
   try {
     await connectDatabase();
-    if (publicationEnabled) await activePublication();
+    if (stopping) return;
+    if (publicationEnabled) await publication.refresh();
   } catch {
     // Keep the HTTP API available and retry, without logging credentials/URIs.
   }
@@ -107,6 +111,7 @@ async function shutDown(signal) {
   if (stopping) return;
   stopping = true;
   clearTimeout(recoveryTimer);
+  publication?.invalidate();
   console.log(`${signal} received; shutting down.`);
   server.close(async () => {
     await closeDatabase();
