@@ -122,9 +122,11 @@ export default function OperationalSessionFields({
           />
           <p className="staff-help" id={`${id}-capacity-help`}>
             Optional positive whole number. Blank means not configured, not
-            unlimited. The schedule can publish without a limit; future booking
-            confirmation requires one. Hours and specialty edits preserve the
-            saved limit. This does not create appointment time slots.
+            unlimited. A saved limit takes effect immediately for matching
+            published sessions; confirmation requires a configured limit. It
+            cannot be unset or reduced below confirmed bookings. Hours and
+            specialty edits preserve the saved limit. This does not create
+            appointment time slots.
           </p>
           {!validPatientLimit(value.capacity) && (
             <p className="staff-error" role="alert">

@@ -1,3 +1,5 @@
+import BookingRecords from "./BookingRecords.jsx";
+import "./bookings.css";
 import { useEffect, useId, useRef, useState } from "react";
 import OperationalEditor from "./OperationalEditor.jsx";
 import OperationalPublish from "./OperationalPublish.jsx";
@@ -38,7 +40,8 @@ export default function OperationsPanel({
     [date, setDate] = useState(centerToday()),
     [day, setDay] = useState(1),
     [dated, setDated] = useState(false),
-    [preview, setPreview] = useState(null);
+    [preview, setPreview] = useState(null),
+    [showBookings, setShowBookings] = useState(false);
   function failure(value) {
     if (!alive.current) return;
     setError(value.message);
@@ -148,10 +151,29 @@ export default function OperationsPanel({
     <section className="operational-page">
       <p className="staff-eyebrow">CENTER-LOCAL · ASIA/BEIRUT</p>
       <h1 tabIndex={-1}>{heading}</h1>
+      {state?.scopes.some((s) => s.kind === "clinic" && s.access.view) && (
+        <>
+          <button
+            type="button"
+            className="staff-button"
+            onClick={() => setShowBookings(!showBookings)}
+          >
+            {showBookings ? "Hide affected bookings" : "Affected bookings"}
+          </button>
+          {showBookings && (
+            <BookingRecords
+              api={api}
+              affected
+              onError={onError}
+              refresh={state.head}
+            />
+          )}
+        </>
+      )}
       <p className="staff-intro">
         Manage private drafts and authorized publications. Website updates
         require receiver acceptance and explicit operator source activation. No
-        booking, patient records or notifications.
+        automatic booking changes or notifications.
       </p>
       {error && (
         <p className="staff-error" role="alert">

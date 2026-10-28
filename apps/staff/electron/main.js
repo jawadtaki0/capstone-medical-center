@@ -33,6 +33,26 @@ function validatePayload(name, payload) {
   )
     throw new Error("Invalid action payload.");
   const fields = {
+    bookingSessions: ["date"],
+    reviewBooking: [
+      "patientId",
+      "patientRevision",
+      "date",
+      "scopeId",
+      "sourceSessionId",
+    ],
+    confirmBooking: [
+      "patientId",
+      "patientRevision",
+      "date",
+      "scopeId",
+      "sourceSessionId",
+      "sessionVersion",
+      "idempotencyKey",
+    ],
+    listBookings: ["date", "scopeId", "cursor"],
+    cancelBooking: ["bookingId", "reason"],
+    affectedBookings: ["cursor"],
     searchPatients: [
       "firstName",
       "fatherName",

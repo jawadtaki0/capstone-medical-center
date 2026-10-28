@@ -184,6 +184,21 @@ export function createApp({
       ),
     );
   }
+  for (const action of [
+    "sessions",
+    "review",
+    "confirm",
+    "list",
+    "cancel",
+    "affected",
+  ]) {
+    app.post(
+      `/bookings/${action}`,
+      route((service, request) =>
+        service.bookings[action](bearer(request), request.body),
+      ),
+    );
+  }
   // Fixed, permission-checked staff operations; no generic collection browser.
   for (const action of ["search", "read", "check", "create", "update"]) {
     app.post(

@@ -1,3 +1,8 @@
+import {
+  assertBookingIntegrity,
+  loadBookingAuthority,
+  saveBookingLimits,
+} from "./booking-model.js";
 import { randomUUID } from "node:crypto";
 import {
   makePublicationIntent,
@@ -314,6 +319,18 @@ export function createOperationsService({
           { _id: value.id, ...next },
           { session, upsert: true },
         );
+        if (["sessions", "exceptions"].includes(input.type)) {
+          await saveBookingLimits(
+            db,
+            session,
+            input.type,
+            value,
+            context.account._id,
+            at,
+          );
+          const authority = await loadBookingAuthority(db, session);
+          await assertBookingIntegrity(db, session, authority);
+        }
         await changed(session, context, `save_${input.type}`, value.id, at);
         return { saved: true, revision: next.revision };
       }),
@@ -476,6 +493,15 @@ export function createOperationsService({
           references(future);
           validatePublication(future);
         }
+        await assertBookingIntegrity(
+          db,
+          session,
+          {
+            ...(await loadBookingAuthority(db, session)),
+            events: [...events, next],
+          },
+          { publication: true },
+        );
         await collection("publications").insertOne(
           { _id: next.id, ...next },
           { session },

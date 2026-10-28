@@ -1,6 +1,12 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const names = [
+  "bookingSessions",
+  "reviewBooking",
+  "confirmBooking",
+  "listBookings",
+  "cancelBooking",
+  "affectedBookings",
   "searchPatients",
   "readPatient",
   "checkPatientDuplicates",
