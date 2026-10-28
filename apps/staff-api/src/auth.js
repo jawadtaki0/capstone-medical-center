@@ -26,6 +26,7 @@ import { createPasswordChangeService } from "./password-change.js";
 import { createRecoveryService } from "./recovery.js";
 import { createEmergencyRecovery } from "./emergency-recovery.js";
 import { createOperationsService } from "./operations.js";
+import { createBookingService } from "./bookings.js";
 import { createPatientService } from "./patients.js";
 
 export const AUTH_COLLECTIONS = Object.freeze({
@@ -721,13 +722,9 @@ export function createAuthService({
     return { account, record, profile: await profileFor(session, account) };
   }
 
-  const patients = createPatientService({
-    db,
-    transaction,
-    guard,
-    authenticated,
-    now,
-  });
+  // Health/setup validation must not touch unrelated registry collections.
+  // Initialize private services only when their named authenticated route is used.
+  let bookings, patients;
   const operations = createOperationsService({
     db,
     transaction,
@@ -854,7 +851,24 @@ export function createAuthService({
   return {
     management,
     operations,
-    patients,
+    get bookings() {
+      return (bookings ??= createBookingService({
+        db,
+        transaction,
+        guard,
+        authenticated,
+        now,
+      }));
+    },
+    get patients() {
+      return (patients ??= createPatientService({
+        db,
+        transaction,
+        guard,
+        authenticated,
+        now,
+      }));
+    },
     contacts,
     passwordChange,
     recovery,

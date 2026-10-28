@@ -9,6 +9,10 @@ import { OPERATIONAL_COLLECTIONS } from "../../src/operations.js";
 
 export const TEST_DATABASE = "capstone_staff_test";
 export const STAFF_COLLECTIONS = Object.freeze([
+  "bookings",
+  "booking_limits",
+  "booking_state",
+  "booking_changes",
   "patients",
   "patient_registry_state",
   "patient_changes",

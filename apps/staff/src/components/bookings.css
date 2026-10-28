@@ -1,0 +1,45 @@
+.booking-panel {
+  min-width: 0;
+}
+.booking-panel .staff-workspace-card {
+  margin-block: 1.25rem;
+}
+.booking-fields {
+  align-items: end;
+}
+.booking-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.booking-list > li,
+.booking-session {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--staff-line);
+  border-radius: 12px;
+  background: white;
+  overflow-wrap: anywhere;
+}
+.booking-list h3 {
+  font-size: 1rem;
+}
+.booking-session {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-block: 0.75rem;
+}
+.booking-session input {
+  flex: 0 0 auto;
+  margin-top: 0.35rem;
+}
+.booking-panel .staff-field,
+.booking-records p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.booking-panel .staff-actions {
+  flex-wrap: wrap;
+}

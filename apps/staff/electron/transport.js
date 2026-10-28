@@ -323,6 +323,12 @@ export function createBroker({ url, demoMode, request = fetch }) {
       return call("/password/change/cancel", {}, true);
     },
     staffDirectory: () => call("/staff", undefined, true),
+    bookingSessions: (payload) => call("/bookings/sessions", payload, true),
+    reviewBooking: (payload) => call("/bookings/review", payload, true),
+    confirmBooking: (payload) => call("/bookings/confirm", payload, true),
+    listBookings: (payload) => call("/bookings/list", payload, true),
+    cancelBooking: (payload) => call("/bookings/cancel", payload, true),
+    affectedBookings: (payload) => call("/bookings/affected", payload, true),
     searchPatients: (payload) => call("/patients/search", payload, true),
     readPatient: (payload) => call("/patients/read", payload, true),
     checkPatientDuplicates: (payload) => call("/patients/check", payload, true),

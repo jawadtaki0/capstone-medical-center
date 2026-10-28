@@ -1,3 +1,4 @@
+import BookingPanel from "./BookingPanel.jsx";
 import { useEffect, useRef, useState } from "react";
 import StaffDirectory from "./StaffDirectory.jsx";
 import StaffProfile from "./StaffProfile.jsx";
@@ -35,6 +36,9 @@ export default function Workspace({
     workspace.permissions?.includes("staff:directory") === true;
   const patientsAllowed =
     roles.length > 0 && roles.every((role) => PATIENT_ROLES.includes(role));
+  const bookingsAllowed = roles.some((r) =>
+    ["Admin", "Clinic Admin", "Receptionist"].includes(r),
+  );
   const operationsAllowed =
     workspace.permissions?.includes("operations:view") === true;
   useEffect(() => {
@@ -48,6 +52,7 @@ export default function Workspace({
           ["workspace", "Workspace"],
           ["profile", "My Profile"],
           ...(patientsAllowed ? [["patients", "Patients"]] : []),
+          ...(bookingsAllowed ? [["bookings", "Bookings"]] : []),
           ...(directoryAllowed ? [["directory", "Staff Directory"]] : []),
           ...(operationsAllowed
             ? [
@@ -105,7 +110,13 @@ export default function Workspace({
             </button>
           </div>
         )}
-        {view === "patients" && patientsAllowed ? (
+        {view === "bookings" && bookingsAllowed ? (
+          <BookingPanel
+            api={api}
+            onError={onError}
+            onPendingChange={onPendingChange}
+          />
+        ) : view === "patients" && patientsAllowed ? (
           <PatientRegistry
             api={api}
             onError={onError}
@@ -154,8 +165,8 @@ export default function Workspace({
                 unavailable. Authorized managers can use the staff directory and
                 permitted account controls. Authorized operational roles can
                 review professional and schedule drafts. The Patients registry
-                supports basic records only. Appointment and clinical/laboratory
-                workflows are not included.
+                supports basic records. Clinic bookings reserve a full session
+                window; clinical/laboratory workflows are not included.
               </p>
               <p className="staff-help">
                 Permissions are checked by the server. A department or visible
