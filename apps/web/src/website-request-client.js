@@ -52,9 +52,10 @@ export function createRequestClient({
   }
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000)
     throw Error("Invalid request timeout.");
+  const rejectedResponses = new WeakSet();
   return async (action, body, signal) => {
     if (
-      !/^(?:submit|track|(?:sessions|professionals)\?date=\d{4}-\d{2}-\d{2})$/.test(
+      !/^(?:submit|track|(?:sessions|professionals)\?date=\d{4}-\d{2}-\d{2}|upcoming\?professionalId=[A-Za-z0-9%_.~-]{1,240}&fromDate=\d{4}-\d{2}-\d{2}(?:&after=[A-Za-z0-9_-]{1,1024})?)$/.test(
         action,
       )
     )
@@ -79,23 +80,34 @@ export function createRequestClient({
         const message = data.error?.message;
         if (typeof message !== "string" || !message || message.length > 600)
           throw unavailableError(action === "submit");
-        throw Object.assign(Error(message), { code: data.error?.code });
+        const rejection = Object.assign(Error(message), {
+          code: data.error?.code,
+          status: response.status,
+        });
+        rejectedResponses.add(rejection);
+        throw rejection;
       }
       const valid =
         action.startsWith("sessions?") || action.startsWith("professionals?")
           ? Array.isArray(data)
-          : action === "submit"
-            ? typeof data.reference === "string" &&
-              /^[A-Za-z0-9_-]{43}$/.test(data.trackingToken)
-            : typeof data.reference === "string" &&
-              ["awaiting", "confirmed", "rejected", "cancelled"].includes(
-                data.status,
-              ) &&
-              Array.isArray(data.events);
+          : action.startsWith("upcoming?")
+            ? Array.isArray(data.sessions) &&
+              typeof data.fromDate === "string" &&
+              typeof data.throughDate === "string" &&
+              (data.nextDate === null || typeof data.nextDate === "string")
+            : action === "submit"
+              ? typeof data.reference === "string" &&
+                /^[A-Za-z0-9_-]{43}$/.test(data.trackingToken)
+              : typeof data.reference === "string" &&
+                ["awaiting", "confirmed", "rejected", "cancelled"].includes(
+                  data.status,
+                ) &&
+                Array.isArray(data.events);
       if (!valid) throw unavailableError(action === "submit");
       return data;
     } catch (error) {
       if (signal?.aborted) throw signal.reason;
+      if (rejectedResponses.has(error)) throw error;
       if (typeof error.code === "string" && error.code.startsWith("request_"))
         throw error;
       throw unavailableError(action === "submit");

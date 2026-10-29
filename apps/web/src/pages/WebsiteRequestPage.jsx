@@ -3,6 +3,10 @@ import GrainientPage from "../components/GrainientPage.jsx";
 import RequestForm from "../request-preview/RequestForm.jsx";
 import TrackingView from "../request-preview/TrackingView.jsx";
 import { createRequestClient } from "../website-request-client.js";
+import {
+  createCatalogueLoader,
+  preselectionDate,
+} from "../request-selection.js";
 import "../components/doctorDirectory.css";
 import "../request-preview/preview.css";
 const hostedReview = import.meta.env.VITE_HOSTED_REVIEW === "1";
@@ -10,6 +14,12 @@ const apiOrigin = hostedReview ? import.meta.env.VITE_REVIEW_API_ORIGIN : "";
 if (hostedReview && !apiOrigin)
   throw Error("Hosted review API origin is required.");
 const api = createRequestClient({ apiOrigin });
+const upcoming = (professionalId, fromDate, after, signal) =>
+  api(
+    `upcoming?professionalId=${encodeURIComponent(professionalId)}&fromDate=${encodeURIComponent(fromDate)}${after ? `&after=${encodeURIComponent(after)}` : ""}`,
+    null,
+    signal,
+  );
 export default function WebsiteRequestPage({ tracking = false }) {
   const [language, setLanguage] = useState("en"),
     [sessions, setSessions] = useState([]),
@@ -21,13 +31,29 @@ export default function WebsiteRequestPage({ tracking = false }) {
     [reload, setReload] = useState(0);
   const generation = useRef(0),
     [date, setDate] = useState(
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Beirut",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date()),
+      preselectionDate(window.location.search) ??
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Beirut",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date()),
     );
+  const catalogue = useRef(null);
+  if (!catalogue.current)
+    catalogue.current = createCatalogueLoader(api, (result) => {
+      setScenario(result.status);
+      if (result.status === "ready") {
+        setSessions(
+          result.sessions.map((s) => ({ ...s, id: s.sourceSessionId })),
+        );
+        setProfessionals(
+          result.professionals.map((p) => ({ ...p, gender: p.avatarVariant })),
+        );
+        setError("");
+      } else if (result.status === "unavailable")
+        setError(result.error.forLanguage?.(language) ?? result.error.message);
+    });
   useEffect(() => {
     let stopped = false,
       timer;
@@ -38,32 +64,18 @@ export default function WebsiteRequestPage({ tracking = false }) {
         timer = setTimeout(load, 30000);
         return;
       }
+      if (!tracking) {
+        await catalogue.current.load(date, controller.signal);
+        return;
+      }
       try {
-        const result = tracking
-          ? await api(
-              "track",
-              { token: window.location.hash.slice(1) },
-              controller.signal,
-            )
-          : await api(
-              `sessions?date=${encodeURIComponent(date)}`,
-              null,
-              controller.signal,
-            );
+        const result = await api(
+          "track",
+          { token: window.location.hash.slice(1) },
+          controller.signal,
+        );
         if (stopped || version !== generation.current) return;
-        if (tracking) setData(result);
-        else {
-          setSessions(result.map((s) => ({ ...s, id: s.sourceSessionId })));
-          const list = await api(
-            `professionals?date=${encodeURIComponent(date)}`,
-            null,
-            controller.signal,
-          );
-          if (!stopped && version === generation.current)
-            setProfessionals(
-              list.map((p) => ({ ...p, gender: p.avatarVariant })),
-            );
-        }
+        setData(result);
         setError("");
         setScenario("ready");
       } catch (e) {
@@ -78,6 +90,7 @@ export default function WebsiteRequestPage({ tracking = false }) {
     void load();
     return () => {
       stopped = true;
+      if (!tracking) catalogue.current.cancel();
       controller.abort();
       clearTimeout(timer);
     };
@@ -149,7 +162,14 @@ export default function WebsiteRequestPage({ tracking = false }) {
                 professionals={professionals}
                 sessions={sessions}
                 scenario={scenario}
-                onDateChange={setDate}
+                loadUpcoming={upcoming}
+                preselectionSearch={window.location.search}
+                onDateChange={(value) => {
+                  if (value !== date) {
+                    setScenario("loading");
+                    setDate(value);
+                  }
+                }}
                 initialDate={date}
                 onToast={setToast}
                 submitRequest={async (

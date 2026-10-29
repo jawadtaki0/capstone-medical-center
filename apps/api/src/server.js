@@ -76,6 +76,7 @@ const intakeProxy = requestConfig
         [
           "professionals",
           "sessions",
+          "upcoming",
           "submit",
           "track",
           "pull",
@@ -123,6 +124,10 @@ async function refreshDatabase() {
           professionalReader: (date) =>
             publication.withReady(({ receiver }) =>
               receiver.requestProfessionals(date),
+            ),
+          upcomingReader: (input) =>
+            publication.withReady(({ receiver }) =>
+              receiver.requestUpcoming(input),
             ),
         }),
       };

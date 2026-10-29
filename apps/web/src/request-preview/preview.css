@@ -676,6 +676,10 @@ label.request-field {
   align-items: end;
   margin-bottom: 1rem;
 }
+.request-step-heading:focus,
+.request-receipt h1[tabindex="-1"]:focus {
+  outline: none;
+}
 .request-calendar-nav > label {
   display: grid;
   gap: 0.4rem;

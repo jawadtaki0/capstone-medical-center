@@ -58,6 +58,17 @@ export function websiteRequestRouter({
     ),
   );
   router.get(
+    "/upcoming",
+    route((q) => {
+      exact(
+        q.query,
+        ["professionalId", "fromDate", "after"],
+        ["professionalId", "fromDate"],
+      );
+      return service.upcoming(q.query);
+    }),
+  );
+  router.get(
     "/sessions",
     route((q) => (exact(q.query, ["date"]), service.sessions(q.query.date))),
   );

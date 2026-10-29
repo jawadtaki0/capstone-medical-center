@@ -95,6 +95,7 @@ async function bindHostedReview({ db, client, config }) {
     localReviewOnly: false,
     sessionReader: (date) => receiver.requestSessions(date),
     professionalReader: (date) => receiver.requestProfessionals(date),
+    upcomingReader: (input) => receiver.requestUpcoming(input),
   });
   return { receiver, intake, db };
 }
@@ -208,6 +209,7 @@ export function createHostedReviewApp({
     [
       "professionals",
       "sessions",
+      "upcoming",
       "submit",
       "track",
       "pull",

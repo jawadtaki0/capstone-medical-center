@@ -9,6 +9,7 @@ import {
   formattedPhoneInput,
 } from "../../../staff/shared/contact-input.js";
 import ProfessionalAvatar from "../components/ProfessionalAvatar.jsx";
+import { calendarYear } from "../request-selection.js";
 
 export function PreviewDialog({ title, onClose, children }) {
   const ref = useRef(null),
@@ -150,6 +151,8 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
         }).format(new Date());
   const [month, setMonth] = useState(Number(start.slice(5, 7)) - 1),
     [year, setYear] = useState(Number(start.slice(0, 4))),
+    [yearDraft, setYearDraft] = useState(start.slice(0, 4)),
+    [yearError, setYearError] = useState(false),
     [focus, setFocus] = useState(Number(start.slice(8)) || 1);
   const id = useId(),
     locale = language === "ar" ? "ar-LB" : "en-GB",
@@ -178,10 +181,43 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
           cancel: "Cancel",
         };
   function shift(delta) {
-    const d = new Date(Date.UTC(year, month + delta, 1));
+    const committed =
+      calendarYear(
+        yearDraft,
+        dob
+          ? Number(
+              new Intl.DateTimeFormat("en", {
+                year: "numeric",
+                timeZone: "Asia/Beirut",
+              }).format(new Date()),
+            )
+          : 9999,
+      ) ?? year;
+    const d = new Date(Date.UTC(committed, month + delta, 1));
+    if (d.getUTCFullYear() < 1900 || d.getUTCFullYear() > 9999) return;
     setYear(d.getUTCFullYear());
+    setYearDraft(String(d.getUTCFullYear()));
+    setYearError(false);
     setMonth(d.getUTCMonth());
     setFocus(1);
+  }
+  function commitYear() {
+    const next = calendarYear(
+      yearDraft,
+      dob
+        ? Number(
+            new Intl.DateTimeFormat("en", {
+              year: "numeric",
+              timeZone: "Asia/Beirut",
+            }).format(new Date()),
+          )
+        : 9999,
+    );
+    setYearError(next === null);
+    if (next !== null) {
+      setYear(next);
+      setFocus(1);
+    }
   }
   function key(e, day) {
     let target;
@@ -228,6 +264,7 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
               aria-label={label.month}
               value={month}
               onChange={(e) => {
+                commitYear();
                 setMonth(Number(e.target.value));
                 setFocus(1);
               }}
@@ -243,15 +280,23 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
             {label.year}
             <input
               aria-label={label.year}
-              type="number"
-              min="1900"
-              max={dob ? new Date().getFullYear() : 9999}
-              value={year}
+              type="text"
+              inputMode="numeric"
+              enterKeyHint="done"
+              maxLength={4}
+              value={yearDraft}
+              aria-invalid={yearError}
+              aria-describedby={yearError ? `${id}-year-error` : undefined}
               onChange={(e) => {
-                const y = Number(e.target.value);
-                if (Number.isInteger(y) && y >= 1900 && y <= 9999) {
-                  setYear(y);
-                  setFocus(1);
+                setYearDraft(e.target.value);
+                setYearError(false);
+              }}
+              onBlur={commitYear}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitYear();
+                  e.currentTarget.blur();
                 }
               }}
             />
@@ -264,6 +309,20 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
             ›
           </button>
         </div>
+        {yearError && (
+          <p role="alert" id={`${id}-year-error`} className="request-error">
+            {language === "ar"
+              ? "أدخل سنة صحيحة من أربعة أرقام (١٩٠٠ أو أحدث، دون سنة مستقبلية لتاريخ الولادة)."
+              : "Enter a valid four-digit year (1900 or later; birth year cannot be in the future)."}
+          </p>
+        )}
+        <button
+          type="button"
+          className="request-text-button"
+          onClick={commitYear}
+        >
+          {language === "ar" ? "تطبيق السنة" : "Apply year"}
+        </button>
         <table role="grid" aria-label={`${monthName(month)} ${year}`}>
           <thead>
             <tr>
@@ -292,14 +351,16 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
                         type="button"
                         tabIndex={d === focus ? 0 : -1}
                         disabled={
-                          dob &&
-                          dateFor(d) >
-                            new Intl.DateTimeFormat("en-CA", {
-                              timeZone: "Asia/Beirut",
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                            }).format(new Date())
+                          yearDraft !== String(year) ||
+                          yearError ||
+                          (dob &&
+                            dateFor(d) >
+                              new Intl.DateTimeFormat("en-CA", {
+                                timeZone: "Asia/Beirut",
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                              }).format(new Date()))
                         }
                         className={value === dateFor(d) ? "is-selected" : ""}
                         aria-label={dateFor(d)}
@@ -327,6 +388,7 @@ export function ProfessionalCombobox({
   value,
   onChange,
   language = "en",
+  status = "ready",
 }) {
   const id = useId(),
     host = useRef(null),
@@ -334,6 +396,9 @@ export function ProfessionalCombobox({
     [open, setOpen] = useState(false),
     [active, setActive] = useState(0);
   const chosen = professionals.find((p) => p.id === value);
+  useEffect(() => {
+    if (chosen) setQuery(chosen.name);
+  }, [value, chosen?.name]);
   const matches = professionals.filter((p) =>
     `${p.name} ${p.specialty}`
       .toLowerCase()
@@ -341,9 +406,9 @@ export function ProfessionalCombobox({
   );
   function choose(p) {
     onChange(p.id);
-    setQuery("");
-    setOpen(false);
+    setQuery(p.name);
     host.current.querySelector("input")?.focus();
+    setOpen(false);
   }
   useEffect(() => {
     const fn = (e) => {
@@ -391,6 +456,7 @@ export function ProfessionalCombobox({
             setActive(0);
           }}
           onChange={(e) => {
+            if (value) onChange("");
             setQuery(e.target.value);
             setActive(0);
             setOpen(true);
@@ -432,13 +498,13 @@ export function ProfessionalCombobox({
       </div>
       {open && (
         <ul id={`${id}-options`} role="listbox" className="request-options">
-          {matches.map((p, i) => (
+          {(status === "ready" ? matches : []).map((p, i) => (
             <li
               key={p.id}
               id={`${id}-option-${i}`}
               role="option"
               aria-selected={i === active}
-              onPointerDown={(e) => e.preventDefault()}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(p)}
             >
               <ProfessionalAvatar avatarVariant={p.gender} />
@@ -448,7 +514,18 @@ export function ProfessionalCombobox({
               </span>
             </li>
           ))}
-          {matches.length === 0 && (
+          {status !== "ready" && (
+            <li role="presentation">
+              {status === "loading"
+                ? language === "ar"
+                  ? "جارٍ تحميل الأطباء…"
+                  : "Loading professionals…"
+                : language === "ar"
+                  ? "تعذر تحميل الأطباء. أعد المحاولة."
+                  : "Professionals unavailable. Retry loading."}
+            </li>
+          )}
+          {status === "ready" && matches.length === 0 && (
             <li role="presentation">
               {language === "ar"
                 ? "لا نتائج مطابقة"

@@ -45,6 +45,7 @@ export function createPublicIntake({
   key,
   sessionReader,
   professionalReader = async () => [],
+  upcomingReader = null,
   clock = () => new Date(),
   limits = {},
   localReviewOnly = true,
@@ -105,9 +106,21 @@ export function createPublicIntake({
     };
   }
   return {
+    async upcoming(input) {
+      if (!upcomingReader)
+        throw requestFail(
+          "request_unavailable",
+          "Session discovery is temporarily unavailable.",
+          503,
+        );
+      return upcomingReader(input);
+    },
     async sessions(date) {
       calendarDate(date);
-      return sessionReader(date);
+      const now = clock();
+      return (await sessionReader(date)).filter(
+        (session) => beirutEnd(session.date, session.endTime) > now,
+      );
     },
     async professionals(date) {
       calendarDate(date);
