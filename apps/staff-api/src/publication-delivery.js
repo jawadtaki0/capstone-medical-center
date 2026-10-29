@@ -5,6 +5,7 @@ import {
   canonicalJSON,
 } from "../../../shared/publication-contract.mjs";
 import { assertPublicationStorage } from "../../../shared/publication-environment.mjs";
+import { validateHostedReviewConfig } from "../../../shared/hosted-review-config.mjs";
 
 export const PUBLICATION_OUTBOX = "public_publication_outbox";
 export function makePublicationIntent(streamId, events, at) {
@@ -32,6 +33,17 @@ export function validateReceiverTarget(
   environment = { mode: "test" },
 ) {
   const url = new URL(value);
+  if (environment.mode === "hosted-review") {
+    validateHostedReviewConfig(environment);
+    if (
+      demoMode !== true ||
+      value !== `${environment.apiOrigin}/api/publications`
+    )
+      throw new Error(
+        "Publication destination must match the explicit review origin and fixed path.",
+      );
+    return url.href;
+  }
   if (
     demoMode !== true ||
     url.protocol !== "http:" ||
@@ -91,6 +103,10 @@ export function createPublicationWorker({
 }) {
   assertPublicationStorage(db, client, demoMode, "staff", environment);
   const url = validateReceiverTarget(target, demoMode, environment);
+  if (environment.mode === "hosted-review" && streamId !== environment.streamId)
+    throw new Error(
+      "Review delivery requires its configured immutable stream identity.",
+    );
   if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token))
     throw new Error("Missing private publication delivery credential.");
   const outbox = db.collection(PUBLICATION_OUTBOX);
@@ -122,7 +138,9 @@ export function createPublicationWorker({
         $set: {
           state: "sending",
           leaseId,
-          leaseUntil: new Date(+at + 15000),
+          leaseUntil: new Date(
+            +at + (environment.mode === "hosted-review" ? 90000 : 15000),
+          ),
           lastAttemptAt: at,
         },
         $inc: { attempts: 1 },
@@ -135,7 +153,9 @@ export function createPublicationWorker({
       const response = await request(url, {
         method: "POST",
         redirect: "error",
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(
+          environment.mode === "hosted-review" ? 75000 : 5000,
+        ),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,

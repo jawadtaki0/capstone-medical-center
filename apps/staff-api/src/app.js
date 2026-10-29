@@ -24,6 +24,7 @@ export function createApp({
   clock = () => new Date(),
   demoMode = false,
   contactDelivery,
+  requestIntegration = null,
   publicationDeliveryConfigured = false,
   publicationDeliveryBlocked = false,
 } = {}) {
@@ -36,10 +37,12 @@ export function createApp({
           vault,
           clock,
           contactDelivery,
+          requestIntegration,
           publicationDeliveryConfigured,
           publicationDeliveryBlocked,
         })
       : null;
+  app.locals.websiteRequests = () => auth?.websiteRequests;
   app.disable("x-powered-by");
   app.set("trust proxy", false);
   app.use(helmet());
@@ -196,6 +199,29 @@ export function createApp({
       `/bookings/${action}`,
       route((service, request) =>
         service.bookings[action](bearer(request), request.body),
+      ),
+    );
+  }
+  for (const action of [
+    "list",
+    "notices",
+    "refresh",
+    "detail",
+    "link",
+    "createPatient",
+    "notes",
+    "review",
+    "confirm",
+    "reconcileBooking",
+    "reject",
+    "cancel",
+    "rotate",
+    "notification",
+  ]) {
+    app.post(
+      `/website-requests/${action}`,
+      route((service, request) =>
+        service.websiteRequests[action](bearer(request), request.body),
       ),
     );
   }

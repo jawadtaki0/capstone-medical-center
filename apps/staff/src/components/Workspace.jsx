@@ -1,3 +1,4 @@
+import WebsiteRequests from "./WebsiteRequests.jsx";
 import BookingPanel from "./BookingPanel.jsx";
 import { useEffect, useRef, useState } from "react";
 import StaffDirectory from "./StaffDirectory.jsx";
@@ -51,6 +52,9 @@ export default function Workspace({
         {[
           ["workspace", "Workspace"],
           ["profile", "My Profile"],
+          ...(roles.some((r) => ["Admin", "Receptionist"].includes(r))
+            ? [["requests", "Website requests"]]
+            : []),
           ...(patientsAllowed ? [["patients", "Patients"]] : []),
           ...(bookingsAllowed ? [["bookings", "Bookings"]] : []),
           ...(directoryAllowed ? [["directory", "Staff Directory"]] : []),
@@ -110,7 +114,9 @@ export default function Workspace({
             </button>
           </div>
         )}
-        {view === "bookings" && bookingsAllowed ? (
+        {view === "requests" ? (
+          <WebsiteRequests api={api} onError={onError} />
+        ) : view === "bookings" && bookingsAllowed ? (
           <BookingPanel
             api={api}
             onError={onError}

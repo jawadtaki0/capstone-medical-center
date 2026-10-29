@@ -30,7 +30,8 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
     [receipt, setReceipt] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [refresh, setRefresh] = useState(0);
+    [refresh, setRefresh] = useState(0),
+    [noticeLanguage, setNoticeLanguage] = useState("en");
   useEffect(
     () => () => {
       generation.current++;
@@ -120,7 +121,9 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
       });
   }
   async function confirm() {
-    const value = await run(() => api.confirmBooking(review.request));
+    const value = await run(() =>
+      api.confirmBooking({ ...review.request, noticeLanguage }),
+    );
     // On uncertain transport outcomes the SAME review/key remains available.
     if (value) {
       setReceipt(value.booking);
@@ -400,6 +403,26 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
               changing these details.
             </p>
           )}
+          <label className="staff-field">
+            Manual notification language
+            <select
+              value={noticeLanguage}
+              disabled={busy}
+              onChange={(e) => {
+                setNoticeLanguage(e.target.value);
+                setReview((r) => ({
+                  ...r,
+                  request: {
+                    ...r.request,
+                    idempotencyKey: crypto.randomUUID(),
+                  },
+                }));
+              }}
+            >
+              <option value="en">English</option>
+              <option value="ar">العربية</option>
+            </select>
+          </label>
           <div className="staff-actions">
             <button
               className="staff-button staff-button-primary"

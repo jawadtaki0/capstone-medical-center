@@ -9,6 +9,7 @@ import {
   publicSnapshotDatabase,
 } from "../../../shared/published-timeline.mjs";
 import { assertPublicationStorage } from "../../../shared/publication-environment.mjs";
+import { hostedReviewIdentity } from "../../../shared/hosted-review-config.mjs";
 import { getPublicProfessionals } from "./professionals.js";
 import { getBeirutToday, getScheduleForDate } from "./schedule.js";
 
@@ -97,12 +98,36 @@ export async function createPublicationReceiver({
     throw new Error("Missing private publication receiver configuration.");
   const state = db.collection(PUBLIC_COLLECTIONS.state),
     versions = db.collection(PUBLIC_COLLECTIONS.versions);
-  await initializePublicationStream({
-    db,
-    client,
-    streamId,
-    strict: environment.mode === "normal-local",
-  });
+  if (environment.mode === "hosted-review") {
+    const marker = await db
+      .collection("hosted_review_configuration")
+      .findOne({ _id: "review" });
+    const authority = await db
+      .collection("public_data_authority")
+      .findOne({ _id: "source" });
+    const current = await state.findOne({ _id: streamId });
+    if (
+      marker?.version !== 1 ||
+      marker.status !== "ready" ||
+      marker.configDigest !== hostedReviewIdentity(environment) ||
+      authority?.mode !== "cedar" ||
+      authority.streamId !== streamId ||
+      !current ||
+      !Number.isSafeInteger(current.sequence) ||
+      current.sequence < 0
+    )
+      throw new Error(
+        "Hosted review must be explicitly provisioned and reconciled before runtime binding.",
+      );
+    await assertSinglePublicationStream(db, streamId);
+  } else {
+    await initializePublicationStream({
+      db,
+      client,
+      streamId,
+      strict: environment.mode === "normal-local",
+    });
+  }
   const acknowledgement = (record) => ({
     accepted: true,
     schemaVersion: record.payload.schemaVersion,
@@ -124,11 +149,15 @@ export async function createPublicationReceiver({
       const presented = request
         .get("Authorization")
         ?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
+      const intendedHost =
+        environment.mode === "hosted-review"
+          ? !request.get("Origin") &&
+            request.get("Host") === new URL(environment.apiOrigin).host
+          : ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(
+              request.socket.remoteAddress,
+            ) && ["127.0.0.1", "localhost", "[::1]"].includes(request.hostname);
       return (
-        ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(
-          request.socket.remoteAddress,
-        ) &&
-        ["127.0.0.1", "localhost", "[::1]"].includes(request.hostname) &&
+        intendedHost &&
         Boolean(
           presented &&
           timingSafeEqual(Buffer.from(presented), Buffer.from(token)),
@@ -202,6 +231,66 @@ export async function createPublicationReceiver({
       } finally {
         await session.endSession();
       }
+    },
+    async requestProfessionals(date) {
+      const p = await snapshot(date),
+        clinicIds = p.scopes
+          .filter((s) => s.kind === "clinic" && s.active)
+          .map((s) => s.id);
+      return p.professionals
+        .filter(
+          (x) => x.active && x.scopeIds.some((id) => clinicIds.includes(id)),
+        )
+        .map((x) => ({
+          id: x.id,
+          name: x.name,
+          specialty: x.specialty,
+          avatarVariant: x.avatarVariant,
+        }));
+    },
+    async requestSessions(date) {
+      const p = await snapshot(date),
+        day = new Date(`${date}T12:00:00Z`).getUTCDay();
+      const hours =
+        p.hours.find((h) => h.id === date) ??
+        p.hours.find((h) => h.id === String(day));
+      if (!hours || hours.closed) return [];
+      const rows = p.sessions.filter(
+        (s) =>
+          s.weekday === day &&
+          !p.exceptions.some((e) => e.scopeId === s.scopeId && e.date === date),
+      );
+      rows.push(
+        ...p.exceptions
+          .filter((e) => e.date === date && !e.closed)
+          .flatMap((e) => e.sessions),
+      );
+      return rows.flatMap((s) => {
+        const scope = p.scopes.find((x) => x.id === s.scopeId),
+          professional = p.professionals.find((x) => x.id === s.professionalId);
+        return scope?.kind === "clinic" &&
+          scope.active &&
+          professional?.active &&
+          s.status === "active" &&
+          s.startTime >= hours.startTime &&
+          s.endTime <= hours.endTime
+          ? [
+              {
+                date,
+                scopeId: s.scopeId,
+                sourceSessionId: s.id,
+                professionalId: professional.id,
+                professionalName: professional.name,
+                specialty: professional.specialty,
+                kind: professional.kind,
+                avatarVariant: professional.avatarVariant,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                appointmentRequired: s.appointmentRequired,
+              },
+            ]
+          : [];
+      });
     },
     async professionals() {
       return getPublicProfessionals(

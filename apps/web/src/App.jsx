@@ -1,3 +1,4 @@
+import WebsiteRequestPage from "./pages/WebsiteRequestPage.jsx";
 import { useRef, useState } from "react";
 import Header from "./components/Header.jsx";
 import { Footer } from "./components/HomeSections.jsx";
@@ -10,9 +11,17 @@ export default function App() {
   const dialog = useRef(null);
   const [previewAction, setPreviewAction] = useState("");
   const pathname = window.location.pathname.replace(/\/$/, "");
+  const onRequestPage = ["/request", "/track"].includes(pathname);
   const onSchedulePage = pathname === "/schedule";
   const onDoctorsPage = pathname === "/doctors";
   function showPreview(action) {
+    if (
+      action === "Book an appointment" &&
+      import.meta.env.VITE_WEBSITE_REQUESTS === "1"
+    ) {
+      window.location.href = "/request";
+      return;
+    }
     setPreviewAction(action);
     dialog.current?.showModal();
   }
@@ -23,11 +32,14 @@ export default function App() {
       </a>
       <Header
         onPreview={showPreview}
+        onRequestPage={onRequestPage}
         onSchedulePage={onSchedulePage}
         onDoctorsPage={onDoctorsPage}
       />
       <main id="main" tabIndex={-1}>
-        {onDoctorsPage ? (
+        {onRequestPage ? (
+          <WebsiteRequestPage tracking={pathname === "/track"} />
+        ) : onDoctorsPage ? (
           <DoctorsPage />
         ) : onSchedulePage ? (
           <SchedulePage onPreview={showPreview} />

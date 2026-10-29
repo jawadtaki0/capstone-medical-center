@@ -1,4 +1,5 @@
 import { assertPublicationReviewStorage } from "./publication-review-guard.mjs";
+import { validateHostedReviewConfig } from "./hosted-review-config.mjs";
 
 export function assertPublicationStorage(
   db,
@@ -9,6 +10,25 @@ export function assertPublicationStorage(
 ) {
   if (environment.mode === "test")
     return assertPublicationReviewStorage(db, client, demoMode);
+  if (environment.mode === "hosted-review") {
+    validateHostedReviewConfig(environment);
+    if (role === "staff")
+      return assertPublicationReviewStorage(db, client, demoMode);
+    const options = client?.options ?? {};
+    if (
+      role === "public" &&
+      db?.databaseName === environment.publicDatabase &&
+      options.srvHost === environment.publicSrvHost &&
+      options.tls === true &&
+      !options.tlsInsecure &&
+      !options.tlsAllowInvalidCertificates &&
+      !options.tlsAllowInvalidHostnames
+    )
+      return;
+    throw new Error(
+      "Hosted review storage does not match its explicitly configured isolated target.",
+    );
+  }
   if (environment.mode !== "normal-local" || demoMode !== true)
     throw new Error("Explicit local publication configuration is required.");
   const options = client?.options ?? {},

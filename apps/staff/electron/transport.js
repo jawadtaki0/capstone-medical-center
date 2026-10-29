@@ -23,8 +23,29 @@ export function sanitizedResult(result) {
   return publicResult;
 }
 
-export function createBroker({ url, demoMode, request = fetch }) {
+export function createBroker({
+  url,
+  demoMode,
+  request = fetch,
+  openWhatsApp,
+  reviewColdStart = false,
+}) {
   const origin = validateAuthorityUrl(url, demoMode);
+  if (
+    typeof reviewColdStart !== "boolean" ||
+    (reviewColdStart &&
+      (demoMode !== true || origin !== "http://127.0.0.1:4101"))
+  )
+    throw Error(
+      "Hosted cold-start handling requires the isolated review authority.",
+    );
+  const refreshUnavailable = () =>
+    Object.assign(
+      new Error(
+        "Website-request synchronization is unavailable. The hosted review server may still be waking. Try Refresh requests again shortly. Existing local bookings are not rolled back by this refresh failure.",
+      ),
+      { code: "REQUEST_SYNC_UNAVAILABLE" },
+    );
   let token;
   let challenge;
   let verificationChallenge;
@@ -45,6 +66,8 @@ export function createBroker({ url, demoMode, request = fetch }) {
     currentOperation = () => true,
   ) {
     const requestedEpoch = epoch;
+    const hostedRefresh =
+      reviewColdStart && path === "/website-requests/refresh";
     if (authenticated && !explicitToken)
       throw Object.assign(new Error("Please sign in again."), {
         code: "AUTH_REQUIRED",
@@ -64,12 +87,17 @@ export function createBroker({ url, demoMode, request = fetch }) {
         signal: AbortSignal.timeout(
           path.startsWith("/password/change/") || path === "/recovery/complete"
             ? 5 * 60000
-            : path.startsWith("/contacts/")
-              ? 20000
-              : 5000,
+            : path === "/website-requests/refresh"
+              ? hostedRefresh
+                ? 90000
+                : 20000
+              : path.startsWith("/contacts/")
+                ? 20000
+                : 5000,
         ),
       });
     } catch {
+      if (hostedRefresh) throw refreshUnavailable();
       throw Object.assign(
         new Error(
           "The local staff server is unavailable. No offline sign-in is permitted.",
@@ -103,17 +131,20 @@ export function createBroker({ url, demoMode, request = fetch }) {
     }
     if (!response.ok || !data) {
       const error = data?.error;
+      const authorizationFailure = [
+        "auth_required",
+        "session_expired",
+        "session_revoked",
+        "unauthorized",
+        "authentication_failed",
+      ].includes(String(error?.code).toLowerCase());
+      if (explicitToken === token && authorizationFailure) token = undefined;
       if (
-        explicitToken === token &&
-        [
-          "auth_required",
-          "session_expired",
-          "session_revoked",
-          "unauthorized",
-          "authentication_failed",
-        ].includes(String(error?.code).toLowerCase())
+        hostedRefresh &&
+        !authorizationFailure &&
+        (response.status >= 500 || !data)
       )
-        token = undefined;
+        throw refreshUnavailable();
       throw Object.assign(
         new Error(
           error?.message ||
@@ -323,6 +354,99 @@ export function createBroker({ url, demoMode, request = fetch }) {
       return call("/password/change/cancel", {}, true);
     },
     staffDirectory: () => call("/staff", undefined, true),
+    websiteRequests: (payload) => {
+      const { action, noticeAction, ...body } = payload;
+      if (action === "notification") body.action = noticeAction;
+      if (
+        ![
+          "list",
+          "notices",
+          "refresh",
+          "detail",
+          "link",
+          "createPatient",
+          "notes",
+          "review",
+          "confirm",
+          "reconcileBooking",
+          "reject",
+          "cancel",
+          "rotate",
+          "notification",
+        ].includes(action)
+      )
+        throw Error("Unsupported request action.");
+      if (
+        action === "notification" &&
+        ![
+          "preview",
+          "configure",
+          "sent",
+          "call_required",
+          "call_recorded",
+          "resolve_uncertain",
+        ].includes(body.action)
+      )
+        throw Error("Use the private main-process notification action.");
+      return call(`/website-requests/${action}`, body, true);
+    },
+    openRequestWhatsApp: async (payload) => {
+      if (!payload || Object.keys(payload).some((k) => k !== "noticeId"))
+        throw Error("Only a notification ID is accepted.");
+      const { noticeId } = payload;
+      if (typeof noticeId !== "string") throw Error("Choose a notification.");
+      const expectedEpoch = epoch;
+      // Language and contact acknowledgement were saved separately by the authorized UI.
+      const prepared = await call(
+        "/website-requests/notification",
+        { noticeId, action: "prepare" },
+        true,
+      );
+      if (epoch !== expectedEpoch || !token)
+        throw Error("Sign in again before opening a notice.");
+      if (!openWhatsApp)
+        throw Error(
+          "Manual WhatsApp opening is unavailable in this review environment.",
+        );
+      const openingKey = crypto.randomUUID();
+      await call(
+        "/website-requests/notification",
+        { noticeId, action: "opening", key: openingKey },
+        true,
+      );
+      if (epoch !== expectedEpoch || !token)
+        throw Error("Sign in again before opening a notice.");
+      try {
+        await openWhatsApp(prepared.phone, prepared.message);
+      } catch {
+        await call(
+          "/website-requests/notification",
+          { noticeId, action: "open_failed", key: openingKey },
+          true,
+        ).catch(() => {});
+        throw Error("WhatsApp did not open. Nothing was marked sent.");
+      }
+      try {
+        await call(
+          "/website-requests/notification",
+          { noticeId, action: "opened", key: openingKey },
+          true,
+        );
+      } catch {
+        return {
+          opened: true,
+          recorded: false,
+          warning:
+            "Opening succeeded, but its history could not be saved. Check WhatsApp before trying again. Nothing is marked sent.",
+        };
+      }
+      return {
+        opened: true,
+        recorded: true,
+        phoneWarning: prepared.phoneWarning,
+        localReviewOnly: prepared.localReviewOnly,
+      };
+    },
     bookingSessions: (payload) => call("/bookings/sessions", payload, true),
     reviewBooking: (payload) => call("/bookings/review", payload, true),
     confirmBooking: (payload) => call("/bookings/confirm", payload, true),

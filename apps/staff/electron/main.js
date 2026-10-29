@@ -1,4 +1,13 @@
-import { app, BrowserWindow, ipcMain, protocol, net, session } from "electron";
+import { whatsappUrl } from "./whatsapp.js";
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  protocol,
+  net,
+  session,
+  shell,
+} from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve, sep } from "node:path";
 import { createBroker } from "./transport.js";
@@ -8,7 +17,13 @@ const demoMode = process.argv.includes("--demo-loopback");
 const apiUrl =
   process.env.STAFF_API_URL ||
   (demoMode ? "http://127.0.0.1:4100" : "https://127.0.0.1:4100");
-const broker = createBroker({ url: apiUrl, demoMode });
+const broker = createBroker({
+  url: apiUrl,
+  demoMode,
+  reviewColdStart: process.argv.includes("--hosted-review"),
+  openWhatsApp: (phone, message) =>
+    shell.openExternal(whatsappUrl(phone, message)),
+});
 let window;
 let closing = false;
 let authenticationBusy = false;
@@ -32,7 +47,50 @@ function validatePayload(name, payload) {
     JSON.stringify(payload).length > 12000
   )
     throw new Error("Invalid action payload.");
+  if (name === "websiteRequests") {
+    const actionFields = {
+      list: ["status", "date", "cursor", "query"],
+      notices: ["cursor", "state"],
+      refresh: [],
+      detail: ["id"],
+      link: [
+        "id",
+        "revision",
+        "patientId",
+        "patientRevision",
+        "acknowledged",
+        "reason",
+      ],
+      createPatient: ["id", "revision", "reviewDigest", "duplicateOverride"],
+      notes: ["id", "revision", "notes"],
+      review: ["id"],
+      confirm: ["id", "revision", "booking"],
+      reconcileBooking: [
+        "id",
+        "revision",
+        "bookingId",
+        "acknowledged",
+        "reason",
+      ],
+      reject: ["id", "revision", "reason"],
+      cancel: ["id", "revision", "reason", "privateReason"],
+      rotate: ["id", "revision", "key", "reason", "confirmed"],
+      notification: [
+        "noticeId",
+        "noticeAction",
+        "language",
+        "contactAcknowledged",
+        "outcome",
+      ],
+    };
+    const { action, ...rest } = payload,
+      keys = actionFields[action];
+    if (!keys || Object.keys(rest).some((k) => !keys.includes(k)))
+      throw Error("Invalid request action fields.");
+    return;
+  }
   const fields = {
+    openRequestWhatsApp: ["noticeId"],
     bookingSessions: ["date"],
     reviewBooking: [
       "patientId",
@@ -49,9 +107,10 @@ function validatePayload(name, payload) {
       "sourceSessionId",
       "sessionVersion",
       "idempotencyKey",
+      "noticeLanguage",
     ],
     listBookings: ["date", "scopeId", "cursor"],
-    cancelBooking: ["bookingId", "reason"],
+    cancelBooking: ["bookingId", "reason", "publicReason"],
     affectedBookings: ["cursor"],
     searchPatients: [
       "firstName",

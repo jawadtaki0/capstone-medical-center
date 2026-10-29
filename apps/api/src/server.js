@@ -1,3 +1,5 @@
+import { createPublicIntake, ensureIntakeIndexes } from "./website-requests.js";
+import { loadRequestConfig } from "../../staff-api/src/request-integration.js";
 import { createApp } from "./app.js";
 import { config } from "./config.js";
 import {
@@ -57,6 +59,39 @@ const authorityProxy = publicationEnabled
     }
   : null;
 
+const requestsEnabled =
+  process.env.CAPSTONE_WEBSITE_REQUESTS_MODE === "normal-local";
+if (requestsEnabled && !publicationEnabled)
+  throw Error("Website intake requires the configured Cedar public receiver.");
+const requestConfig = requestsEnabled ? await loadRequestConfig() : null;
+if (requestsEnabled && !requestConfig)
+  throw Error(
+    "Configure private request integration before explicit activation.",
+  );
+let intakeBinding;
+const intakeProxy = requestConfig
+  ? {
+      credential: requestConfig.credential,
+      service: Object.fromEntries(
+        [
+          "professionals",
+          "sessions",
+          "submit",
+          "track",
+          "pull",
+          "accept",
+          "rotate",
+        ].map((name) => [
+          name,
+          (...args) => {
+            if (!intakeBinding || intakeBinding.db !== getDatabase())
+              throw Error("Request storage unavailable.");
+            return intakeBinding.service[name](...args);
+          },
+        ]),
+      ),
+    }
+  : null;
 let stopping = false;
 let recoveryTimer = null;
 let lastReportedState = null;
@@ -66,6 +101,32 @@ async function refreshDatabase() {
     await connectDatabase();
     if (stopping) return;
     if (publicationEnabled) await publication.refresh();
+    if (requestConfig && intakeBinding?.db !== getDatabase()) {
+      const db = getDatabase();
+      const mode = await publication.withReady(({ authority }) =>
+        authority.mode(),
+      );
+      if (mode !== "cedar")
+        throw Error("Request intake requires the accepted Cedar source.");
+      await ensureIntakeIndexes(db);
+      intakeBinding = {
+        db,
+        service: createPublicIntake({
+          db,
+          client: db.client,
+          key: requestConfig.key,
+          limits: requestConfig.limits,
+          sessionReader: (date) =>
+            publication.withReady(({ receiver }) =>
+              receiver.requestSessions(date),
+            ),
+          professionalReader: (date) =>
+            publication.withReady(({ receiver }) =>
+              receiver.requestProfessionals(date),
+            ),
+        }),
+      };
+    }
   } catch {
     // Keep the HTTP API available and retry, without logging credentials/URIs.
   }
@@ -91,6 +152,7 @@ async function refreshDatabase() {
 // Listen immediately: a database handshake must not cause proxy ECONNREFUSED.
 const server = createApp({
   publicationReceiver: receiverProxy,
+  websiteRequests: intakeProxy,
   publicAuthority: authorityProxy,
   scheduleReader: async (date) => {
     await assertLegacyReaderMode(getDatabase());

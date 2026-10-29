@@ -75,6 +75,7 @@ export function createBookingService({
   guard,
   authenticated,
   now,
+  afterWrite,
 }) {
   const bookings = db.collection("bookings");
   const grants = (a, id) => a.grants.find((g) => g.id === id)?.scopeIds ?? [];
@@ -340,6 +341,7 @@ export function createBookingService({
           ...requestFields,
           "sessionVersion",
           "idempotencyKey",
+          "noticeLanguage",
         ]);
         authorize(context, a, input.scopeId);
         uuid(input.idempotencyKey);
@@ -353,7 +355,11 @@ export function createBookingService({
             400,
           );
         const meaningful = Object.fromEntries(
-          [...requestFields, "sessionVersion"].map((k) => [k, input[k]]),
+          [
+            ...requestFields,
+            "sessionVersion",
+            ...(input.noticeLanguage !== undefined ? ["noticeLanguage"] : []),
+          ].map((k) => [k, input[k]]),
         );
         const requestDigest = bookingDigest(meaningful);
         const prior = await bookings.findOne(
@@ -452,6 +458,7 @@ export function createBookingService({
         b.id = b._id;
         await bookings.insertOne(b, { session });
         await audit(session, context, b, "confirmed", at);
+        await afterWrite?.(session, context, b, "confirmed", at, input);
         return { booking: dto(b), overlaps: await overlaps(p, s, session) };
       }),
     list: (token, input) =>
@@ -489,7 +496,7 @@ export function createBookingService({
       }),
     cancel: (token, input) =>
       run(token, true, async (session, context, a, at) => {
-        allowFields(input, ["bookingId", "reason"]);
+        allowFields(input, ["bookingId", "reason", "publicReason"]);
         const b = await bookings.findOne(
           { _id: uuid(input.bookingId) },
           { session },
@@ -514,6 +521,7 @@ export function createBookingService({
         b.cancellationReason = input.reason.trim();
         await bookings.replaceOne({ _id: b._id }, b, { session });
         await audit(session, context, b, "cancelled", at, b.cancellationReason);
+        await afterWrite?.(session, context, b, "cancelled", at, input);
         return { booking: dto(b) };
       }),
   };

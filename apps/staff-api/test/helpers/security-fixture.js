@@ -3,12 +3,20 @@ import { once } from "node:events";
 import argon2 from "argon2";
 import { generate, generateSecret } from "otplib";
 import { createApp } from "../../src/app.js";
-import { connectStaffDatabase } from "../../src/db.js";
+import { connectStaffDatabase, ensureIndexes } from "../../src/db.js";
 import { createVault } from "../../src/local-security.js";
 import { OPERATIONAL_COLLECTIONS } from "../../src/operations.js";
 
 export const TEST_DATABASE = "capstone_staff_test";
 export const STAFF_COLLECTIONS = Object.freeze([
+  "website_request_inbox",
+  "website_request_sync",
+  "website_request_events",
+  "website_request_notices",
+  "website_request_audit",
+  "website_request_counters",
+  "website_requests",
+  "website_request_state",
   "bookings",
   "booking_limits",
   "booking_state",
@@ -97,13 +105,32 @@ export function syntheticPassword() {
 
 export async function createSecurityFixture({
   contactDelivery,
+  requestIntegration,
   publicationDeliveryConfigured = false,
+  hostedReview = false,
 } = {}) {
-  let connection = await connectStaffDatabase({
-    database: TEST_DATABASE,
-    demoMode: true,
-  });
-  assertIsolatedTestTarget(connection);
+  if (typeof hostedReview !== "boolean")
+    throw new Error("Hosted review fixture selection must be explicit.");
+  async function connectFixture() {
+    const next = await connectStaffDatabase({
+      database: TEST_DATABASE,
+      demoMode: true,
+      initializeIndexes: !hostedReview,
+    });
+    try {
+      assertIsolatedTestTarget(next);
+      if (!hostedReview) return next;
+      const { createHostedReviewDatabase } =
+        await import("./hosted-review-db.js");
+      const scoped = { ...next, db: createHostedReviewDatabase(next) };
+      await ensureIndexes(scoped.db);
+      return scoped;
+    } catch (error) {
+      await next.client.close();
+      throw error;
+    }
+  }
+  let connection = await connectFixture();
   let vault = createVault(connection.config.key);
   let server;
   let origin;
@@ -152,6 +179,7 @@ export async function createSecurityFixture({
       clock,
       demoMode: true,
       contactDelivery,
+      requestIntegration,
       publicationDeliveryConfigured,
     }).listen(0, "127.0.0.1");
     await once(server, "listening");
@@ -194,11 +222,7 @@ export async function createSecurityFixture({
       if (reconnect) {
         await connection.client.close();
         vault.destroy();
-        connection = await connectStaffDatabase({
-          database: TEST_DATABASE,
-          demoMode: true,
-        });
-        assertIsolatedTestTarget(connection);
+        connection = await connectFixture();
         vault = createVault(connection.config.key);
       }
       await startHttp();

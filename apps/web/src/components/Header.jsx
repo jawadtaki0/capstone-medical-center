@@ -7,6 +7,7 @@ export default function Header({
   onPreview,
   onSchedulePage = false,
   onDoctorsPage = false,
+  onRequestPage = false,
 }) {
   const [mobile, setMobile] = useState(
     () => window.matchMedia(mobileQuery).matches,
@@ -16,7 +17,7 @@ export default function Header({
   const header = useRef(null);
   const menuButton = useRef(null);
   const centerButton = useRef(null);
-  const onHomePage = !onSchedulePage && !onDoctorsPage;
+  const onHomePage = !onSchedulePage && !onDoctorsPage && !onRequestPage;
   const homeLink = onHomePage ? "#main" : "/";
   const homeSectionLink = (id) => (onHomePage ? `#${id}` : `/#${id}`);
 

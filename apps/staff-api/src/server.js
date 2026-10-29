@@ -1,3 +1,9 @@
+import {
+  loadRequestConfig,
+  createRequestTransport,
+  startRequestWorker,
+} from "./request-integration.js";
+import { ensureRequestIndexes } from "./website-requests.js";
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +41,7 @@ export function createAuthorityLifecycle({
   async function dispose(candidate) {
     if (!candidate) return;
     try {
+      await candidate.requestWorker?.stop().catch(() => {});
       await candidate.worker?.stop().catch(() => {});
       await candidate.connection.client.close();
     } catch {
@@ -104,13 +111,35 @@ export function createAuthorityLifecycle({
           "Publication configuration needs operator reconciliation. Other local staff functions remain available.",
         );
       }
+      let requestIntegration = null;
+      try {
+        const requestConfig =
+          database === "capstone_staff_dev" ? await loadRequestConfig() : null;
+        if (requestConfig) {
+          await ensureRequestIndexes(connection.db);
+          requestIntegration = {
+            ...requestConfig,
+            transport: createRequestTransport(requestConfig),
+          };
+        }
+      } catch {
+        log(
+          "Website request configuration unavailable; other staff functions remain available.",
+        );
+      }
       candidate.app = makeApp({
         ...connection,
         vault: candidate.vault,
+        requestIntegration,
         demoMode: true,
         publicationDeliveryConfigured: Boolean(delivery),
         publicationDeliveryBlocked,
       });
+      if (requestIntegration)
+        candidate.requestWorker = startRequestWorker(
+          candidate.app.locals.websiteRequests(),
+          { onError: log },
+        );
       if (stopping) {
         await dispose(candidate);
         return;

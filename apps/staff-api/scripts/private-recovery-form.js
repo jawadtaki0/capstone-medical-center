@@ -14,7 +14,7 @@ try {
   Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class CedarRecoveryWindow { [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr handle); }'
   [System.Windows.Forms.Application]::EnableVisualStyles()
   $form = [System.Windows.Forms.Form]::new()
-  $form.Text = 'Private Cedar Staff recovery - do not screenshot'
+  $form.Text = $options.title
   $form.ClientSize = [System.Drawing.Size]::new(660, [Math]::Min(680, 145 + 68 * $options.fields.Count))
   $form.StartPosition = 'CenterScreen'
   $form.AutoScaleMode = 'Dpi'
@@ -98,6 +98,7 @@ export function privateRecoveryForm(
     fields,
     expiryMs = 300000,
     expiresAt = new Date(Date.now() + expiryMs).toISOString(),
+    purpose = "recovery",
   },
   { spawnProcess = spawn, signals = process } = {},
 ) {
@@ -153,7 +154,17 @@ export function privateRecoveryForm(
         { windowsHide: false, stdio: ["pipe", "pipe", "pipe"] },
       );
       child.stdin.on("error", () => finish(safeFailure(), null, true));
-      child.stdin.end(JSON.stringify({ note, fields, expiresAt }) + "\n");
+      child.stdin.end(
+        JSON.stringify({
+          note,
+          fields,
+          expiresAt,
+          title:
+            purpose === "hosted-review"
+              ? "Private Cedar hosted review setup - do not screenshot"
+              : "Private Cedar Staff recovery - do not screenshot",
+        }) + "\n",
+      );
       signals.once("SIGINT", interrupt);
       signals.once("SIGTERM", interrupt);
       child.stderr.resume();

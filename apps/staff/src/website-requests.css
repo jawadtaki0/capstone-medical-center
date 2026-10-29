@@ -1,0 +1,11 @@
+@import "../../web/src/request-preview/preview.css";
+@import "../../web/src/request-preview/cedar-preview.css";
+.staff-verification-dialog .request-fields {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+.request-inbox-mobile-always {
+  display: grid;
+  gap: 1rem;
+}

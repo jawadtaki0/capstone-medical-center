@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const names = [
+  "websiteRequests",
+  "openRequestWhatsApp",
   "bookingSessions",
   "reviewBooking",
   "confirmBooking",
