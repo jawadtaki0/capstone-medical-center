@@ -415,39 +415,51 @@ test("client-construction failure is sanitized and closing queued initialization
   assert.equal(calls, 1);
 });
 
-test("Render source adapter is explicit, rejects malformed hosts/headers and ignores injected prefixes", () => {
+test("Render Cloudflare source adapter requires one edge client IP and ignores forwarding chains", () => {
   const c = config();
   assert.throws(() => createRenderReviewSource({}, c));
+  assert.throws(() =>
+    createRenderReviewSource(
+      { CEDAR_REVIEW_TRUSTED_PROXY: "render-last-hop" },
+      c,
+    ),
+  );
   const source = createRenderReviewSource(
-    { CEDAR_REVIEW_TRUSTED_PROXY: "render-last-hop" },
+    { CEDAR_REVIEW_TRUSTED_PROXY: "render-cloudflare-client" },
     c,
   );
-  const request = (forwarded, host = new URL(c.apiOrigin).host) => ({
-    get: (name) => (name === "Host" ? host : forwarded),
+  const request = (
+    clientIP,
+    forwarded = "arbitrary injected prefix, 203.0.113.8",
+    host = new URL(c.apiOrigin).host,
+  ) => ({
+    get: (name) =>
+      ({
+        Host: host,
+        "CF-Connecting-IP": clientIP,
+        "X-Forwarded-For": forwarded,
+      })[name],
   });
-  assert.equal(source(request("198.51.100.9, 203.0.113.2")), "203.0.113.2");
-  assert.equal(
-    source(request("arbitrary user prefix, 2001:db8::2")),
-    "2001:db8::2",
-  );
-  for (const forwarded of [
+  assert.equal(source(request("198.51.100.9")), "198.51.100.9");
+  assert.equal(source(request("2001:DB8::2", "forged value")), "2001:db8::2");
+  for (const ip of [
     undefined,
     "",
-    "203.0.113.2, not-an-ip",
+    " 203.0.113.2",
+    "203.0.113.2, 203.0.113.3",
     "x".repeat(1025),
     "203.0.113.2\r\nspoof",
-    Array(18).fill("203.0.113.2").join(","),
+    "not-an-ip",
   ])
-    assert.throws(() => source(request(forwarded)));
+    assert.throws(() => source(request(ip)));
   assert.throws(() =>
-    source(request("203.0.113.2", "unexpected.onrender.com")),
+    source(request("203.0.113.2", "", "unexpected.onrender.com")),
   );
 });
-
 test("Render entry uses explicit PORT and closes only its owned server/application once", async () => {
   const env = {
     ...environment(),
-    CEDAR_REVIEW_TRUSTED_PROXY: "render-last-hop",
+    CEDAR_REVIEW_TRUSTED_PROXY: "render-cloudflare-client",
     PORT: "10000",
   };
   let closed = 0,

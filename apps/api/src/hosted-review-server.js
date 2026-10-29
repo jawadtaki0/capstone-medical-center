@@ -7,27 +7,24 @@ import {
   loadHostedReviewEnvironment,
 } from "./hosted-review.js";
 
-// This policy must be enabled explicitly only for Render's trusted last hop.
-// Deployment verification must establish that the platform appends/overwrites
-// this final address; arbitrary public forwarding prefixes are never trusted.
+// Render's fixed onrender.com origin is reached through its Cloudflare edge.
+// Use the edge's single client address, not the changing load-balancer addresses
+// at the end of X-Forwarded-For. Actual deployment spoof tests remain required.
 export function createRenderReviewSource(environment, config) {
-  if (environment.CEDAR_REVIEW_TRUSTED_PROXY !== "render-last-hop")
+  if (environment.CEDAR_REVIEW_TRUSTED_PROXY !== "render-cloudflare-client")
     throw new Error("Explicit reviewed Render source policy is required.");
   const host = new URL(config.apiOrigin).host;
   return (request) => {
-    const forwarded = request.get("X-Forwarded-For");
+    const client = request.get("CF-Connecting-IP");
     if (
       request.get("Host") !== host ||
-      typeof forwarded !== "string" ||
-      forwarded.length > 1024 ||
-      /[\r\n]/.test(forwarded)
+      typeof client !== "string" ||
+      client.length > 45 ||
+      client !== client.trim() ||
+      !isIP(client)
     )
       throw new Error("Hosted source is unavailable.");
-    const parts = forwarded.split(",");
-    const last = parts.at(-1).trim();
-    if (parts.length > 16 || !isIP(last))
-      throw new Error("Hosted source is unavailable.");
-    return last.toLowerCase();
+    return client.toLowerCase();
   };
 }
 
