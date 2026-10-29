@@ -101,24 +101,28 @@ async function bindHostedReview({ db, client, config }) {
 
 // Render remains request-driven even if it suspends the free instance. One
 // pool/initialization per process, no readiness timer or after-response work.
+export function createHostedReviewMongoClient(config) {
+  return new MongoClient(config.uri, {
+    tls: true,
+    // The driver forbids combining tlsInsecure (even false) with individual
+    // validation flags. Keep both certificate/hostname checks explicitly strict.
+    tlsAllowInvalidCertificates: false,
+    tlsAllowInvalidHostnames: false,
+    maxPoolSize: 5,
+    minPoolSize: 0,
+    maxConnecting: 2,
+    maxIdleTimeMS: 30000,
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 5000,
+    socketTimeoutMS: 10000,
+    timeoutMS: 10000,
+    appName: "cedar-public-review",
+  });
+}
+
 export function createHostedReviewRuntime({
   config,
-  makeClient = () =>
-    new MongoClient(config.uri, {
-      tls: true,
-      tlsInsecure: false,
-      tlsAllowInvalidCertificates: false,
-      tlsAllowInvalidHostnames: false,
-      maxPoolSize: 5,
-      minPoolSize: 0,
-      maxConnecting: 2,
-      maxIdleTimeMS: 30000,
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
-      socketTimeoutMS: 10000,
-      timeoutMS: 10000,
-      appName: "cedar-public-review",
-    }),
+  makeClient = () => createHostedReviewMongoClient(config),
   bind = bindHostedReview,
 } = {}) {
   validateHostedReviewConfig(config);

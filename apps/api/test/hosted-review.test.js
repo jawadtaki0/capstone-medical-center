@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
+import { createHostedReviewMongoClient } from "../src/hosted-review.js";
 import {
   validateHostedReviewConfig,
   hostedReviewIdentity,
@@ -39,6 +40,22 @@ const environment = () => ({
   CEDAR_REVIEW_CENTER_CONTACT: "SYNTHETIC REVIEW — no real patient submissions",
   CEDAR_REVIEW_MONGODB_URI:
     "mongodb+srv://dummy:dummy@synthetic.example.mongodb.net/capstone_public_review?tls=true",
+});
+
+test("real MongoDB driver accepts the hosted runtime's certificate-validating options without connecting", async () => {
+  const config = loadHostedReviewEnvironment(environment());
+  const client = createHostedReviewMongoClient(config);
+  try {
+    assert.equal(client.options.tls, true);
+    assert.ok(!client.options.tlsInsecure);
+    assert.ok(!client.options.tlsAllowInvalidCertificates);
+    assert.ok(!client.options.tlsAllowInvalidHostnames);
+    assert.equal(client.options.srvHost, config.publicSrvHost);
+    assert.equal(client.options.maxPoolSize, 5);
+    assert.equal(client.options.timeoutMS, 10000);
+  } finally {
+    await client.close();
+  }
 });
 
 test("hosted review origin/namespace contract rejects local, normal and arbitrary destinations", () => {
