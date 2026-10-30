@@ -108,6 +108,11 @@ export function websiteRequestRouter({
     route((q) => service.accept(q.body)),
   );
   router.post(
+    "/integration/availability",
+    json,
+    route((q) => service.acceptAvailability(q.body)),
+  );
+  router.post(
     "/integration/rotate",
     json,
     route((q) => service.rotate(q.body)),

@@ -9,6 +9,8 @@ import {
 } from "../src/publication-receiver.js";
 import { websiteRequestRouter } from "../src/website-request-routes.js";
 import { createPublicIntake } from "../src/website-requests.js";
+import { getScheduleForDate } from "../src/schedule.js";
+import { publicSnapshotDatabase } from "../../../shared/published-timeline.mjs";
 
 const now = new Date("2026-11-02T06:00:00Z");
 const session = (values = {}) => ({
@@ -74,8 +76,8 @@ test("upcoming discovery applies exact Beirut end time and emits only existing p
   );
   assert.equal(result.sessions[0].date, "2026-11-09");
   assert.equal(result.sessions.length, 3);
-  assert.equal(result.throughDate, "2026-11-29");
-  assert.equal(result.nextDate, "2026-11-30");
+  assert.equal(result.throughDate, "2026-11-23");
+  assert.equal(result.nextDate, "2026-11-24");
   assert.equal(result.nextAfter, null);
   assert.equal(result.sequence, 1);
   assert.equal(result.digest, "synthetic-digest");
@@ -220,7 +222,7 @@ test("empty page has continuation and far-future browsing is not restricted by a
   assert.equal(last.nextDate, null);
 });
 
-test("100-row cap uses same-date continuation without dropping or repeating session rows", () => {
+test("three-row groups traverse every same-date session without dropping or repeating rows", () => {
   const time = (minute) =>
     `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
   const r = record([
@@ -235,21 +237,31 @@ test("100-row cap uses same-date continuation without dropping or repeating sess
     }),
   ]);
   const first = upcomingRequestSessions(r, input(), now);
-  assert.equal(first.sessions.length, 100);
+  assert.equal(first.sessions.length, 3);
   assert.equal(first.nextDate, "2026-11-02");
   assert(first.nextAfter);
-  const second = upcomingRequestSessions(
-    r,
-    input({ fromDate: first.nextDate, after: first.nextAfter }),
-    now,
-  );
-  const sameDate = [
-    ...first.sessions,
-    ...second.sessions.filter((s) => s.date === "2026-11-02"),
-  ];
+  const sameDate = [...first.sessions];
+  let page = first,
+    groups = 1;
+  while (page.nextDate === "2026-11-02") {
+    assert.ok(groups++ < 50, "bounded loop must progress through cursors");
+    page = upcomingRequestSessions(
+      r,
+      input({ fromDate: page.nextDate, after: page.nextAfter }),
+      now,
+    );
+    assert.equal(page.sessions.length, 3);
+    sameDate.push(...page.sessions.filter((s) => s.date === "2026-11-02"));
+  }
   assert.equal(sameDate.length, 120);
   assert.equal(new Set(sameDate.map((s) => s.sourceSessionId)).size, 120);
-  assert(second.sessions.some((s) => s.date === "2026-11-09"));
+  const following = upcomingRequestSessions(
+    r,
+    input({ fromDate: page.nextDate }),
+    now,
+  );
+  assert(following.sessions.some((s) => s.date === "2026-11-09"));
+  assert.equal(groups, 40);
 });
 
 test("discovery rejects malformed dates, cursors, forged fields and past dates", () => {
@@ -320,7 +332,7 @@ test("upcoming receiver reads one accepted payload for the whole page even if a 
   assert.equal(stateReads, 1);
   assert.equal(versionReads, 1);
   assert.equal(writes, 0);
-  assert.equal(page.sessions.length, 4);
+  assert.equal(page.sessions.length, 3);
 });
 
 test("intake upcoming reader is explicit and does not touch request counters or patient storage", async () => {
@@ -356,10 +368,17 @@ test("intake upcoming reader is explicit and does not touch request counters or 
 });
 
 test("dated catalogue also excludes already-ended sessions at exact Beirut end", async () => {
+  const writes = [];
   const service = createPublicIntake({
     db: {
-      collection() {
-        return {};
+      collection(name) {
+        return {
+          updateOne: async (query, update) => {
+            assert.equal(name, "website_request_state");
+            writes.push({ query, update });
+          },
+          findOne: async () => null,
+        };
       },
     },
     client: {},
@@ -375,6 +394,24 @@ test("dated catalogue also excludes already-ended sessions at exact Beirut end",
     ["future"],
   );
   assert.deepEqual(await service.sessions("2026-11-01"), []);
+  assert.equal(
+    writes.length,
+    1,
+    "only the future session date requests advisory availability",
+  );
+  assert.equal(writes[0].update.$set.kind, "availability-demand");
+});
+
+test("accepted publication adapter retains derived avatar variants in the public schedule without raw gender", async () => {
+  const schedule = await getScheduleForDate(
+    "2026-11-02",
+    publicSnapshotDatabase(event(), "schedule"),
+  );
+  assert.equal(schedule.doctorSessions.length, 1);
+  assert.equal(schedule.doctorSessions[0].professionalId, "professional:one");
+  assert.equal(schedule.doctorSessions[0].avatarVariant, "male");
+  assert.equal(Object.hasOwn(schedule.doctorSessions[0], "gender"), false);
+  assert.equal(Object.hasOwn(schedule.doctorSessions[0], "capacity"), false);
 });
 
 test("upcoming HTTP route validates exact query and preserves private response headers", async () => {

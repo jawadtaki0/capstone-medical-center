@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  availabilitySlot,
+  publicAvailability,
+  validateAvailability,
+  AVAILABILITY_FRESH_MS,
+} from "../../../shared/session-availability.mjs";
+import {
   exact,
   secret,
   text,
@@ -105,6 +111,36 @@ export function createPublicIntake({
       language: r.language,
     };
   }
+  async function availability(sessions) {
+    const states = db.collection("website_request_state"),
+      at = clock();
+    for (const date of new Set(sessions.map((s) => s.date))) {
+      await states.updateOne(
+        { _id: `availability-demand:${availabilitySlot(date)}` },
+        { $set: { kind: "availability-demand", date, requestedAt: at } },
+        { upsert: true },
+      );
+    }
+    const snapshots = new Map();
+    for (const date of new Set(sessions.map((s) => s.date)))
+      snapshots.set(
+        date,
+        await states.findOne({
+          _id: `availability:${availabilitySlot(date)}`,
+          date,
+        }),
+      );
+    return sessions.map((s) => ({
+      ...s,
+      availability: publicAvailability(s, snapshots.get(s.date)?.payload, at),
+      availabilityExpiresAt: snapshots.get(s.date)?.payload?.generatedAt
+        ? new Date(
+            Date.parse(snapshots.get(s.date).payload.generatedAt) +
+              AVAILABILITY_FRESH_MS,
+          ).toISOString()
+        : null,
+    }));
+  }
   return {
     async upcoming(input) {
       if (!upcomingReader)
@@ -113,13 +149,16 @@ export function createPublicIntake({
           "Session discovery is temporarily unavailable.",
           503,
         );
-      return upcomingReader(input);
+      const result = await upcomingReader(input);
+      return { ...result, sessions: await availability(result.sessions) };
     },
     async sessions(date) {
       calendarDate(date);
       const now = clock();
-      return (await sessionReader(date)).filter(
-        (session) => beirutEnd(session.date, session.endTime) > now,
+      return availability(
+        (await sessionReader(date)).filter(
+          (session) => beirutEnd(session.date, session.endTime) > now,
+        ),
       );
     },
     async professionals(date) {
@@ -174,6 +213,25 @@ export function createPublicIntake({
           throw requestFail(
             "session_unavailable",
             "This attendance window has ended.",
+          );
+        const snapshot = await db.collection("website_request_state").findOne(
+          {
+            _id: `availability:${availabilitySlot(selected.date)}`,
+            date: selected.date,
+          },
+          { session },
+        );
+        const availabilityState = publicAvailability(
+          selected,
+          snapshot?.payload,
+          clock(),
+        );
+        if (availabilityState === "full" || availabilityState === "blocked")
+          throw requestFail(
+            "session_unavailable",
+            availabilityState === "full"
+              ? "This session is full. Choose another published window."
+              : "This session is not currently bookable. Choose another published window.",
           );
         const state = await db
           .collection("website_request_state")
@@ -258,7 +316,63 @@ export function createPublicIntake({
         schemaVersion: 1,
         requests: rows,
         cursor: rows.at(-1)?.ordinal ?? cursor,
+        availabilityDates: (
+          await db
+            .collection("website_request_state")
+            .find({
+              kind: "availability-demand",
+              requestedAt: { $gt: new Date(clock().getTime() - 120000) },
+            })
+            .limit(64)
+            .toArray()
+        ).map((row) => row.date),
       };
+    },
+    async acceptAvailability(input) {
+      try {
+        validateAvailability(input);
+      } catch {
+        throw requestFail("request_input", "Invalid availability update.", 400);
+      }
+      if (Date.parse(input.generatedAt) > clock().getTime() + 10000)
+        throw requestFail(
+          "request_input",
+          "Invalid availability timestamp.",
+          400,
+        );
+      return tx(async (session) => {
+        const states = db.collection("website_request_state"),
+          id = `availability:${availabilitySlot(input.date)}`;
+        const previous = await states.findOne({ _id: id }, { session });
+        if (previous?.payload.sequence >= input.sequence) {
+          if (
+            previous.payload.sequence === input.sequence &&
+            previous.payload.digest !== input.digest
+          )
+            throw requestFail(
+              "request_conflict",
+              "Availability version conflict.",
+            );
+          return {
+            accepted: true,
+            ...(previous.payload.sequence > input.sequence
+              ? { obsolete: true }
+              : {}),
+            sequence: previous.payload.sequence,
+            digest: previous.payload.digest,
+          };
+        }
+        await states.updateOne(
+          { _id: id },
+          { $set: { date: input.date, payload: input } },
+          { session, upsert: true },
+        );
+        return {
+          accepted: true,
+          sequence: input.sequence,
+          digest: input.digest,
+        };
+      });
     },
     async accept(event) {
       exact(event, [

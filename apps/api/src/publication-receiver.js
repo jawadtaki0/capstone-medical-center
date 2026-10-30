@@ -20,7 +20,7 @@ import {
   text,
 } from "../../../shared/website-request-contract.mjs";
 
-// The explicitly approved discovery page is at most 28 days / 100 rows.
+// Show the next three sessions, scanning at most 28 days per bounded page.
 // This is a per-response work bound, NOT a booking horizon: nextDate/nextAfter
 // allow unlimited continuation, while arbitrary valid dated browsing remains.
 export function requestSessionsFromSnapshot(p, date) {
@@ -149,7 +149,7 @@ export function upcomingRequestSessions(record, input, now = new Date()) {
       : [];
     for (let i = 0; i < rows.length; i++) {
       sessions.push(rows[i]);
-      if (sessions.length === 100)
+      if (sessions.length === 3)
         return {
           sessions,
           fromDate,

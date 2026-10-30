@@ -56,6 +56,10 @@ function publicSessions(sessions, profiles, referenceKey, nameKey, date) {
       }
       return {
         id: session.id,
+        professionalId: profile._id,
+        avatarVariant: ["male", "female"].includes(profile.gender)
+          ? profile.gender
+          : "neutral",
         [nameKey]: profile.name,
         specialty: profile.specialty,
         date,
@@ -110,7 +114,7 @@ export async function getScheduleForDate(date, database = undefined) {
               _id: { $in: ids },
               active: true,
             },
-            { projection: { _id: 1, name: 1, specialty: 1 } },
+            { projection: { _id: 1, name: 1, specialty: 1, gender: 1 } },
           )
           .toArray()
       : Promise.resolve([]);
