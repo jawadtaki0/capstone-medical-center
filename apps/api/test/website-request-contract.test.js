@@ -36,6 +36,43 @@ test("Beirut deadline and privacy projection never depend on machine timezone", 
 test("strict intake does not accept arbitrary fields or weak retry authority", () => {
   assert.throws(() => intakeInput({ submissionKey: "short" }, "2026-10-28"));
 });
+test("displayed-window expectation is validated as one pair while legacy exact retry payloads remain compatible", () => {
+  const value = {
+    submissionKey: "a".repeat(43),
+    honeypot: "",
+    selection: {
+      date: "2027-11-01",
+      professionalId: "doctor:synthetic",
+      sourceSessionId: "session:synthetic",
+    },
+    patient: {
+      firstName: "Synthetic",
+      fatherName: "Father",
+      lastName: "Review",
+      motherFirstName: "Mother",
+      dateOfBirth: "2000-02-29",
+      phone: "+12025550123",
+      gender: "female",
+      preferredLanguage: "en",
+    },
+  };
+  assert.deepEqual(intakeInput(value, "2027-10-31").selection, value.selection);
+  const selected = { ...value.selection, startTime: "09:00", endTime: "11:00" };
+  assert.deepEqual(
+    intakeInput({ ...value, selection: selected }, "2027-10-31").selection,
+    selected,
+  );
+  for (const selection of [
+    { ...value.selection, startTime: "09:00" },
+    { ...selected, endTime: "08:00" },
+    { ...selected, startTime: "24:00" },
+    { ...selected, capacity: 3 },
+  ])
+    assert.throws(
+      () => intakeInput({ ...value, selection }, "2027-10-31"),
+      (error) => error.code === "request_input",
+    );
+});
 
 test("hosted tracking can explicitly disable the localhost-only marker without widening its public projection", () => {
   const record = {

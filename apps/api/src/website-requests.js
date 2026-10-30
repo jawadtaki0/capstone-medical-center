@@ -209,6 +209,15 @@ export function createPublicIntake({
             "This session is unavailable. Choose another published window.",
           );
         const endsAt = beirutEnd(selected.date, selected.endTime);
+        if (
+          v.selection.startTime !== undefined &&
+          (v.selection.startTime !== selected.startTime ||
+            v.selection.endTime !== selected.endTime)
+        )
+          throw requestFail(
+            "session_unavailable",
+            "This attendance window changed. Choose the current published session before submitting.",
+          );
         if (endsAt <= clock())
           throw requestFail(
             "session_unavailable",

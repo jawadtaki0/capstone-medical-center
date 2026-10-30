@@ -106,10 +106,35 @@ export function intakeInput(value, today) {
       "The request could not be submitted.",
       400,
     );
-  exact(value.selection, ["date", "professionalId", "sourceSessionId"]);
+  exact(
+    value.selection,
+    ["date", "professionalId", "sourceSessionId", "startTime", "endTime"],
+    ["date", "professionalId", "sourceSessionId"],
+  );
   calendarDate(value.selection.date);
   text(value.selection.professionalId, 120);
   text(value.selection.sourceSessionId, 120);
+  if (
+    value.selection.startTime !== undefined ||
+    value.selection.endTime !== undefined
+  ) {
+    for (const field of ["startTime", "endTime"])
+      if (
+        typeof value.selection[field] !== "string" ||
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(value.selection[field])
+      )
+        throw requestFail(
+          "request_input",
+          "Choose one valid attendance window.",
+          400,
+        );
+    if (value.selection.startTime >= value.selection.endTime)
+      throw requestFail(
+        "request_input",
+        "Choose one valid attendance window.",
+        400,
+      );
+  }
   exact(value.patient, [
     "firstName",
     "fatherName",
