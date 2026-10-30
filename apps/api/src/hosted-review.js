@@ -214,6 +214,7 @@ export function createHostedReviewApp({
       "track",
       "pull",
       "accept",
+      "acceptAvailability",
       "rotate",
     ].map((key) => [key, (...args) => call("intake", key, args)]),
   );

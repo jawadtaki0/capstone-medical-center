@@ -18,7 +18,8 @@ import {
   createRenderReviewSource,
   startHostedReviewServer,
 } from "../src/hosted-review-server.js";
-import { EventEmitter } from "node:events";
+import { EventEmitter, once } from "node:events";
+import { availabilityDigest } from "../../../shared/session-availability.mjs";
 
 const config = () => ({
   mode: "hosted-review",
@@ -40,6 +41,73 @@ const environment = () => ({
   CEDAR_REVIEW_CENTER_CONTACT: "SYNTHETIC REVIEW — no real patient submissions",
   CEDAR_REVIEW_MONGODB_URI:
     "mongodb+srv://dummy:dummy@synthetic.example.mongodb.net/capstone_public_review?tls=true",
+});
+test("hosted authenticated availability reaches the current intake binding and rejects missing credentials or obsolete state", async () => {
+  const c = loadHostedReviewEnvironment(environment()),
+    received = [];
+  let active = true;
+  const binding = {
+    intake: {
+      acceptAvailability: async (value) => {
+        received.push(value);
+        return {
+          accepted: true,
+          sequence: value.sequence,
+          digest: value.digest,
+        };
+      },
+    },
+    db: {
+      collection: () => ({
+        findOne: async () => ({ mode: "cedar", streamId: c.streamId }),
+      }),
+    },
+  };
+  const { app } = createHostedReviewApp({
+    config: c,
+    sourceReader: () => "synthetic",
+    runtime: { ready: async () => binding, isCurrent: () => active },
+  });
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const body = {
+    date: "2027-11-01",
+    sequence: 1,
+    generatedAt: "2027-10-31T12:00:00.000Z",
+    sessions: [],
+  };
+  const payload = { ...body, digest: availabilityDigest(body) };
+  const send = (credential = c.requestCredential) =>
+    fetch(
+      `http://127.0.0.1:${server.address().port}/api/requests/integration/availability`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Host: new URL(c.apiOrigin).host,
+          ...(credential ? { Authorization: "Bearer " + credential } : {}),
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+  try {
+    const result = await send();
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), {
+      accepted: true,
+      sequence: 1,
+      digest: payload.digest,
+    });
+    assert.deepEqual(received, [payload]);
+    assert.equal((await send("")).status, 401);
+    assert.equal(received.length, 1);
+    active = false;
+    assert.equal((await send()).status, 503);
+    assert.equal(received.length, 1);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("real MongoDB driver accepts the hosted runtime's certificate-validating options without connecting", async () => {
