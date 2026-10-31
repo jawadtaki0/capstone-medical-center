@@ -121,12 +121,13 @@ export function createHostedReviewMongoClient(config) {
   });
 }
 
-export function createHostedReviewRuntime({
+export function createHostedRuntime({
   config,
   makeClient = () => createHostedReviewMongoClient(config),
   bind = bindHostedReview,
+  validateConfig,
 } = {}) {
-  validateHostedReviewConfig(config);
+  validateConfig(config);
   let client,
     pending,
     binding,
@@ -174,12 +175,14 @@ export function createHostedReviewRuntime({
   };
 }
 
-export function createHostedReviewApp({
+export function createHostedApp({
   config,
   runtime = createHostedReviewRuntime({ config }),
   sourceReader,
+  validateConfig,
+  failureMessage = "The synthetic review service is temporarily unavailable. Please retry; no booking is confirmed.",
 } = {}) {
-  validateHostedReviewConfig(config);
+  validateConfig(config);
   if (typeof sourceReader !== "function")
     throw new Error("An explicit hosting-platform source adapter is required.");
   const context = new AsyncLocalStorage();
@@ -261,8 +264,7 @@ export function createHostedReviewApp({
     } catch {
       response.status(503).json({
         error: "review_unavailable",
-        message:
-          "The synthetic review service is temporarily unavailable. Please retry; no booking is confirmed.",
+        message: failureMessage,
       });
     }
   });
@@ -271,9 +273,22 @@ export function createHostedReviewApp({
     if (response.headersSent) return next(_error);
     response.status(503).json({
       error: "review_unavailable",
-      message:
-        "The synthetic review service is temporarily unavailable. Please retry; no booking is confirmed.",
+      message: failureMessage,
     });
   });
   return { app, close: () => runtime.close() };
+}
+
+export function createHostedReviewRuntime(options = {}) {
+  return createHostedRuntime({
+    ...options,
+    validateConfig: validateHostedReviewConfig,
+  });
+}
+
+export function createHostedReviewApp(options = {}) {
+  return createHostedApp({
+    ...options,
+    validateConfig: validateHostedReviewConfig,
+  });
 }

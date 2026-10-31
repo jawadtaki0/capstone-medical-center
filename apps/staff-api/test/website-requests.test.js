@@ -80,6 +80,29 @@ after(async () => {
     await f.close();
   }
 });
+test("expired Refresh commits revocation but performs no public intake or outbound work", async () => {
+  const pull = config.transport.pull;
+  let pulls = 0;
+  config.transport.pull = (...args) => {
+    pulls++;
+    return pull(...args);
+  };
+  try {
+    f.advance(16 * 60000);
+    const response = await post("refresh", {});
+    assert.equal(response.status, 401);
+    assert.equal(pulls, 0);
+    const revoked = await f.db
+      .collection("staff_sessions")
+      .findOne(
+        { accountId: admin.id, revocationReason: "idle_expired" },
+        { projection: { _id: 0, revokedAt: 1 } },
+      );
+    assert.ok(revoked?.revokedAt);
+  } finally {
+    config.transport.pull = pull;
+  }
+});
 async function submitted(suffix = "A") {
   const patient = {
     firstName: `Synthetic${suffix}`,

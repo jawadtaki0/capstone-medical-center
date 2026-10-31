@@ -2,6 +2,7 @@ import {
   loadRequestConfig,
   createRequestTransport,
   startRequestWorker,
+  startHostedReviewRequestWorker,
 } from "./request-integration.js";
 import { ensureRequestIndexes } from "./website-requests.js";
 import { createServer } from "node:http";
@@ -136,10 +137,11 @@ export function createAuthorityLifecycle({
         publicationDeliveryBlocked,
       });
       if (requestIntegration)
-        candidate.requestWorker = startRequestWorker(
-          candidate.app.locals.websiteRequests(),
-          { onError: log },
-        );
+        candidate.requestWorker = (
+          requestIntegration.mode === "normal-hosted"
+            ? startHostedReviewRequestWorker
+            : startRequestWorker
+        )(candidate.app.locals.websiteRequests(), { onError: log });
       if (stopping) {
         await dispose(candidate);
         return;

@@ -30,6 +30,24 @@
 .doctors-layout .feature-monogram {
   font-size: clamp(2.7rem, 4vw, 4.5rem);
 }
+.home-professional-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+.doctors-layout .feature-portrait {
+  display: grid;
+  place-items: center;
+}
+.doctors-layout .feature-portrait .professional-avatar {
+  width: min(100%, 8rem);
+  height: auto;
+  aspect-ratio: 1;
+}
+.doctors-layout .feature-portrait .professional-avatar__crop {
+  width: 75%;
+  height: auto;
+  aspect-ratio: 1;
+}
 .doctors-layout .doctor-feature .session-time {
   margin-top: var(--s2);
   padding-top: 0;

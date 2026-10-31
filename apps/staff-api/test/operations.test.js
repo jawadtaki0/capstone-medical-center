@@ -104,6 +104,96 @@ describe(
       }
     });
 
+    test("professional saves resolve the sole active clinic and fail closed for missing/multiple clinics or injected scope", async () => {
+      const { scopeIds, ...record } = profile();
+      assert.equal(
+        (await save("professionals", record)).body.error.code,
+        "clinic_configuration",
+      );
+      assert.equal((await read()).professionals.length, 0);
+      ok(await save("scopes", scope()));
+      ok(await save("professionals", record));
+      assert.deepEqual((await read()).professionals[0].scopeIds, [
+        "clinic-one",
+      ]);
+      assert.equal(
+        (
+          await save(
+            "professionals",
+            profile({ scopeIds: ["service:forged"] }),
+            1,
+          )
+        ).status,
+        400,
+      );
+      ok(await save("scopes", scope("clinic-two")));
+      assert.equal(
+        (await save("professionals", { ...record, name: "Must not save" }, 1))
+          .body.error.code,
+        "clinic_configuration",
+      );
+      assert.equal((await read()).professionals[0].name, record.name);
+    });
+
+    test("actual-change review excludes private limits, keeps current scope/date baseline and refuses stale or unauthorized review", async () => {
+      await setup();
+      ok(await save("sessions", session()));
+      ok(await publish());
+      const savedLimit = ok(
+        await save("sessions", session({ capacity: 3 }), 1),
+      );
+      assert.equal(savedLimit.patientLimitUpdated, true);
+      assert.equal(savedLimit.publicDraftChanged, false);
+      let state = await read();
+      const input = () => ({
+        scopeIds: ["clinic-one"],
+        effectiveFrom: "2026-10-19",
+        expectedRevision: state.revision,
+        expectedHead: state.head,
+      });
+      const ledgerBefore = await f.db
+        .collection("public_publication_outbox")
+        .countDocuments();
+      let review = ok(await post(admin.token, "review", input()));
+      assert.equal(review.total, 0);
+      assert.equal(review.conflict, null);
+      assert.equal(
+        await f.db.collection("public_publication_outbox").countDocuments(),
+        ledgerBefore,
+      );
+      const changed = ok(
+        await save("sessions", session({ capacity: 3, endTime: "12:00" }), 2),
+      );
+      assert.equal(changed.publicDraftChanged, true);
+      assert.equal(changed.patientLimitUpdated, false);
+      assert.equal(
+        (await post(admin.token, "review", input())).body.error.code,
+        "stale_record",
+      );
+      state = await read();
+      review = ok(await post(admin.token, "review", input()));
+      assert.equal(review.total, 1);
+      assert.match(JSON.stringify(review.changes), /09:00–11:00/);
+      assert.match(JSON.stringify(review.changes), /09:00–12:00/);
+      assert.doesNotMatch(
+        JSON.stringify(review),
+        /"capacity"|"password"|"gender"/,
+      );
+      const reception = await actor(["Receptionist"]);
+      assert.equal(
+        (await post(reception.token, "review", input())).status,
+        403,
+      );
+      assert.equal(
+        (
+          await post(admin.token, "review", {
+            ...input(),
+            privateOverride: true,
+          })
+        ).status,
+        400,
+      );
+    });
     test("all roles, mixed roles, explicit Audiometry service grant and departments never confer authority", async () => {
       await setup();
       ok(await save("scopes", scope("audiometry", "service")));
@@ -249,13 +339,15 @@ describe(
     test("concurrent cross-clinic overlaps have one winner; adjacency and scope-only dated closures work", async () => {
       await setup();
       ok(await save("scopes", scope("clinic-two")));
-      ok(
-        await save(
-          "professionals",
-          profile({ scopeIds: ["clinic-one", "clinic-two"] }),
-          1,
-        ),
-      );
+      // Legacy synthetic multi-clinic state exercises unchanged overlap/scope
+      // protection. The current editor correctly refuses creating this state.
+      assert.equal(f.db.databaseName, "capstone_staff_test");
+      await f.db
+        .collection("doctor_profile_drafts")
+        .updateOne(
+          { _id: "doctor:synthetic" },
+          { $set: { scopeIds: ["clinic-one", "clinic-two"], revision: 2 } },
+        );
       const results = await Promise.all([
         save("sessions", session()),
         save(
@@ -457,13 +549,15 @@ describe(
     test("shared professional fields require all linked scopes and manager changes never grant authority through profile fields", async () => {
       await setup();
       ok(await save("scopes", scope("clinic-two")));
-      ok(
-        await save(
-          "professionals",
-          profile({ scopeIds: ["clinic-one", "clinic-two"] }),
-          1,
-        ),
-      );
+      // Legacy synthetic multi-clinic state exercises unchanged overlap/scope
+      // protection. The current editor correctly refuses creating this state.
+      assert.equal(f.db.databaseName, "capstone_staff_test");
+      await f.db
+        .collection("doctor_profile_drafts")
+        .updateOne(
+          { _id: "doctor:synthetic" },
+          { $set: { scopeIds: ["clinic-one", "clinic-two"], revision: 2 } },
+        );
       const clinic = await actor(["Clinic Admin"]);
       ok(
         await post(admin.token, "grants", {
@@ -560,14 +654,27 @@ describe(
     });
     test("dated replacement overlap and missing references reject atomically; cancelled and specialist sessions remain supported", async () => {
       await setup();
-      ok(await save("scopes", scope("clinic-two")));
       ok(
         await save(
           "professionals",
-          profile({ scopeIds: ["clinic-one", "clinic-two"] }),
-          1,
+          profile({
+            id: "specialist:synthetic",
+            kind: "specialist",
+            name: "Synthetic Therapist",
+            specialty: "Therapist",
+          }),
         ),
       );
+      ok(await save("scopes", scope("clinic-two")));
+      // Legacy synthetic multi-clinic state exercises unchanged overlap/scope
+      // protection. The current editor correctly refuses creating this state.
+      assert.equal(f.db.databaseName, "capstone_staff_test");
+      await f.db
+        .collection("doctor_profile_drafts")
+        .updateOne(
+          { _id: "doctor:synthetic" },
+          { $set: { scopeIds: ["clinic-one", "clinic-two"], revision: 2 } },
+        );
       ok(await save("sessions", session()));
       ok(
         await save(
@@ -599,17 +706,7 @@ describe(
         ).status,
         400,
       );
-      ok(
-        await save(
-          "professionals",
-          profile({
-            id: "specialist:synthetic",
-            kind: "specialist",
-            name: "Synthetic Therapist",
-            specialty: "Therapist",
-          }),
-        ),
-      );
+
       ok(
         await save(
           "sessions",
@@ -742,13 +839,15 @@ describe(
     test("current publication revalidates already-published future cross-clinic conflicts atomically", async () => {
       await setup();
       ok(await save("scopes", scope("clinic-two")));
-      ok(
-        await save(
-          "professionals",
-          profile({ scopeIds: ["clinic-one", "clinic-two"] }),
-          1,
-        ),
-      );
+      // Legacy synthetic multi-clinic state exercises unchanged overlap/scope
+      // protection. The current editor correctly refuses creating this state.
+      assert.equal(f.db.databaseName, "capstone_staff_test");
+      await f.db
+        .collection("doctor_profile_drafts")
+        .updateOne(
+          { _id: "doctor:synthetic" },
+          { $set: { scopeIds: ["clinic-one", "clinic-two"], revision: 2 } },
+        );
       ok(await save("sessions", session()));
       ok(
         await save(

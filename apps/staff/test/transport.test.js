@@ -6,6 +6,37 @@ import {
   sanitizedResult,
 } from "../electron/transport.js";
 
+test("Today metadata uses only named authenticated local routes and never activity", async () => {
+  const calls = [];
+  const broker = createBroker({
+    url: "http://127.0.0.1:4101",
+    demoMode: true,
+    request: async (url, options) => {
+      calls.push({ url, options });
+      return Response.json(
+        url.endsWith("/auth/login")
+          ? { token: "dummy-token", user: { username: "synthetic" } }
+          : { counts: {}, capabilities: {}, activity: [] },
+      );
+    },
+  });
+  await broker.signIn({ username: "synthetic", password: "dummy-only" });
+  await broker.operationalSummary();
+  await broker.viewOperationalActivity({ eventId: "request:synthetic" });
+  assert.deepEqual(
+    calls.slice(1).map((c) => new URL(c.url).pathname),
+    ["/summary/read", "/summary/viewed"],
+  );
+  assert.equal(calls[1].options.headers.Authorization, "Bearer dummy-token");
+  assert.deepEqual(JSON.parse(calls[2].options.body), {
+    eventId: "request:synthetic",
+  });
+  assert.equal(
+    calls.some((c) => c.url.includes("activity")),
+    false,
+  );
+});
+
 test("HTTP is explicit loopback-only; remote/Atlas/credentials/redirect targets refused", () => {
   assert.equal(
     validateAuthorityUrl("http://127.0.0.1:4100", true),

@@ -3,6 +3,7 @@ import StaffProfileFields from "./StaffProfileFields.jsx";
 import { ProfileDetails } from "./StaffProfile.jsx";
 import { suggestedUsername } from "../lib/profile.js";
 import AssistedRecovery from "./AssistedRecovery.jsx";
+import StaffScopeAssignments from "./StaffScopeAssignments.jsx";
 import {
   accountStatusLabel,
   assertManagementActionLive,
@@ -616,6 +617,13 @@ export default function StaffDirectory({
       <h1 id={`${id}-title`} tabIndex={-1}>
         Staff directory
       </h1>
+      {mode === "list" && user.roles.includes("Admin") && (
+        <StaffScopeAssignments
+          api={api}
+          onSensitiveAction={onSensitiveAction}
+          onError={onError}
+        />
+      )}
       <p className="staff-intro">
         Directory summaries contain name, username, roles, departments and
         status only. Private personnel fields are available through authorized

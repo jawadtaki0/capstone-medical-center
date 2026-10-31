@@ -2,6 +2,7 @@ import { fork, spawn } from "node:child_process";
 import { MongoClient } from "mongodb";
 import { readAuthority } from "../../src/local-security.js";
 import { loadConfig } from "../../src/config.js";
+import { loadNormalConnection } from "../../src/hosted-normal-config.js";
 import { mongoBinary, rootClient } from "../mongo-process.js";
 import {
   checkLauncherFiles,
@@ -138,6 +139,7 @@ export async function runConfiguredLauncher(config, options = {}) {
     );
   let authority;
   let dbConfig;
+  let hostedConnection;
   const database = {
     name: "database",
     async probe() {
@@ -212,6 +214,7 @@ export async function runConfiguredLauncher(config, options = {}) {
       try {
         authority = await readAuthority();
         dbConfig = await loadConfig({ demoMode: true });
+        hostedConnection = await loadNormalConnection();
       } catch {
         throw new LauncherError(
           "The protected existing staff runtime could not be opened. Check its configured path and signed-in Windows user; no keys or accounts were recreated.",
@@ -222,10 +225,17 @@ export async function runConfiguredLauncher(config, options = {}) {
       acquireLauncherLock(`${projectRoot}|${config.runtimeDirectory}`),
     openApp: () =>
       new Promise((resolve, reject) => {
-        const child = spawn(config.appPath, ["--demo-loopback"], {
-          ...applicationProcessOptions(config.runtimeDirectory),
-          cwd: projectRoot,
-        });
+        const child = spawn(
+          config.appPath,
+          [
+            "--demo-loopback",
+            ...(hostedConnection ? ["--hosted-capstone"] : []),
+          ],
+          {
+            ...applicationProcessOptions(config.runtimeDirectory),
+            cwd: projectRoot,
+          },
+        );
         child.once("error", () =>
           reject(
             new LauncherError(

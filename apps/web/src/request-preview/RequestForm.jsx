@@ -6,7 +6,12 @@ import {
 } from "./FormControls.jsx";
 import { patientInput } from "../../../staff/shared/patient-input.js";
 import { createSubmissionAttempt } from "../website-request-client.js";
-import { selectionKey, validatedPreselection } from "../request-selection.js";
+import {
+  selectionKey,
+  validatedPreselection,
+  validatedProfessionalPreselection,
+} from "../request-selection.js";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 function makeSubmissionKey() {
   return btoa(
     String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))),
@@ -14,6 +19,42 @@ function makeSubmissionKey() {
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "");
+}
+export function currentAvailability(session, now = Date.now()) {
+  return Date.parse(session?.availabilityExpiresAt) > now
+    ? session.availability
+    : "unknown";
+}
+export function sessionSelectable(session) {
+  const state = currentAvailability(session);
+  return state !== "full" && state !== "blocked";
+}
+export function AvailabilityLabel({ session, language }) {
+  const state = currentAvailability(session);
+  if (state === "full")
+    return (
+      <small className="request-session-full">
+        {language === "ar" ? "⊘ الجلسة ممتلئة" : "⊘ Session full"}
+      </small>
+    );
+  if (state === "blocked")
+    return (
+      <small>
+        {language === "ar"
+          ? "غير متاحة للحجز حاليًا"
+          : "Not currently bookable"}
+      </small>
+    );
+  return null;
+}
+export function UnknownAvailabilityExplanation({ language }) {
+  return (
+    <p className="request-muted" role="status">
+      {language === "ar"
+        ? "التوفر غير مؤكد حاليًا. يمكنك إرسال طلب بانتظار تأكيد الموظف."
+        : "Availability is temporarily unconfirmed. You can request this window; staff must confirm a place."}
+    </p>
+  );
 }
 import SpecialtyIcon from "../components/SpecialtyIcon.jsx";
 import ProfessionalAvatar from "../components/ProfessionalAvatar.jsx";
@@ -171,11 +212,13 @@ export default function RequestForm({
     submitting = useRef(false),
     alive = useRef(true);
   const [step, setStep] = useState(0),
+    [availabilityNow, setAvailabilityNow] = useState(Date.now),
     [professional, setProfessional] = useState(""),
     [date, setDate] = useState(initialDate),
     [selected, setSelected] = useState(""),
     [chosenSession, setChosenSession] = useState(null),
     [discovery, setDiscovery] = useState({ status: "idle", sessions: [] }),
+    [earlierPages, setEarlierPages] = useState([]),
     [details, setDetails] = useState({
       firstName: "",
       fatherName: "",
@@ -208,19 +251,40 @@ export default function RequestForm({
         : SESSIONS.filter(
             (s) => s.professionalId === professional && s.date === date,
           );
+  useEffect(() => {
+    const refreshClock = () => setAvailabilityNow(Date.now());
+    const deadlines = [...SESSIONS, ...discovery.sessions, chosenSession]
+      .map((s) => Date.parse(s?.availabilityExpiresAt))
+      .filter((at) => at > availabilityNow);
+    const next = Math.min(...deadlines);
+    const timer = Number.isFinite(next)
+      ? setTimeout(
+          refreshClock,
+          Math.max(1, Math.min(next - Date.now(), 2147483647)),
+        )
+      : null;
+    document.addEventListener("visibilitychange", refreshClock);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refreshClock);
+    };
+  }, [SESSIONS, discovery.sessions, chosenSession, availabilityNow]);
   function chooseSession(s) {
+    if (!sessionSelectable(s)) return;
     setChosenSession(s);
     setSelected(selectionKey(s));
     setProfessional(s.professionalId);
     setDate(s.date);
   }
-  async function discover(fromDate, after = null) {
+  async function discover(fromDate, after = null, direction = "retry") {
     discoveryController.current?.abort();
     const controller = new AbortController();
     discoveryController.current = controller;
     const version = ++discoveryVersion.current;
     setDiscovery((previous) => ({
-      ...previous,
+      ...(previous.professionalId === professional
+        ? previous
+        : { sessions: [] }),
       status: "loading",
       requestFrom: fromDate,
       requestAfter: after,
@@ -239,6 +303,13 @@ export default function RequestForm({
         version !== discoveryVersion.current
       )
         return;
+      if (direction === "later")
+        setEarlierPages((pages) => [
+          ...pages,
+          { fromDate: discovery.requestFrom, after: discovery.requestAfter },
+        ]);
+      else if (direction === "earlier")
+        setEarlierPages((pages) => pages.slice(0, -1));
       setDiscovery({
         ...result,
         status: "ready",
@@ -261,6 +332,7 @@ export default function RequestForm({
     }
   }
   useEffect(() => {
+    setEarlierPages([]);
     if (!loadUpcoming || !professional) {
       discoveryController.current?.abort();
       discoveryVersion.current++;
@@ -288,8 +360,25 @@ export default function RequestForm({
       return;
     const candidate = validatedPreselection(preselectionSearch, SESSIONS);
     preselectionApplied.current = true;
-    if (candidate) chooseSession(candidate);
-  }, [scenario, SESSIONS, preselectionSearch]);
+    if (candidate && sessionSelectable(candidate)) chooseSession(candidate);
+    else {
+      const parameters = new URLSearchParams(preselectionSearch);
+      const p =
+        validatedProfessionalPreselection(preselectionSearch, PROFESSIONALS) ??
+        (parameters.getAll("professional").length === 1 &&
+        parameters.has("session")
+          ? PROFESSIONALS.find((p) => p.id === parameters.get("professional"))
+          : null);
+      if (p) setProfessional(p.id);
+      if (new URLSearchParams(preselectionSearch).has("session")) {
+        setMessage(
+          language === "ar"
+            ? "الجلسة المختارة انتهت أو تغيّرت أو لم تعد متاحة. اختر جلسة منشورة أخرى."
+            : "The linked session has ended, changed or is unavailable. Please choose another published session.",
+        );
+      }
+    }
+  }, [scenario, SESSIONS, PROFESSIONALS, preselectionSearch]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -381,7 +470,23 @@ export default function RequestForm({
           },
         });
     } catch (e) {
-      if (alive.current) setMessage(e.forLanguage?.(language) ?? e.message);
+      if (alive.current) {
+        setMessage(e.forLanguage?.(language) ?? e.message);
+        if (e.code === "session_unavailable") {
+          setChosenSession(null);
+          setSelected("");
+          setStep(0);
+          if (loadUpcoming)
+            void discover(
+              new Intl.DateTimeFormat("en-CA", {
+                timeZone: "Asia/Beirut",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+              }).format(new Date()),
+            );
+        }
+      }
     } finally {
       submitting.current = false;
       if (alive.current) setBusy(false);
@@ -490,6 +595,13 @@ export default function RequestForm({
             {step === 0 ? t.choose : step === 1 ? t.details : t.review}
           </h2>
           <p className="request-muted">{step === 0 ? t.noCount : t.privacy}</p>
+          {step === 0 &&
+            professional &&
+            [...matching, ...discovery.sessions].some(
+              (s) =>
+                s.professionalId === professional &&
+                currentAvailability(s) === "unknown",
+            ) && <UnknownAvailabilityExplanation language={language} />}
           {message && (
             <div className="request-alert is-error" role="alert">
               {message}
@@ -502,7 +614,7 @@ export default function RequestForm({
                 <>
                   <ProfessionalCombobox
                     professionals={PROFESSIONALS}
-                    status={scenario}
+                    status={scenario === "empty" ? "ready" : scenario}
                     value={professional}
                     onChange={(v) => {
                       setProfessional(v);
@@ -534,11 +646,14 @@ export default function RequestForm({
                           : "Next published sessions"}
                       </h3>
                       {discoveryStatus === "loading" && (
-                        <p role="status">
-                          {language === "ar"
-                            ? "جارٍ تحميل المواعيد المنشورة…"
-                            : "Loading published dates and windows…"}
-                        </p>
+                        <LoadingStatus
+                          wakeHint
+                          label={
+                            language === "ar"
+                              ? "جارٍ تحميل المواعيد المنشورة…"
+                              : "Loading published dates and windows…"
+                          }
+                        />
                       )}
                       {discoveryStatus === "unavailable" && (
                         <div role="alert" className="request-alert is-error">
@@ -559,77 +674,116 @@ export default function RequestForm({
                           </button>
                         </div>
                       )}
-                      {discoveryStatus === "ready" && (
-                        <>
-                          <p className="request-muted">
-                            <bdi>
-                              {discovery.fromDate} – {discovery.throughDate}
-                            </bdi>{" "}
-                            ·{" "}
-                            {language === "ar"
-                              ? "بتوقيت بيروت. هذه صفحة نتائج وليست حدًا للحجز."
-                              : "Asia/Beirut. This is a results page, not a booking horizon."}
-                          </p>
-                          {!discovery.sessions.length && (
-                            <p role="status">
+                      {discovery.fromDate &&
+                        discovery.professionalId === professional && (
+                          <>
+                            <p className="request-muted">
+                              <bdi>
+                                {discovery.fromDate} – {discovery.throughDate}
+                              </bdi>{" "}
+                              ·{" "}
                               {language === "ar"
-                                ? "لا جلسات في هذه الفترة. ابحث لاحقًا أو اختر تاريخًا آخر."
-                                : "No sessions in this period. Look further or browse another date."}
+                                ? "بتوقيت بيروت. هذه صفحة نتائج وليست حدًا للحجز."
+                                : "Asia/Beirut. This is a results page, not a booking horizon."}
                             </p>
-                          )}
-                          <div className="request-session-options">
-                            {discovery.sessions.map((s) => (
+                            {!discovery.sessions.length && (
+                              <p role="status">
+                                {language === "ar"
+                                  ? "لا جلسات في هذه الفترة. ابحث لاحقًا أو اختر تاريخًا آخر."
+                                  : "No sessions in this period. Look further or browse another date."}
+                              </p>
+                            )}
+                            <div className="request-session-options">
+                              {discovery.sessions.map((s) => (
+                                <button
+                                  type="button"
+                                  key={selectionKey(s)}
+                                  className={`request-session-option ${selected === selectionKey(s) ? "is-selected" : ""}`}
+                                  aria-pressed={selected === selectionKey(s)}
+                                  disabled={
+                                    discoveryStatus !== "ready" ||
+                                    !sessionSelectable(s)
+                                  }
+                                  onClick={() => chooseSession(s)}
+                                >
+                                  <span>
+                                    <strong>
+                                      <bdi>
+                                        {s.date} · {s.startTime}–{s.endTime}
+                                      </bdi>
+                                    </strong>
+                                    <small>{s.professionalName}</small>
+                                    <AvailabilityLabel
+                                      session={s}
+                                      language={language}
+                                    />
+                                    {s.appointmentRequired && (
+                                      <small>
+                                        {language === "ar"
+                                          ? "يتطلب حجزًا مسبقًا. لا يُسمح بالدخول دون حجز."
+                                          : "Appointment required. Walk-ins prohibited."}
+                                      </small>
+                                    )}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                            <div className="request-actions">
                               <button
                                 type="button"
-                                key={selectionKey(s)}
-                                className={`request-session-option ${selected === selectionKey(s) ? "is-selected" : ""}`}
-                                aria-pressed={selected === selectionKey(s)}
-                                onClick={() => chooseSession(s)}
+                                className="request-text-button"
+                                aria-disabled={
+                                  !earlierPages.length ||
+                                  discoveryStatus !== "ready"
+                                }
+                                onClick={() => {
+                                  if (discoveryStatus !== "ready") return;
+                                  const previous = earlierPages.at(-1);
+                                  if (previous)
+                                    void discover(
+                                      previous.fromDate,
+                                      previous.after,
+                                      "earlier",
+                                    );
+                                }}
                               >
-                                <span>
-                                  <strong>
-                                    <bdi>
-                                      {s.date} · {s.startTime}–{s.endTime}
-                                    </bdi>
-                                  </strong>
-                                  <small>{s.professionalName}</small>
-                                  {s.appointmentRequired && (
-                                    <small>
-                                      {language === "ar"
-                                        ? "يتطلب حجزًا مسبقًا. لا يُسمح بالدخول دون حجز."
-                                        : "Appointment required. Walk-ins prohibited."}
-                                    </small>
-                                  )}
-                                </span>
+                                {language === "ar"
+                                  ? "جلسات سابقة"
+                                  : "Earlier sessions"}
                               </button>
-                            ))}
-                          </div>
-                          {discovery.nextDate && (
-                            <button
-                              type="button"
-                              className="request-text-button"
-                              onClick={() =>
-                                discover(
-                                  discovery.nextDate,
-                                  discovery.nextAfter,
-                                )
-                              }
-                            >
-                              {language === "ar"
-                                ? "البحث في الفترة التالية"
-                                : "Look further"}
-                            </button>
-                          )}
-                        </>
-                      )}
+                              {discovery.nextDate && (
+                                <button
+                                  type="button"
+                                  className="request-text-button"
+                                  aria-disabled={discoveryStatus !== "ready"}
+                                  onClick={() => {
+                                    if (discoveryStatus !== "ready") return;
+                                    void discover(
+                                      discovery.nextDate,
+                                      discovery.nextAfter,
+                                      "later",
+                                    );
+                                  }}
+                                >
+                                  {language === "ar"
+                                    ? "البحث في الفترة التالية"
+                                    : "Later sessions"}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
                     </section>
                   )}
                   {scenario === "loading" ? (
-                    <p role="status" className="request-alert">
-                      {language === "ar"
-                        ? "جارٍ تحميل الجلسات…"
-                        : "Loading published sessions…"}
-                    </p>
+                    <LoadingStatus
+                      wakeHint
+                      label={
+                        language === "ar"
+                          ? "جارٍ تحميل الجلسات…"
+                          : "Loading published sessions…"
+                      }
+                    />
                   ) : scenario === "unavailable" ? (
                     <div className="request-alert is-error" role="alert">
                       {language === "ar"
@@ -654,6 +808,7 @@ export default function RequestForm({
                               name="preview-session"
                               value={selectionKey(s)}
                               checked={selected === selectionKey(s)}
+                              disabled={!sessionSelectable(s)}
                               onChange={() => chooseSession(s)}
                             />
                             <span>
@@ -665,6 +820,10 @@ export default function RequestForm({
                                   ? "فترة حضور كاملة · العيادة"
                                   : "Full attendance window · Clinic"}
                               </small>
+                              <AvailabilityLabel
+                                session={s}
+                                language={language}
+                              />
                               {s.appointmentRequired && (
                                 <small>
                                   {language === "ar"
@@ -853,6 +1012,17 @@ export default function RequestForm({
                 </>
               )}
             </fieldset>
+            {busy && (
+              <LoadingStatus
+                wakeHint
+                language={language}
+                label={
+                  language === "ar"
+                    ? "جارٍ إرسال الطلب…"
+                    : "Submitting request…"
+                }
+              />
+            )}
             <div className="request-actions">
               {step > 0 && (
                 <button

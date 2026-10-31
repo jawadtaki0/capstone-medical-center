@@ -6,6 +6,7 @@ import {
 } from "../../../shared/publication-contract.mjs";
 import { assertPublicationStorage } from "../../../shared/publication-environment.mjs";
 import { validateHostedReviewConfig } from "../../../shared/hosted-review-config.mjs";
+import { validateHostedNormalConfig } from "../../../shared/hosted-normal-config.mjs";
 
 export const PUBLICATION_OUTBOX = "public_publication_outbox";
 export function makePublicationIntent(streamId, events, at) {
@@ -33,8 +34,10 @@ export function validateReceiverTarget(
   environment = { mode: "test" },
 ) {
   const url = new URL(value);
-  if (environment.mode === "hosted-review") {
-    validateHostedReviewConfig(environment);
+  if (["hosted-review", "normal-hosted"].includes(environment.mode)) {
+    (environment.mode === "normal-hosted"
+      ? validateHostedNormalConfig
+      : validateHostedReviewConfig)(environment);
     if (
       demoMode !== true ||
       value !== `${environment.apiOrigin}/api/publications`
@@ -103,7 +106,10 @@ export function createPublicationWorker({
 }) {
   assertPublicationStorage(db, client, demoMode, "staff", environment);
   const url = validateReceiverTarget(target, demoMode, environment);
-  if (environment.mode === "hosted-review" && streamId !== environment.streamId)
+  if (
+    ["hosted-review", "normal-hosted"].includes(environment.mode) &&
+    streamId !== environment.streamId
+  )
     throw new Error(
       "Review delivery requires its configured immutable stream identity.",
     );
@@ -139,7 +145,10 @@ export function createPublicationWorker({
           state: "sending",
           leaseId,
           leaseUntil: new Date(
-            +at + (environment.mode === "hosted-review" ? 90000 : 15000),
+            +at +
+              (["hosted-review", "normal-hosted"].includes(environment.mode)
+                ? 90000
+                : 15000),
           ),
           lastAttemptAt: at,
         },
@@ -154,7 +163,9 @@ export function createPublicationWorker({
         method: "POST",
         redirect: "error",
         signal: AbortSignal.timeout(
-          environment.mode === "hosted-review" ? 75000 : 5000,
+          ["hosted-review", "normal-hosted"].includes(environment.mode)
+            ? 75000
+            : 5000,
         ),
         headers: {
           "Content-Type": "application/json",

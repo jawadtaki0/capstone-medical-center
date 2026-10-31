@@ -1,10 +1,13 @@
 import Icon, { Brand } from "./Icon.jsx";
 import Reveal from "./Reveal.jsx";
 import SpecialtyIcon from "./SpecialtyIcon.jsx";
+import ProfessionalAvatar from "./ProfessionalAvatar.jsx";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import { specialtyLabel } from "../data/specialties.js";
 import { services } from "../data/homeContent.js";
 import { longDate, timeRange } from "../lib/scheduleDate.js";
 import "./homeDoctors.css";
+import "./doctorDirectory.css";
 
 export function VisitInfo({ result }) {
   const schedule = result.schedule;
@@ -50,16 +53,6 @@ function SectionHeading({ eyebrow, title, children }) {
   );
 }
 
-function doctorInitials(name) {
-  return name
-    .replace(/^Dr\.?\s*/i, "")
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0] ?? "")
-    .join("")
-    .toUpperCase();
-}
-
 function SessionAction({ session, onPreview }) {
   if (session.status !== "active") {
     return (
@@ -72,9 +65,9 @@ function SessionAction({ session, onPreview }) {
     <button
       className="text-button"
       type="button"
-      onClick={() => onPreview("Book appointment (prototype)")}
+      onClick={() => onPreview("Book an appointment", session)}
     >
-      Book appointment (prototype) <Icon name="arrow" />
+      Book an appointment <Icon name="arrow" />
     </button>
   );
 }
@@ -108,8 +101,8 @@ export function Doctors({ onPreview, result, onRetry }) {
       </SectionHeading>
 
       {result.status === "loading" && (
-        <div className="home-doctor-state" role="status">
-          <h3>Checking today’s schedule…</h3>
+        <div className="home-doctor-state">
+          <LoadingStatus label="Loading today’s doctors…" wakeHint />
           <p>Doctor sessions will appear here shortly.</p>
         </div>
       )}
@@ -176,17 +169,8 @@ export function Doctors({ onPreview, result, onRetry }) {
                   )}
                   <SessionAction session={featured} onPreview={onPreview} />
                 </div>
-                <div
-                  className="feature-portrait"
-                  aria-label={`Illustrated initials for ${featured.doctorName}; no photograph supplied`}
-                  role="img"
-                >
-                  <span className="feature-monogram">
-                    {doctorInitials(featured.doctorName)}
-                  </span>
-                  <span className="feature-cross" aria-hidden="true">
-                    +
-                  </span>
+                <div className="feature-portrait">
+                  <ProfessionalAvatar avatarVariant={featured.avatarVariant} />
                 </div>
               </article>
             </Reveal>
@@ -201,11 +185,12 @@ export function Doctors({ onPreview, result, onRetry }) {
                   >
                     <article className="doctor-card">
                       <div
-                        className={`doctor-avatar ${supportingTones[index % supportingTones.length]}`}
+                        className={`home-professional-avatar ${supportingTones[index % supportingTones.length]}`}
                         aria-hidden="true"
                       >
-                        {doctorInitials(doctor.doctorName)}
-                        <span>+</span>
+                        <ProfessionalAvatar
+                          avatarVariant={doctor.avatarVariant}
+                        />
                       </div>
                       <div className="doctor-details">
                         <p className="card-kicker specialty-line">
@@ -243,7 +228,7 @@ export function Doctors({ onPreview, result, onRetry }) {
   );
 }
 
-export function Services({ onPreview }) {
+export function Services() {
   return (
     <section
       id="services"
@@ -257,8 +242,7 @@ export function Services({ onPreview }) {
           title={<span id="services-title">Care, all in one place.</span>}
         >
           <p className="section-note">
-            A few ways our fictional center <br />
-            could support you and your family.
+            Published clinic sessions and service hours, in one place.
           </p>
         </SectionHeading>
         <div className="service-grid">
@@ -276,12 +260,9 @@ export function Services({ onPreview }) {
                 </span>
                 <h3>{service.title}</h3>
                 <p>{service.description}</p>
-                <button
-                  className="text-button"
-                  onClick={() => onPreview(service.title)}
-                >
+                <a className="text-button" href={`/services/${service.slug}`}>
                   Explore service <Icon name="arrow" />
-                </button>
+                </a>
               </article>
             </Reveal>
           ))}

@@ -148,3 +148,34 @@ test("target guard is rechecked before later collection or ping operations", () 
   assert.throws(() => db.command({ ping: 1 }), /isolated/);
   assert.deepEqual(f.calls, []);
 });
+
+test("summary joins admit only the fixed prefixed inbox and exact metadata projection", async () => {
+  const f = fixture();
+  const db = createHostedReviewDatabase(f.connection);
+  const lookup = {
+    from: "hosted_review_website_request_inbox",
+    localField: "requestId",
+    foreignField: "_id",
+    as: "request",
+    pipeline: [{ $project: { scopeId: 1, purgedAt: 1 } }],
+  };
+  await db
+    .collection("website_request_events")
+    .aggregate([{ $lookup: lookup }])
+    .toArray();
+  for (const bad of [
+    { ...lookup, from: "website_request_inbox" },
+    { ...lookup, from: "hosted_review_accounts" },
+    { ...lookup, pipeline: [{ $project: { scopeId: 1, patient: 1 } }] },
+    { ...lookup, pipeline: [{ $project: { scopeId: "$patient" } }] },
+  ])
+    assert.throws(
+      () =>
+        db.collection("website_request_events").aggregate([{ $lookup: bad }]),
+      /cross-collection/,
+    );
+  assert.throws(
+    () => db.collection("bookings").aggregate([{ $lookup: lookup }]),
+    /cross-collection/,
+  );
+});

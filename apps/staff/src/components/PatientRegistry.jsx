@@ -14,7 +14,12 @@ const searchFields = [
   "patientNumber",
 ];
 const emptySearch = () => Object.fromEntries(searchFields.map((k) => [k, ""]));
-export default function PatientRegistry({ api, onError, onPendingChange }) {
+export default function PatientRegistry({
+  api,
+  onError,
+  onPendingChange,
+  onSelect,
+}) {
   const id = useId(),
     live = useRef(true),
     generation = useRef(0),
@@ -245,6 +250,16 @@ export default function PatientRegistry({ api, onError, onPendingChange }) {
                 >
                   Open patient
                 </button>
+                {onSelect && (
+                  <button
+                    type="button"
+                    className="staff-button"
+                    disabled={busy}
+                    onClick={() => onSelect(p)}
+                  >
+                    Select for booking {p.patientNumber}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -274,6 +289,7 @@ export default function PatientRegistry({ api, onError, onPendingChange }) {
             setEditor(null);
             setNotice(`Patient ${p.patientNumber} saved.`);
             setResults({ patients: [p], nextCursor: null });
+            onSelect?.(p);
           }}
         />
       )}

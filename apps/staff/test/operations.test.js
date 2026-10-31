@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   cleanOperationalRecord,
   scheduleForDate,
+  oneDateReplacement,
+  limitOnlyEdit,
 } from "../src/lib/operations.js";
 import { createBroker } from "../electron/transport.js";
 import * as operations from "../src/lib/operations.js";
@@ -38,7 +40,11 @@ test("review package requires a matching four-role API and explicit administrati
 const sourceRoot = new URL("../src/", import.meta.url).href;
 const jsxHook = registerHooks({
   load(url, context, nextLoad) {
-    if (!url.startsWith(sourceRoot)) return nextLoad(url, context);
+    if (
+      !url.startsWith(sourceRoot) &&
+      !url.startsWith(new URL("../../../shared/ui/", import.meta.url).href)
+    )
+      return nextLoad(url, context);
     if (url.endsWith(".css"))
       return { format: "module", source: "", shortCircuit: true };
     if (!url.endsWith(".jsx")) return nextLoad(url, context);
@@ -56,6 +62,111 @@ const jsxHook = registerHooks({
   },
 });
 after(() => jsxHook.deregister());
+
+test("one-date professional change preserves peers, IDs and private limits and reuses existing date revision", () => {
+  const session = (id, professionalId, capacity) => ({
+    id,
+    scopeId: "clinic",
+    professionalId,
+    weekday: 1,
+    startTime: "09:00",
+    endTime: "11:00",
+    capacity,
+    status: "active",
+    appointmentRequired: false,
+  });
+  const state = {
+    scopes: [
+      { id: "clinic", kind: "clinic", active: true, access: { edit: true } },
+    ],
+    professionals: [
+      { id: "one", scopeIds: ["clinic"], canEdit: true },
+      { id: "two", scopeIds: ["clinic"], canEdit: true },
+    ],
+    sessions: [session("s1", "one", 3), session("s2", "two", null)],
+    exceptions: [],
+  };
+  const away = oneDateReplacement(
+    state,
+    "2026-11-02",
+    "professional|one",
+    true,
+    [],
+  );
+  assert.equal(away.record.closed, false);
+  assert.deepEqual(away.record.sessions, [state.sessions[1]]);
+  assert.deepEqual(
+    state.sessions.map((s) => s.capacity),
+    [3, null],
+  );
+  const closed = oneDateReplacement(
+    state,
+    "2026-11-02",
+    "scope|clinic",
+    true,
+    [],
+  );
+  assert.equal(closed.record.closed, true);
+  assert.equal(closed.record.sessions.length, 0);
+  state.exceptions = [{ ...away.record, id: "existing", revision: 7 }];
+  const restored = oneDateReplacement(
+    state,
+    "2026-11-02",
+    "professional|one",
+    false,
+    [{ ...state.sessions[0], endTime: "12:00" }],
+  );
+  assert.equal(restored.record.id, "existing");
+  assert.equal(restored.prior.revision, 7);
+  assert.deepEqual(
+    restored.record.sessions.find((s) => s.id === "s2"),
+    state.sessions[1],
+  );
+  state.scopes[0].access.edit = false;
+  assert.throws(
+    () => oneDateReplacement(state, "2026-11-02", "scope|clinic", true, []),
+    /authorized/,
+  );
+});
+test("limit-only editing uses explicit private save without classifying public edits as private", async () => {
+  const before = {
+    ...operations.newSession("clinic"),
+    revision: 2,
+    professionalId: "one",
+    capacity: null,
+    startTime: "09:00",
+    endTime: "11:00",
+  };
+  assert.equal(
+    limitOnlyEdit("sessions", before, { ...before, capacity: 3 }),
+    true,
+  );
+  assert.equal(
+    limitOnlyEdit("sessions", before, {
+      ...before,
+      capacity: 3,
+      endTime: "12:00",
+    }),
+    false,
+  );
+  assert.equal(
+    limitOnlyEdit("sessions", { ...before, revision: 0 }, before),
+    false,
+  );
+  const { default: OneDateEditor } =
+    await import("../src/components/OneDateEditor.jsx");
+  const html = renderToStaticMarkup(
+    createElement(OneDateEditor, {
+      initial: { date: "2026-11-02", scopeId: "", closed: true, sessions: [] },
+      state: { scopes: [], professionals: [], sessions: [], exceptions: [] },
+    }),
+  );
+  assert.match(html, /Change one date/);
+  assert.match(
+    html,
+    /Only this date changes\. The weekly schedule stays unchanged\./,
+  );
+});
 
 test("patient limit is a natural optional manual input independent of duration; Gender remains authoritative", async () => {
   const { default: Fields } =
@@ -124,14 +235,19 @@ test("delivery feedback distinguishes local pending/failure/acceptance without c
         onRefresh() {},
       }),
     );
-  assert.match(render({ state: "pending" }), /Pending delivery/);
+  assert.match(render({ state: "pending" }), /Updating — awaiting delivery/);
+  assert.doesNotMatch(render({ state: "pending" }), /Website updated/);
+  assert.match(
+    render({ state: "pending" }),
+    /<summary>Technical details<\/summary>/,
+  );
   assert.match(
     render({ state: "failed", lastError: "receiver_unavailable" }),
     /Receiver unavailable/,
   );
   assert.match(
     render({ state: "accepted", acceptedSequence: 1 }),
-    /Receiver accepted/,
+    /Website update accepted/,
   );
   assert.match(
     render({ state: "accepted", acceptedSequence: 1 }),
@@ -211,7 +327,7 @@ test("scope validation rejects missing, unknown, inactive and unassigned scope b
       { scopeIds: [] },
       reviewState,
     ),
-    "Choose at least one valid assigned clinic.",
+    "",
   );
   assert.equal(
     operations.operationalScopeError(
@@ -220,6 +336,32 @@ test("scope validation rejects missing, unknown, inactive and unassigned scope b
       reviewState,
     ),
     "",
+  );
+  for (const scopes of [
+    [],
+    [
+      ...reviewState.scopes,
+      { id: "second", kind: "clinic", active: true, access: { edit: true } },
+    ],
+  ])
+    assert.equal(
+      operations.operationalScopeError(
+        "professionals",
+        {},
+        { ...reviewState, scopes },
+      ),
+      "Exactly one active clinic must be configured before editing a professional.",
+    );
+  assert.equal(
+    operations.operationalScopeError(
+      "professionals",
+      {},
+      {
+        ...reviewState,
+        scopes: [{ ...reviewState.scopes[0], access: { edit: false } }],
+      },
+    ),
+    "Your current account cannot edit this clinic's professionals.",
   );
 });
 

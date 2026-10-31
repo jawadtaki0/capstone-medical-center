@@ -9,6 +9,7 @@ import { OPERATIONAL_COLLECTIONS } from "../../src/operations.js";
 
 export const TEST_DATABASE = "capstone_staff_test";
 export const STAFF_COLLECTIONS = Object.freeze([
+  "operational_feed_views",
   "website_request_inbox",
   "website_request_sync",
   "website_request_events",

@@ -2,6 +2,26 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { whatsappUrl } from "../electron/whatsapp.js";
 import { createBroker } from "../electron/transport.js";
+import { websiteNoticeLocationText } from "../../../shared/website-notice.mjs";
+
+test("notice location copy distinguishes hosted links while unmarked/local previews stay conservative", () => {
+  const hosted = websiteNoticeLocationText(false);
+  assert.match(hosted, /hosted review website/);
+  assert.doesNotMatch(hosted, /Localhost/);
+  for (const flag of [undefined, true]) {
+    assert.match(
+      websiteNoticeLocationText(flag),
+      /Localhost tracking links work only/,
+    );
+  }
+  for (const flag of [undefined, true, false]) {
+    assert.match(
+      websiteNoticeLocationText(flag),
+      /account signed in on this computer/,
+    );
+    assert.match(websiteNoticeLocationText(flag), /Opening is not delivery/);
+  }
+});
 
 test("only explicit isolated hosted review extends Refresh requests; other authority/action deadlines stay unchanged", async () => {
   for (const options of [
@@ -37,6 +57,52 @@ test("only explicit isolated hosted review extends Refresh requests; other autho
       await broker.websiteRequests({ action: "list" });
     }
     assert.deepEqual(deadlines, [5000, 20000, 5000, 5000, 90000, 5000]);
+  } finally {
+    AbortSignal.timeout = original;
+  }
+});
+
+test("explicit normal hosted connection extends only refresh on normal loopback authority", async () => {
+  assert.throws(
+    () =>
+      createBroker({
+        url: "http://127.0.0.1:4101",
+        demoMode: true,
+        hostedConnection: true,
+      }),
+    /intended local/,
+  );
+  assert.throws(
+    () =>
+      createBroker({
+        url: "https://127.0.0.1:4100",
+        demoMode: false,
+        hostedConnection: true,
+      }),
+    /intended local/,
+  );
+  const original = AbortSignal.timeout,
+    deadlines = [];
+  AbortSignal.timeout = (ms) => {
+    deadlines.push(ms);
+    return new AbortController().signal;
+  };
+  try {
+    const broker = createBroker({
+      url: "http://127.0.0.1:4100",
+      demoMode: true,
+      hostedConnection: true,
+      request: async (url) =>
+        new Response(
+          JSON.stringify(
+            url.endsWith("/auth/login") ? { token: "t".repeat(43) } : {},
+          ),
+        ),
+    });
+    await broker.signIn({ username: "synthetic", password: "dummy only" });
+    await broker.websiteRequests({ action: "refresh" });
+    await broker.websiteRequests({ action: "list" });
+    assert.deepEqual(deadlines, [5000, 90000, 5000]);
   } finally {
     AbortSignal.timeout = original;
   }

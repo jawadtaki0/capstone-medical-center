@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const names = [
+  "operationalSummary",
+  "viewOperationalActivity",
   "websiteRequests",
   "openRequestWhatsApp",
   "bookingSessions",
@@ -19,6 +21,7 @@ const names = [
   "assignOperationalScopes",
   "publishOperationalDrafts",
   "previewOperationalPublication",
+  "reviewOperationalChanges",
   "retryOperationalDelivery",
   "requestRecovery",
   "verifyRecovery",

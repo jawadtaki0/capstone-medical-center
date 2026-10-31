@@ -187,7 +187,7 @@ export function createPatientService({
     "reviewDigest",
     "duplicateOverride",
   ];
-  async function save(token, input, updating) {
+  async function save(token, input, updating, unmatchedOnly = false) {
     return transaction(async (session) => {
       const at = now();
       await guard(session);
@@ -243,7 +243,8 @@ export function createPatientService({
         session,
       );
       if (
-        input.reviewDigest !== checked.reviewDigest ||
+        (!unmatchedOnly && input.reviewDigest !== checked.reviewDigest) ||
+        (unmatchedOnly && (checked.candidates.length || checked.hasMore)) ||
         ((checked.candidates.length || checked.hasMore) &&
           !input.duplicateOverride)
       )
@@ -349,6 +350,13 @@ export function createPatientService({
   }
   return {
     create: (token, input) => save(token, input, false),
+    // Internal confirmation primitive: still validates/authenticates, acquires
+    // the shared write guard and checks the current candidate set. No public
+    // patient endpoint exposes this no-candidate-only shortcut.
+    createIfUnmatched: (token, input) => {
+      fields(input, ["record"]);
+      return save(token, input, false, true);
+    },
     update: (token, input) => save(token, input, true),
     check: (token, input) =>
       transaction(async (session) => {

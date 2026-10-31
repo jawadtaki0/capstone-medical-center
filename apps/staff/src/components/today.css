@@ -1,0 +1,111 @@
+.staff-today-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.staff-today-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 1rem;
+  min-height: 5rem;
+  border: 1px solid #bdd7e6;
+  border-radius: 12px;
+  background: white;
+  color: #16435a;
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.staff-today-card:hover {
+  background: #edf7fd;
+}
+.staff-action-count,
+.staff-neutral-count {
+  display: inline-flex;
+  flex-shrink: 0;
+  min-width: 1.6rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 1rem;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+.staff-action-count {
+  background: #f8df9c;
+  color: #694400;
+}
+.staff-neutral-count {
+  background: #edf5f9;
+  color: #31576c;
+}
+.staff-today-card.needs-action,
+.staff-sidebar-link.needs-action:not([aria-current="page"]),
+.staff-today-activity .needs-action {
+  background: #fff8e6;
+  border-color: #e8c775;
+}
+.staff-today-card.has-failure {
+  border-color: #b73e35;
+  background: #fff4f2;
+}
+.staff-today-card.has-failure .staff-action-count {
+  background: #fce0db;
+  color: #8c241e;
+}
+.staff-request-sidebar-counts {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.staff-request-count-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.6rem;
+  min-width: 0;
+}
+.staff-request-count-row > span:first-child {
+  flex: 1 1 6rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.staff-sidebar-link[aria-current="page"]:hover:not(:disabled) {
+  background: var(--staff-blue);
+  color: white;
+}
+.staff-today-activity {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+.staff-today-activity li {
+  border: 1px solid #c8deeb;
+  border-radius: 10px;
+  background: white;
+}
+.staff-today-activity button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  border: 0;
+  padding: 1rem;
+  color: #16435a;
+  background: transparent;
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.staff-today-activity span,
+.staff-today-activity time {
+  font-size: 0.85rem;
+}

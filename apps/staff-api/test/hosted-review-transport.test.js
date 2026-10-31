@@ -225,23 +225,36 @@ test("protected review configuration is separate, explicit, no-overwrite and doe
   }
 });
 
-test("review request worker has no startup/idle polling and only explicit runOnce calls the service", async (t) => {
+test("review worker checks local work at startup/idle without hosted keep-alive", async (t) => {
   let calls = 0;
-  let timers = 0;
-  t.mock.method(globalThis, "setTimeout", () => {
-    timers++;
+  let localChecks = 0;
+  let pending = false;
+  const timers = [];
+  t.mock.method(globalThis, "setTimeout", (callback, interval) => {
+    assert.equal(interval, 10000);
+    timers.push(callback);
     return { unref() {} };
   });
   const worker = startHostedReviewRequestWorker({
+    hasPendingWork: async () => {
+      localChecks++;
+      return pending;
+    },
     pump: async () => {
       calls++;
+      pending = false;
     },
   });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(calls, 0);
-  await worker.runOnce();
+  assert.equal(localChecks, 1);
+  await timers.shift()();
+  assert.equal(calls, 0);
+  pending = true;
+  await timers.shift()();
   assert.equal(calls, 1);
-  assert.equal(timers, 0);
+  await timers.shift()();
+  assert.equal(calls, 1);
   await worker.stop();
   await worker.runOnce();
   assert.equal(calls, 1);

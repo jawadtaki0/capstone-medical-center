@@ -1,11 +1,14 @@
 import WebsiteRequests from "./WebsiteRequests.jsx";
+import RequestScreenBoundary from "./RequestScreenBoundary.jsx";
 import BookingPanel from "./BookingPanel.jsx";
 import { useEffect, useRef, useState } from "react";
 import StaffDirectory from "./StaffDirectory.jsx";
 import StaffProfile from "./StaffProfile.jsx";
 import OperationsPanel from "./OperationsPanel.jsx";
 import PatientRegistry from "./PatientRegistry.jsx";
-import { PATIENT_ROLES } from "../../shared/patient-input.js";
+import Today from "./Today.jsx";
+import RequestActionCount from "./RequestActionCount.jsx";
+import { startSummaryRefresh } from "../lib/operationalSummary.js";
 
 const labels = {
   admin: "Admin",
@@ -30,18 +33,132 @@ export default function Workspace({
   onPendingChange,
   onPasswordChanged,
 }) {
-  const [view, setView] = useState("workspace");
+  const [view, setView] = useState("today");
+  const [target, setTarget] = useState({});
+  const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState("");
+  const [intakeError, setIntakeError] = useState("");
+  const summaryPoll = useRef(null),
+    summaryGeneration = useRef(0),
+    live = useRef(false);
+  const callbacks = useRef({ onError, expired: timing.expired });
+  callbacks.current = { onError, expired: timing.expired };
   const content = useRef(null);
   const roles = workspace.roles ?? user.roles ?? [];
-  const directoryAllowed =
-    workspace.permissions?.includes("staff:directory") === true;
-  const patientsAllowed =
-    roles.length > 0 && roles.every((role) => PATIENT_ROLES.includes(role));
-  const bookingsAllowed = roles.some((r) =>
-    ["Admin", "Clinic Admin", "Receptionist"].includes(r),
-  );
-  const operationsAllowed =
-    workspace.permissions?.includes("operations:view") === true;
+  const capabilities = summary?.capabilities ?? {};
+  const directoryAllowed = capabilities.directory === true;
+  const patientsAllowed = capabilities.patients === true;
+  const bookingsAllowed = capabilities.bookingView === true;
+  const operationsAllowed = capabilities.operations === true;
+  useEffect(() => {
+    live.current = true;
+    const version = ++summaryGeneration.current;
+    summaryPoll.current = startSummaryRefresh({
+      read: () => api.operationalSummary(),
+      current: () =>
+        live.current &&
+        !callbacks.current.expired &&
+        version === summaryGeneration.current,
+      onValue: (value) => {
+        setSummary(value);
+        setSummaryError("");
+      },
+      onError: (error) => {
+        setSummaryError(error.message);
+        // Summary/database unavailability is not proof of session expiry.
+        // Real authorization failures clear all visible metadata immediately.
+        if (
+          /expired|revoked|auth_required|authentication_failed|permission_denied/i.test(
+            error.code ?? "",
+          )
+        ) {
+          setSummary(null);
+          callbacks.current.onError?.(error);
+        }
+      },
+    });
+    return () => {
+      live.current = false;
+      summaryGeneration.current++;
+      summaryPoll.current?.stop();
+    };
+  }, [api, user.id, user.username]);
+  useEffect(() => {
+    if (timing.expired) {
+      summaryGeneration.current++;
+      summaryPoll.current?.stop();
+      setSummary(null);
+    }
+  }, [timing.expired]);
+  useEffect(() => {
+    if (!capabilities.requests || timing.expired) {
+      setIntakeError("");
+      return;
+    }
+    let suspended = false;
+    const intake = startSummaryRefresh({
+      read: () => api.websiteRequests({ action: "refresh" }),
+      current: () =>
+        live.current &&
+        !callbacks.current.expired &&
+        !document.hidden &&
+        !suspended,
+      onValue: () => {
+        setIntakeError("");
+        summaryPoll.current?.refresh();
+      },
+      onError: (error) => {
+        setIntakeError(error.message);
+        if (error.code === "requests_disabled") suspended = true;
+        if (
+          /expired|revoked|auth_required|authentication_failed|permission_denied|request_forbidden/i.test(
+            error.code ?? "",
+          )
+        ) {
+          suspended = true;
+          setSummary(null);
+          summaryPoll.current?.refresh();
+        }
+      },
+    });
+    const visible = () => {
+      if (!document.hidden) void intake.refresh();
+    };
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      intake.stop();
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [api, capabilities.requests, timing.expired]);
+  function navigate(next) {
+    setTarget(next);
+    setView(next.view);
+  }
+  async function openActivity(item) {
+    const version = summaryGeneration.current;
+    try {
+      await api.viewOperationalActivity({ eventId: item.id });
+      if (
+        !live.current ||
+        callbacks.current.expired ||
+        version !== summaryGeneration.current
+      )
+        return;
+      summaryPoll.current?.refresh();
+      navigate({
+        view:
+          item.target.section === "website"
+            ? "website-updates"
+            : item.target.section,
+        tab: item.target.tab,
+        requestId: item.target.recordId,
+        noticeId: item.target.noticeId,
+      });
+    } catch (error) {
+      if (live.current && version === summaryGeneration.current)
+        setSummaryError(error.message);
+    }
+  }
   useEffect(() => {
     content.current?.querySelector("h1")?.focus({ preventScroll: true });
   }, [view]);
@@ -50,20 +167,28 @@ export default function Workspace({
       <aside className="staff-sidebar" aria-label="Staff workspace navigation">
         <p className="staff-eyebrow">YOUR WORKSPACE</p>
         {[
-          ["workspace", "Workspace"],
+          ["today", "Today"],
           ["profile", "My Profile"],
-          ...(roles.some((r) => ["Admin", "Receptionist"].includes(r))
-            ? [["requests", "Website requests"]]
-            : []),
+          ...(capabilities.requests ? [["requests", "Website requests"]] : []),
           ...(patientsAllowed ? [["patients", "Patients"]] : []),
           ...(bookingsAllowed ? [["bookings", "Bookings"]] : []),
           ...(directoryAllowed ? [["directory", "Staff Directory"]] : []),
           ...(operationsAllowed
             ? [
-                ["professionals", "Professionals"],
-                ["schedule", "Schedules"],
-                ...(roles.includes("Admin")
-                  ? [["registry", "Clinics & services"]]
+                ...(capabilities.professionals
+                  ? [["professionals", "Professionals"]]
+                  : []),
+                [
+                  "schedule",
+                  capabilities.serviceHours && !capabilities.professionals
+                    ? "Service hours"
+                    : "Schedules",
+                ],
+                ...(capabilities.schedules
+                  ? [["website-updates", "Website updates"]]
+                  : []),
+                ...(capabilities.centerSettings
+                  ? [["registry", "Center settings"]]
                   : []),
               ]
             : []),
@@ -73,13 +198,45 @@ export default function Workspace({
             key={key}
             disabled={busy}
             aria-current={view === key ? "page" : undefined}
-            className="staff-sidebar-link"
-            onClick={() => setView(key)}
+            className={`staff-sidebar-link ${key === "requests" && (summary?.counts.requestsAwaitingDecision > 0 || summary?.counts.messagesToSend > 0) ? "needs-action" : ""}`}
+            onClick={() => navigate({ view: key })}
           >
-            {label}
+            <span>{label}</span>
+            {key === "requests" && (
+              <span className="staff-request-sidebar-counts">
+                <span className="staff-request-count-row">
+                  <span>Requests awaiting decision</span>
+                  <RequestActionCount
+                    value={summary?.counts.requestsAwaitingDecision}
+                    label="requests awaiting decision"
+                    stale={Boolean(summaryError)}
+                  />
+                </span>
+                <span className="staff-request-count-row">
+                  <span>Messages to send</span>
+                  <RequestActionCount
+                    value={summary?.counts.messagesToSend}
+                    label="messages needing action"
+                    stale={Boolean(summaryError)}
+                  />
+                </span>
+              </span>
+            )}
           </button>
         ))}
         <p className="staff-sidebar-label">Assigned roles</p>
+        {summaryError && (
+          <p className="staff-help" role="status">
+            Action counts could not be refreshed. Any displayed counts are the
+            last known values.
+          </p>
+        )}
+        {intakeError && (
+          <p className="staff-help" role="status">
+            Request synchronization unavailable. Open Website requests for
+            details; existing work is retained.
+          </p>
+        )}
         <ul>
           {roles.map((role) => (
             <li key={role}>{roleLabel(role)}</li>
@@ -114,13 +271,25 @@ export default function Workspace({
             </button>
           </div>
         )}
-        {view === "requests" ? (
-          <WebsiteRequests api={api} onError={onError} />
+        {view === "requests" && capabilities.requests ? (
+          <RequestScreenBoundary>
+            <WebsiteRequests
+              api={api}
+              onError={onError}
+              initialView={target.tab}
+              initialRequestId={target.requestId}
+              initialNoticeId={target.noticeId}
+              onResolved={() => summaryPoll.current?.refresh()}
+              actionCounts={summary?.counts}
+              countsError={Boolean(summaryError)}
+            />
+          </RequestScreenBoundary>
         ) : view === "bookings" && bookingsAllowed ? (
           <BookingPanel
             api={api}
             onError={onError}
             onPendingChange={onPendingChange}
+            onResolved={() => summaryPoll.current?.refresh()}
           />
         ) : view === "patients" && patientsAllowed ? (
           <PatientRegistry
@@ -129,11 +298,16 @@ export default function Workspace({
             onPendingChange={onPendingChange}
           />
         ) : operationsAllowed &&
-          ["professionals", "schedule", "registry"].includes(view) ? (
+          ["professionals", "schedule", "registry", "website-updates"].includes(
+            view,
+          ) ? (
           <OperationsPanel
             key={view}
             api={api}
             mode={view}
+            initialScheduleMode={target.scheduleMode}
+            initialAffectedBookings={target.affectedBookings}
+            unpublishedChanges={summary?.counts.unpublishedChanges}
             onError={onError}
             onSensitiveAction={onSensitiveAction}
             onPendingChange={onPendingChange}
@@ -154,32 +328,14 @@ export default function Workspace({
             onPendingChange={onPendingChange}
           />
         ) : (
-          <>
-            <p className="staff-eyebrow">PERMISSION-CHECKED FOUNDATION</p>
-            <h1 id="workspace-title" tabIndex={-1}>
-              {workspace.heading ?? "Staff workspace"}
-            </h1>
-            <p className="staff-intro">
-              {workspace.description ??
-                "Your individual session has been verified by the local staff server."}
-            </p>
-            <div className="staff-workspace-card">
-              <h2>Signed in as {user.username}</h2>
-              <p>
-                View your private profile, edit your address and request a
-                verified email replacement. Phone replacement remains
-                unavailable. Authorized managers can use the staff directory and
-                permitted account controls. Authorized operational roles can
-                review professional and schedule drafts. The Patients registry
-                supports basic records. Clinic bookings reserve a full session
-                window; clinical/laboratory workflows are not included.
-              </p>
-              <p className="staff-help">
-                Permissions are checked by the server. A department or visible
-                menu does not grant additional access.
-              </p>
-            </div>
-          </>
+          <Today
+            summary={summary}
+            error={summaryError || intakeError}
+            onNavigate={navigate}
+            onActivity={openActivity}
+            onRefresh={() => summaryPoll.current?.refresh()}
+            busy={busy}
+          />
         )}
       </section>
     </div>

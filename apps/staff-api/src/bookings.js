@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { invalidateAvailability } from "./session-availability.js";
 import { StaffError } from "./errors.js";
 import {
   dateOnly,
@@ -457,6 +458,7 @@ export function createBookingService({
         };
         b.id = b._id;
         await bookings.insertOne(b, { session });
+        await invalidateAvailability(db, session, b.date);
         await audit(session, context, b, "confirmed", at);
         await afterWrite?.(session, context, b, "confirmed", at, input);
         return { booking: dto(b), overlaps: await overlaps(p, s, session) };
@@ -520,6 +522,7 @@ export function createBookingService({
         b.cancelledBy = context.account._id;
         b.cancellationReason = input.reason.trim();
         await bookings.replaceOne({ _id: b._id }, b, { session });
+        await invalidateAvailability(db, session, b.date);
         await audit(session, context, b, "cancelled", at, b.cancellationReason);
         await afterWrite?.(session, context, b, "cancelled", at, input);
         return { booking: dto(b) };

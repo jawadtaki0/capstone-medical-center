@@ -29,8 +29,17 @@ export function createBroker({
   request = fetch,
   openWhatsApp,
   reviewColdStart = false,
+  hostedConnection = false,
 }) {
   const origin = validateAuthorityUrl(url, demoMode);
+  if (
+    typeof hostedConnection !== "boolean" ||
+    (hostedConnection &&
+      (demoMode !== true || origin !== "http://127.0.0.1:4100"))
+  )
+    throw Error(
+      "Normal hosted synchronization requires the intended local staff authority.",
+    );
   if (
     typeof reviewColdStart !== "boolean" ||
     (reviewColdStart &&
@@ -42,7 +51,7 @@ export function createBroker({
   const refreshUnavailable = () =>
     Object.assign(
       new Error(
-        "Website-request synchronization is unavailable. The hosted review server may still be waking. Try Refresh requests again shortly. Existing local bookings are not rolled back by this refresh failure.",
+        "Website-request synchronization is unavailable. The hosted server may still be waking. Try Refresh requests again shortly. Existing local bookings are not rolled back by this refresh failure.",
       ),
       { code: "REQUEST_SYNC_UNAVAILABLE" },
     );
@@ -67,7 +76,8 @@ export function createBroker({
   ) {
     const requestedEpoch = epoch;
     const hostedRefresh =
-      reviewColdStart && path === "/website-requests/refresh";
+      (reviewColdStart || hostedConnection) &&
+      path === "/website-requests/refresh";
     if (authenticated && !explicitToken)
       throw Object.assign(new Error("Please sign in again."), {
         code: "AUTH_REQUIRED",
@@ -353,6 +363,9 @@ export function createBroker({
       passwordChallenge = undefined;
       return call("/password/change/cancel", {}, true);
     },
+    operationalSummary: () => call("/summary/read", {}, true),
+    viewOperationalActivity: (payload) =>
+      call("/summary/viewed", payload, true),
     staffDirectory: () => call("/staff", undefined, true),
     websiteRequests: (payload) => {
       const { action, noticeAction, ...body } = payload;
@@ -373,6 +386,7 @@ export function createBroker({
           "cancel",
           "rotate",
           "notification",
+          "bookingNoticeLookup",
         ].includes(action)
       )
         throw Error("Unsupported request action.");
@@ -459,6 +473,8 @@ export function createBroker({
     createPatient: (payload) => call("/patients/create", payload, true),
     updatePatient: (payload) => call("/patients/update", payload, true),
     operationalState: () => call("/operations", undefined, true),
+    reviewOperationalChanges: (payload) =>
+      call("/operations/review", payload, true),
     saveOperationalRecord: (payload) => call("/operations/save", payload, true),
     assignOperationalScopes: (payload) =>
       call("/operations/grants", payload, true),

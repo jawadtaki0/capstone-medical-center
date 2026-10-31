@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import GrainientPage from "../components/GrainientPage.jsx";
 import RequestForm from "../request-preview/RequestForm.jsx";
 import TrackingView from "../request-preview/TrackingView.jsx";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import { createRequestClient } from "../website-request-client.js";
 import {
   createCatalogueLoader,
@@ -9,8 +10,13 @@ import {
 } from "../request-selection.js";
 import "../components/doctorDirectory.css";
 import "../request-preview/preview.css";
-const hostedReview = import.meta.env.VITE_HOSTED_REVIEW === "1";
-const apiOrigin = hostedReview ? import.meta.env.VITE_REVIEW_API_ORIGIN : "";
+const capstone = import.meta.env.VITE_HOSTED_CAPSTONE === "1";
+const hostedReview = import.meta.env.VITE_HOSTED_REVIEW === "1" || capstone;
+const apiOrigin = capstone
+  ? import.meta.env.VITE_CAPSTONE_API_ORIGIN
+  : hostedReview
+    ? import.meta.env.VITE_REVIEW_API_ORIGIN
+    : "";
 if (hostedReview && !apiOrigin)
   throw Error("Hosted review API origin is required.");
 const api = createRequestClient({ apiOrigin });
@@ -61,7 +67,7 @@ export default function WebsiteRequestPage({ tracking = false }) {
       version = ++generation.current;
     async function load() {
       if (document.hidden) {
-        timer = setTimeout(load, 30000);
+        timer = setTimeout(load, 10000);
         return;
       }
       if (!tracking) {
@@ -85,7 +91,7 @@ export default function WebsiteRequestPage({ tracking = false }) {
           setScenario("unavailable");
         }
       }
-      if (tracking && !stopped) timer = setTimeout(load, 30000);
+      if (tracking && !stopped) timer = setTimeout(load, 10000);
     }
     void load();
     return () => {
@@ -104,11 +110,15 @@ export default function WebsiteRequestPage({ tracking = false }) {
     <GrainientPage>
       <div className="container request-shell">
         <div className="request-alert" role="note">
-          {hostedReview
+          {capstone
             ? language === "ar"
-              ? "عرض تجريبي فقط — استخدم بيانات مرضى وهمية. لا ترسل بيانات مرضى حقيقيين."
-              : "Synthetic review only — use fictional patient details. Do not submit real patient information."
-            : "Local review only. Links pointing to localhost work on this computer, not on another device."}
+              ? "عرض لمشروع التخرج — استخدم بيانات مرضى وهمية. لا يرتب هذا العرض رعاية طبية فعلية."
+              : "Capstone demonstration — use fictional patient identity details. This does not arrange actual medical care."
+            : hostedReview
+              ? language === "ar"
+                ? "عرض تجريبي فقط — استخدم بيانات مرضى وهمية. لا ترسل بيانات مرضى حقيقيين."
+                : "Synthetic review only — use fictional patient details. Do not submit real patient information."
+              : "Local review only. Links pointing to localhost work on this computer, not on another device."}
         </div>
         {hostedReview && scenario === "loading" && (
           <p className="request-alert" role="status">
@@ -131,7 +141,13 @@ export default function WebsiteRequestPage({ tracking = false }) {
         {tracking ? (
           <>
             {scenario === "loading" ? (
-              <p role="status">Loading request…</p>
+              <LoadingStatus
+                label={
+                  language === "ar" ? "جارٍ تحميل الطلب…" : "Loading request…"
+                }
+                language={language}
+                wakeHint
+              />
             ) : (
               <TrackingView data={data} onLanguage={setLanguage} />
             )}{" "}
@@ -184,6 +200,8 @@ export default function WebsiteRequestPage({ tracking = false }) {
                       date: session.date,
                       professionalId: session.professionalId,
                       sourceSessionId: session.sourceSessionId,
+                      startTime: session.startTime,
+                      endTime: session.endTime,
                     },
                     patient,
                     honeypot,

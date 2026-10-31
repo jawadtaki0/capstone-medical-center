@@ -6,7 +6,80 @@ import {
   validatedPreselection,
   preselectionDate,
   createCatalogueLoader,
+  validatedProfessionalPreselection,
+  requestSelectionUrl,
 } from "../src/request-selection.js";
+
+test("professional links and dated links are hints validated only against published IDs", () => {
+  const professionals = [{ id: "doctor:synthetic", name: "Synthetic" }];
+  const url = requestSelectionUrl({ doctorId: professionals[0].id });
+  assert.equal(
+    validatedProfessionalPreselection(
+      url.slice(url.indexOf("?")),
+      professionals,
+    ),
+    professionals[0],
+  );
+  for (const search of [
+    "?professional=missing",
+    "?professional=doctor%3Asynthetic&professional=other",
+    "?professional=doctor%3Asynthetic&phone=private",
+  ])
+    assert.equal(
+      validatedProfessionalPreselection(search, professionals),
+      null,
+    );
+  const session = {
+    professionalId: professionals[0].id,
+    id: "session:one",
+    date: "2027-11-01",
+  };
+  const dated = requestSelectionUrl(session);
+  assert.equal(
+    validatedPreselection(dated.slice(dated.indexOf("?")), [session]),
+    session,
+  );
+  assert.equal(requestSelectionUrl({}), "/request");
+  assert.match(
+    requestSelectionUrl({
+      specialistId: "specialist:synthetic",
+      id: "session:specialist",
+      date: "2027-11-01",
+    }),
+    /professional=specialist%3Asynthetic/,
+  );
+});
+test("dated links bind their actual window and reject changed hours or forged window parameters", () => {
+  const s = {
+    professionalId: "doctor",
+    sourceSessionId: "weekly",
+    date: "2027-11-01",
+    startTime: "09:00",
+    endTime: "11:00",
+  };
+  const query = requestSelectionUrl(s).split("?")[1];
+  assert.equal(preselectionDate(query), s.date);
+  assert.equal(validatedPreselection(query, [s]), s);
+  assert.equal(
+    validatedPreselection(query, [{ ...s, startTime: "10:00" }]),
+    null,
+  );
+  assert.equal(validatedPreselection(query + "&start=09:00", [s]), null);
+});
+test("a changed attendance window creates a new submission identity while an uncertain unchanged retry keeps its original", () => {
+  let calls = 0;
+  const attempt = createSubmissionAttempt(() => String(++calls));
+  const s = {
+    professionalId: "one",
+    sourceSessionId: "same",
+    date: "2027-11-01",
+    startTime: "09:00",
+    endTime: "11:00",
+  };
+  const key = attempt({}, s, "");
+  assert.equal(attempt({}, s, ""), key);
+  assert.notEqual(attempt({}, { ...s, startTime: "10:00" }, ""), key);
+});
 import {
   createRequestClient,
   createSubmissionAttempt,

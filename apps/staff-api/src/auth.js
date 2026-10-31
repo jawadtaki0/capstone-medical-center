@@ -1,4 +1,5 @@
 import { createWebsiteRequestService } from "./website-requests.js";
+import { createOperationalSummaryService } from "./operational-summary.js";
 import {
   createHash,
   randomBytes,
@@ -853,6 +854,12 @@ export function createAuthService({
   return {
     management,
     operations,
+    summary: createOperationalSummaryService({
+      db,
+      transaction,
+      authenticated,
+      now,
+    }),
     get websiteRequests() {
       if (!requestIntegration)
         throw new StaffError(

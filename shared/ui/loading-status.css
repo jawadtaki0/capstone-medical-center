@@ -1,0 +1,11 @@
+.cedar-loading {
+  min-width: 0;
+  max-width: 100%;
+  padding-block: 0.5rem;
+  color: #164c63;
+}
+.cedar-loading p {
+  margin-block: 0.5rem 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}

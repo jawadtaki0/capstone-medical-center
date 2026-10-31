@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { prepareAvailability } from "./session-availability.js";
+import { availabilitySlot } from "../../../shared/session-availability.mjs";
 import { StaffError } from "./errors.js";
 import { validRoles } from "./permissions.js";
 import { createBookingService } from "./bookings.js";
@@ -24,6 +26,7 @@ import {
 } from "../../../shared/website-request-security.mjs";
 import { websiteNoticeText } from "../../../shared/website-notice.mjs";
 import { phoneNumber } from "../../staff/shared/contact-input.js";
+import { nameKey, PATIENT_FIELDS } from "../../staff/shared/patient-input.js";
 export const CEDAR_REQUEST_COLLECTIONS = [
   "website_request_inbox",
   "website_request_sync",
@@ -70,6 +73,7 @@ export function createWebsiteRequestService({
     events = db.collection("website_request_events"),
     crypto = requestCrypto(config.key);
   const fail = (code, msg, status = 409) => new StaffError(code, msg, status);
+  const pendingListeners = new Set();
   const allowed = (ctx, a, scopeId) =>
     bookingAccess(
       ctx.account.roles,
@@ -100,7 +104,7 @@ export function createWebsiteRequestService({
   };
   async function run(token, write, action) {
     try {
-      return await transaction(async (session) => {
+      const result = await transaction(async (session) => {
         if (write) await guard(session);
         const at = now(),
           ctx = await authenticated(session, token, at);
@@ -120,6 +124,17 @@ export function createWebsiteRequestService({
           );
         return action(session, ctx, a, at);
       });
+      // Only a completed authorized transaction wakes delivery. Never notify
+      // from inside a retryable transaction or a failed/rolled-back operation.
+      if (write && !result?.failure)
+        for (const notify of pendingListeners) {
+          try {
+            notify();
+          } catch {
+            /* Delivery cannot undo a committed action. */
+          }
+        }
+      return result;
     } catch (e) {
       if (e instanceof StaffError) throw e;
       if (e.code && e.status) throw fail(e.code, e.message, e.status);
@@ -165,6 +180,20 @@ export function createWebsiteRequestService({
   });
   const patientService = (session) => createPatientService(inner(session));
   const bookingService = (session) => createBookingService(inner(session));
+  const patientRecord = (request) =>
+    Object.fromEntries(
+      PATIENT_FIELDS.map((field) => [field, request.patient[field]]),
+    );
+  const patientDiscrepancies = (request, patient) =>
+    PATIENT_FIELDS.filter((field, index) =>
+      index < 4
+        ? nameKey(request.patient[field]) !== nameKey(patient[field])
+        : request.patient[field] !== patient[field],
+    );
+  const confirmationDigest = (input) =>
+    input.patientMode
+      ? digest({ booking: input.booking, patientMode: input.patientMode })
+      : digest(input.booking);
   async function notice(session, r, kind, at) {
     await notices.updateMany(
       { requestId: r._id, state: { $in: ["pending", "call_required"] } },
@@ -222,7 +251,42 @@ export function createWebsiteRequestService({
     return { request: dto(r) };
   }
   async function ingest(batch) {
-    exact(batch, ["schemaVersion", "requests", "cursor"]);
+    exact(
+      batch,
+      ["schemaVersion", "requests", "cursor", "availabilityDates"],
+      ["schemaVersion", "requests", "cursor"],
+    );
+    if (batch.availabilityDates !== undefined) {
+      if (
+        !Array.isArray(batch.availabilityDates) ||
+        batch.availabilityDates.length > 64 ||
+        batch.availabilityDates.some(
+          (date) => !/^\d{4}-\d{2}-\d{2}$/.test(date),
+        )
+      )
+        throw Error("Invalid availability date batch.");
+      await transaction(async (session) => {
+        await guard(session);
+        for (const date of batch.availabilityDates) {
+          const id = `availability:${availabilitySlot(date)}`;
+          const previous = await db
+            .collection("website_request_sync")
+            .findOne({ _id: id }, { session });
+          if (
+            previous?.date !== date ||
+            !previous.payload ||
+            now() - new Date(previous.payload.generatedAt) >= 30000
+          )
+            await db
+              .collection("website_request_sync")
+              .updateOne(
+                { _id: id },
+                { $set: { kind: "availability", date, dirty: true } },
+                { session, upsert: true },
+              );
+        }
+      });
+    }
     if (
       batch.schemaVersion !== 1 ||
       !Array.isArray(batch.requests) ||
@@ -337,7 +401,7 @@ export function createWebsiteRequestService({
   }
   async function pump() {
     const started = Date.now();
-    const hosted = config.mode === "hosted-review";
+    const hosted = ["hosted-review", "normal-hosted"].includes(config.mode);
     const deadline = hosted ? pumpClock() + 75000 : null;
     const remaining = () => Math.max(0, Math.ceil(deadline - pumpClock()));
     const exhausted = () => hosted && remaining() === 0;
@@ -477,6 +541,59 @@ export function createWebsiteRequestService({
         );
       }
     }
+    if (config.transport.availability && !exhausted()) {
+      const dirty = await db
+        .collection("website_request_sync")
+        .find({ kind: "availability", dirty: true })
+        .sort({ "payload.generatedAt": 1 })
+        .limit(3)
+        .toArray();
+      if (dirty.length)
+        await transaction(async (session) => {
+          await guard(session);
+          await prepareAvailability(
+            db,
+            session,
+            dirty.map((row) => row.date),
+            now(),
+          );
+        });
+      const pendingAvailability = await db
+        .collection("website_request_sync")
+        .find({ kind: "availability", state: "pending", dirty: false })
+        .limit(3)
+        .toArray();
+      for (const row of pendingAvailability) {
+        if (exhausted()) break;
+        try {
+          const ack = await config.transport.availability(
+            row.payload,
+            options(),
+          );
+          if (
+            !ack.accepted ||
+            (!(
+              ack.obsolete &&
+              Number.isSafeInteger(ack.sequence) &&
+              ack.sequence > row.payload.sequence
+            ) &&
+              (ack.sequence !== row.payload.sequence ||
+                ack.digest !== row.payload.digest))
+          )
+            throw Error("Invalid availability acknowledgement.");
+          await db.collection("website_request_sync").updateOne(
+            {
+              _id: row._id,
+              "payload.sequence": row.payload.sequence,
+              dirty: false,
+            },
+            { $set: { state: "accepted" } },
+          );
+        } catch {
+          /* Versioned outbox remains pending; no private data is logged. */
+        }
+      }
+    }
     return summary();
   }
   async function cancelLinked(
@@ -518,6 +635,47 @@ export function createWebsiteRequestService({
     }
   }
   return {
+    subscribePendingWork(notify) {
+      pendingListeners.add(notify);
+      return () => pendingListeners.delete(notify);
+    },
+    async hasPendingWork() {
+      const options = { projection: { _id: 1 }, maxTimeMS: 1000 };
+      if (
+        config.transport?.availability &&
+        (await db.collection("website_request_sync").findOne(
+          {
+            kind: "availability",
+            $or: [{ dirty: true }, { state: "pending" }],
+          },
+          options,
+        ))
+      )
+        return true;
+      if (await events.findOne({ state: "pending" }, options)) return true;
+      const at = now();
+      if (
+        await rows.findOne(
+          {
+            rotation: { $exists: true },
+            purgedAt: { $exists: false },
+            expiresAt: { $gt: at },
+          },
+          options,
+        )
+      )
+        return true;
+      return Boolean(
+        await rows.findOne(
+          {
+            status: "awaiting",
+            endsAt: { $lte: at },
+            purgedAt: { $exists: false },
+          },
+          options,
+        ),
+      );
+    },
     async bookingNotice(session, ctx, b, action, at, input) {
       const linked = await rows.findOne(
         { bookingId: b._id, status: "confirmed", purgedAt: { $exists: false } },
@@ -598,8 +756,55 @@ export function createWebsiteRequestService({
       }
       if (r) await notice(session, r, action, at);
     },
+    bookingNoticeLookup: (token, input) =>
+      run(token, false, async (session, ctx, a, at) => {
+        exact(input, ["bookingId"], ["bookingId"]);
+        const found = await rows
+          .find(
+            {
+              bookingId: text(input.bookingId, 80),
+              scopeId: { $in: scopes(ctx, a) },
+              purgedAt: { $exists: false },
+              expiresAt: { $gt: at },
+            },
+            {
+              session,
+              projection: { _id: 1, sequence: 1, generation: 1, rotation: 1 },
+            },
+          )
+          .limit(2)
+          .toArray();
+        if (found.length !== 1 || found[0].rotation)
+          throw fail(
+            "request_notice",
+            "No current message is available for this booking. Check Website requests → Messages to send and its history.",
+            404,
+          );
+        const r = found[0];
+        const n = await notices.findOne(
+          {
+            requestId: r._id,
+            version: r.sequence,
+            generation: r.generation,
+            state: { $ne: "superseded" },
+          },
+          {
+            session,
+            projection: { _id: 1 },
+            sort: { createdAt: -1 },
+            maxTimeMS: 1000,
+          },
+        );
+        if (!n)
+          throw fail(
+            "request_notice",
+            "No current message is available for this booking.",
+            404,
+          );
+        return { noticeId: n._id };
+      }),
     notices: (token, input = {}) =>
-      run(token, false, async (session, ctx, a) => {
+      run(token, false, async (session, ctx, a, at) => {
         exact(input, ["cursor", "state"], []);
         const q = { scopeId: { $in: scopes(ctx, a) } };
         if (input.state && input.state !== "all") {
@@ -619,12 +824,52 @@ export function createWebsiteRequestService({
           q.state = { $in: ["pending", "opened", "call_required"] };
         if (input.cursor) q._id = { $gt: text(input.cursor, 80) };
         const found = await notices
-          .find(q, { session })
+          .find(q, { session, maxTimeMS: 1000 })
           .sort({ _id: 1 })
           .limit(21)
           .toArray();
+        const page = found.slice(0, 20);
+        const followUp =
+          !input.state ||
+          ["pending", "opened", "call_required"].includes(input.state);
+        const current = followUp
+          ? await rows
+              .find(
+                {
+                  _id: { $in: page.map((n) => n.requestId) },
+                  scopeId: { $in: scopes(ctx, a) },
+                  purgedAt: { $exists: false },
+                  rotation: { $exists: false },
+                  expiresAt: { $gt: at },
+                },
+                {
+                  session,
+                  maxTimeMS: 1000,
+                  projection: {
+                    _id: 1,
+                    sequence: 1,
+                    generation: 1,
+                    scopeId: 1,
+                  },
+                },
+              )
+              .limit(20)
+              .toArray()
+          : [];
         return {
-          notices: found.slice(0, 20).map((n) => ({ ...n, id: n._id })),
+          notices: page
+            .filter(
+              (n) =>
+                !followUp ||
+                current.some(
+                  (r) =>
+                    r._id === n.requestId &&
+                    r.scopeId === n.scopeId &&
+                    r.sequence === n.version &&
+                    r.generation === n.generation,
+                ),
+            )
+            .map((n) => ({ ...n, id: n._id })),
           nextCursor: found.length > 20 ? found[19]._id : null,
         };
       }),
@@ -675,7 +920,9 @@ export function createWebsiteRequestService({
         };
       }),
     refresh: async (token, input = {}) => {
-      await run(token, false, async () => true);
+      exact(input, []);
+      const authorization = await run(token, false, async () => true);
+      if (authorization?.failure) return authorization;
       const result = await pump();
       return { ...result, refreshed: !result.partial };
     },
@@ -733,16 +980,20 @@ export function createWebsiteRequestService({
       }),
     link: (token, input) =>
       run(token, true, async (session, ctx, a, at) => {
-        exact(input, [
-          "id",
-          "revision",
-          "patientId",
-          "patientRevision",
-          "acknowledged",
-          "reason",
-        ]);
+        exact(
+          input,
+          [
+            "id",
+            "revision",
+            "patientId",
+            "patientRevision",
+            "acknowledged",
+            "reason",
+          ],
+          ["id", "revision", "patientId", "patientRevision"],
+        );
         const r = await target(session, ctx, a, input);
-        if (r.status !== "awaiting" || input.acknowledged !== true)
+        if (r.status !== "awaiting")
           throw fail(
             "request_input",
             "Review the patient discrepancies before linking.",
@@ -755,13 +1006,29 @@ export function createWebsiteRequestService({
         ).patient;
         if (p.revision !== input.patientRevision)
           throw fail("request_stale", "The patient changed. Review again.");
-        text(input.reason, 500);
+        const discrepancies = patientDiscrepancies(r, p);
+        if (
+          discrepancies.length &&
+          (input.acknowledged !== true ||
+            typeof input.reason !== "string" ||
+            !input.reason.trim())
+        )
+          throw fail(
+            "request_patient_discrepancy",
+            "Review the differing patient details and acknowledge the selection with a reason.",
+            400,
+          );
+        if (input.reason !== undefined && input.reason !== "")
+          text(input.reason, 500);
         r.linkedPatientId = p.id;
         r.matchAcknowledged = true;
         r.revision++;
         await rows.replaceOne({ _id: r._id }, r, { session });
         await audit(session, r, ctx, "patient_linked", at, {
-          reason: input.reason.trim(),
+          patientId: p.id,
+          ...(discrepancies.length
+            ? { reason: input.reason.trim(), fields: discrepancies }
+            : {}),
         });
         return { request: dto(r) };
       }),
@@ -803,8 +1070,48 @@ export function createWebsiteRequestService({
       run(token, false, async (session, ctx, a) => {
         exact(input, ["id"]);
         const r = await target(session, ctx, a, input);
-        if (!r.linkedPatientId)
-          throw fail("request_patient", "Link a reviewed patient first.");
+        if (!r.linkedPatientId) {
+          const matches = await patientService(session).check(token, {
+            record: patientRecord(r),
+          });
+          if (matches.candidates.length || matches.hasMore)
+            throw fail(
+              "request_patient_review",
+              "Review and select a patient, or acknowledge a separate-patient duplicate override, before confirming.",
+            );
+          const available = await bookingService(session).sessions(token, {
+            date: r.selection.date,
+          });
+          const selected = available.sessions.find(
+            (s) =>
+              s.scopeId === r.scopeId &&
+              s.sourceSessionId === r.selection.sourceSessionId,
+          );
+          if (
+            !selected ||
+            [
+              "professionalId",
+              "startTime",
+              "endTime",
+              "appointmentRequired",
+            ].some((field) => selected[field] !== r.selection[field])
+          )
+            throw fail(
+              "request_session_changed",
+              "This requested window is no longer available. Do not reschedule silently.",
+            );
+          return {
+            session: selected,
+            patient: {
+              ...patientRecord(r),
+              id: null,
+              patientNumber: null,
+              revision: null,
+            },
+            overlaps: [],
+            patientCreation: { mode: "create_if_unmatched" },
+          };
+        }
         const p = (
           await patientService(session).read(token, {
             patientId: r.linkedPatientId,
@@ -830,19 +1137,58 @@ export function createWebsiteRequestService({
       }),
     confirm: (token, input) =>
       run(token, true, async (session, ctx, a, at) => {
-        exact(input, ["id", "revision", "booking"]);
+        exact(
+          input,
+          ["id", "revision", "booking", "patientMode"],
+          ["id", "revision", "booking"],
+        );
+        if (
+          input.patientMode !== undefined &&
+          input.patientMode !== "create_if_unmatched"
+        )
+          throw fail(
+            "request_input",
+            "Choose the reviewed patient action.",
+            400,
+          );
+        const autoCreate = input.patientMode === "create_if_unmatched";
+        exact(
+          input.booking,
+          [
+            "patientId",
+            "patientRevision",
+            "date",
+            "scopeId",
+            "sourceSessionId",
+            "sessionVersion",
+            "idempotencyKey",
+            "noticeLanguage",
+          ],
+          [
+            "date",
+            "scopeId",
+            "sourceSessionId",
+            "sessionVersion",
+            "idempotencyKey",
+            ...(!autoCreate ? ["patientId", "patientRevision"] : []),
+          ],
+        );
         const r = await target(session, ctx, a, { id: input.id });
         if (
           r.status === "confirmed" &&
           r.confirmKey === input.booking?.idempotencyKey &&
-          r.confirmDigest === digest(input.booking)
+          r.confirmDigest === confirmationDigest(input)
         )
           return { request: dto(r), replayed: true };
         if (r.revision !== input.revision || r.status !== "awaiting")
           throw fail("request_stale", "This request changed. Review again.");
         if (
-          !r.matchAcknowledged ||
-          r.linkedPatientId !== input.booking?.patientId ||
+          (autoCreate
+            ? Boolean(r.linkedPatientId) ||
+              input.booking?.patientId !== undefined ||
+              input.booking?.patientRevision !== undefined
+            : !r.matchAcknowledged ||
+              r.linkedPatientId !== input.booking?.patientId) ||
           r.selection.date !== input.booking.date ||
           r.scopeId !== input.booking.scopeId ||
           r.selection.sourceSessionId !== input.booking.sourceSessionId
@@ -875,13 +1221,46 @@ export function createWebsiteRequestService({
             "request_session_changed",
             "This requested session changed. It cannot be silently rescheduled.",
           );
-        const result = await bookingService(session).confirm(
-          token,
-          input.booking,
-        );
-        if (!result.booking) return result;
+        let booking = input.booking;
+        if (autoCreate) {
+          const created = await patientService(session).createIfUnmatched(
+            token,
+            { record: patientRecord(r) },
+          );
+          if (created.reviewRequired)
+            throw fail(
+              "request_patient_review",
+              "A patient match appeared. Review the current candidates before confirming.",
+            );
+          if (!created.patient)
+            throw fail(
+              "session_expired",
+              "Your authorization changed. Sign in again before confirming.",
+              401,
+            );
+          r.linkedPatientId = created.patient.id;
+          r.matchAcknowledged = true;
+          booking = {
+            ...input.booking,
+            patientId: created.patient.id,
+            patientRevision: created.patient.revision,
+          };
+          await audit(session, r, ctx, "patient_created_at_confirmation", at, {
+            patientId: created.patient.id,
+          });
+        }
+        const result = await bookingService(session).confirm(token, booking);
+        if (!result.booking) {
+          if (autoCreate)
+            throw fail(
+              "session_expired",
+              "Your authorization changed. No patient or booking was saved.",
+              401,
+            );
+          return result;
+        }
         r.confirmKey = input.booking.idempotencyKey;
-        r.confirmDigest = digest(input.booking);
+        r.confirmDigest = confirmationDigest(input);
         return decide(session, r, ctx, "confirmed", null, result.booking, at);
       }),
     reconcileBooking: (token, input) =>
@@ -1108,12 +1487,15 @@ export function createWebsiteRequestService({
                 trackingLink:
                   r.source === "phone"
                     ? null
-                    : "[Private tracking link — local review only]",
+                    : "[Private tracking link — preview only]",
                 contact: config.contact,
               },
               language,
             ),
             originalPhoneUnverified: true,
+            localReviewOnly: !["hosted-review", "normal-hosted"].includes(
+              config.mode,
+            ),
           };
         }
         if (stale || r.expiresAt <= at || r.rotation)
@@ -1251,7 +1633,9 @@ export function createWebsiteRequestService({
             )
               ? null
               : "Phone metadata does not establish WhatsApp availability. Consider calling.",
-            localReviewOnly: true,
+            localReviewOnly: !["hosted-review", "normal-hosted"].includes(
+              config.mode,
+            ),
           };
         }
         if (

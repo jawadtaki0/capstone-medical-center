@@ -1,21 +1,25 @@
-// Provisional synthetic samples, not approved clinical services.
+// Public categories only. Specific catalogues, prices and preparation details
+// require factual center approval; these cards do not invent clinical claims.
 export const services = [
   {
+    slug: "clinic",
     title: "Clinic consultations",
     icon: "heart",
     description:
-      "A space to talk, ask questions, and plan your next steps with a doctor.",
+      "View published doctors, specialists and clinic session windows.",
   },
   {
-    title: "Laboratory services",
+    slug: "laboratory",
+    title: "Laboratory",
     icon: "lab",
     description:
-      "A welcoming lab reception to guide you through your visit and follow-up.",
+      "Check the Laboratory’s published hours. Contact reception for service details.",
   },
   {
-    title: "Family care",
+    slug: "audiometry",
+    title: "Audiometry",
     icon: "people",
     description:
-      "Everyday care for different ages, with room for the whole family.",
+      "Check Audiometry’s published hours. Contact reception for service details.",
   },
 ];

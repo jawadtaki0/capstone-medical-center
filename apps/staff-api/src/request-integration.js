@@ -4,6 +4,8 @@ import { randomBytes } from "node:crypto";
 import { dpapi, protectDirectory, runtimeDirectory } from "./local-security.js";
 import { secret } from "../../../shared/website-request-contract.mjs";
 import { validateHostedReviewConfig } from "../../../shared/hosted-review-config.mjs";
+import { validateHostedNormalConfig } from "../../../shared/hosted-normal-config.mjs";
+import { loadNormalConnection } from "./hosted-normal-config.js";
 
 function validateRequestLimits(c) {
   for (const [k, v] of Object.entries(c.limits ?? {}))
@@ -44,6 +46,14 @@ export async function loadRequestConfig({
   directory = runtimeDirectory,
   unwrap = dpapi,
 } = {}) {
+  const hosted = await loadNormalConnection({ directory, unwrap });
+  if (hosted)
+    return {
+      ...hosted,
+      target: `${hosted.apiOrigin}/api/requests/integration`,
+      key: Buffer.from(hosted.key, "base64url"),
+      manualRefreshOnly: true,
+    };
   let bytes;
   try {
     bytes = await readFile(join(directory, "website-requests.dpapi"));
@@ -187,8 +197,10 @@ export async function provisionHostedReviewRequestConfig({
 export function createRequestTransport(config, request = fetch) {
   const { target, credential, mode = "normal-local" } = config;
   const u = new URL(target);
-  if (mode === "hosted-review") {
-    validateHostedReviewConfig(config);
+  if (["hosted-review", "normal-hosted"].includes(mode)) {
+    (mode === "normal-hosted"
+      ? validateHostedNormalConfig
+      : validateHostedReviewConfig)(config);
     if (target !== `${config.apiOrigin}/api/requests/integration`)
       throw Error(
         "The request destination must match the explicit review origin and fixed path.",
@@ -209,8 +221,9 @@ export function createRequestTransport(config, request = fetch) {
     );
   secret(credential);
   const send = async (action, body, budget = {}) => {
-    const timeout =
-      mode === "hosted-review" ? (budget.remainingMs ?? 75000) : 5000;
+    const timeout = ["hosted-review", "normal-hosted"].includes(mode)
+      ? (budget.remainingMs ?? 75000)
+      : 5000;
     if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 75000)
       throw Error("Request synchronization time budget is exhausted.");
     let response;
@@ -254,6 +267,7 @@ export function createRequestTransport(config, request = fetch) {
   return {
     pull: (cursor, budget) => send("pull", { cursor }, budget),
     event: (e, budget) => send("event", e, budget),
+    availability: (e, budget) => send("availability", e, budget),
     rotate: (i, budget) => send("rotate", i, budget),
   };
 }
@@ -267,6 +281,8 @@ export function startRequestWorker(
   async function tick() {
     if (stopped) return;
     if (busy) return busy;
+    clearTimeout(timer);
+    timer = undefined;
     busy = service
       .pump()
       .catch(() =>
@@ -293,8 +309,29 @@ export function startRequestWorker(
     },
   };
 }
-export function startHostedReviewRequestWorker(service, { onError } = {}) {
-  // No startup pull or idle keep-alive. Authorized Refresh requests already
-  // pumps durably; this helper permits explicit operator-driven recovery only.
-  return startRequestWorker(service, { automatic: false, onError });
+export function startHostedReviewRequestWorker(
+  service,
+  { interval = 10000, ...options } = {},
+) {
+  // The timer checks LOCAL durable work, never a hosted health/keep-alive route.
+  // Committed decisions, rotations and ended requests survive UI/API restarts.
+  // No pending work means no network request, even at startup or while idle.
+  const worker = startRequestWorker(
+    {
+      async pump() {
+        if (await service.hasPendingWork()) await service.pump();
+      },
+    },
+    { ...options, interval, automatic: true },
+  );
+  const unsubscribe = service.subscribePendingWork?.(() => {
+    void worker.runOnce();
+  });
+  return {
+    runOnce: worker.runOnce,
+    async stop() {
+      unsubscribe?.();
+      await worker.stop();
+    },
+  };
 }

@@ -1,5 +1,6 @@
 import { assertPublicationReviewStorage } from "./publication-review-guard.mjs";
 import { validateHostedReviewConfig } from "./hosted-review-config.mjs";
+import { validateHostedNormalConfig } from "./hosted-normal-config.mjs";
 
 export function assertPublicationStorage(
   db,
@@ -29,7 +30,12 @@ export function assertPublicationStorage(
       "Hosted review storage does not match its explicitly configured isolated target.",
     );
   }
-  if (environment.mode !== "normal-local" || demoMode !== true)
+  if (environment.mode === "normal-hosted")
+    validateHostedNormalConfig(environment);
+  if (
+    !["normal-local", "normal-hosted"].includes(environment.mode) ||
+    demoMode !== true
+  )
     throw new Error("Explicit local publication configuration is required.");
   const options = client?.options ?? {},
     hosts = options.hosts ?? [];
@@ -43,7 +49,13 @@ export function assertPublicationStorage(
     )
       return;
   } else if (role === "public") {
-    const target = environment.publicTarget;
+    const target =
+      environment.mode === "normal-hosted"
+        ? {
+            database: environment.publicDatabase,
+            srvHost: environment.publicSrvHost,
+          }
+        : environment.publicTarget;
     if (
       target?.database === "medical-center-dev" &&
       db?.databaseName === target.database &&

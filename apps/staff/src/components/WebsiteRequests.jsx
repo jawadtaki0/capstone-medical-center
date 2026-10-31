@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from "react";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import PreviewDialog from "./WebsiteRequestDialog.jsx";
 import { REQUEST_REASONS } from "../../../../shared/website-request-contract.mjs";
+import RequestNoticeDialog from "./RequestNoticeDialog.jsx";
+import { createRequestListLoader } from "../lib/requestList.js";
+import { nameKey, PATIENT_FIELDS } from "../../shared/patient-input.js";
+import RequestActionCount from "./RequestActionCount.jsx";
 import "../website-requests.css";
 
 const names = {
-  awaiting: "Awaiting confirmation",
+  awaiting: "Awaiting decision",
   confirmed: "Confirmed",
   rejected: "Rejected",
   cancelled: "Cancelled",
 };
 const noticeNames = {
-  pending: "Pending",
+  pending: "Message not sent",
   opened: "WhatsApp link opened",
   sent: "Staff marked sent",
   call_required: "Call required",
@@ -27,13 +32,54 @@ function key() {
     .replaceAll("/", "_")
     .replaceAll("=", "");
 }
-export default function WebsiteRequests({ api, onError }) {
-  const [rows, setRows] = useState([]),
-    [view, setView] = useState("requests"),
+export function requestPatientDiscrepancies(submitted, candidate) {
+  return PATIENT_FIELDS.filter((field) =>
+    field.endsWith("Name")
+      ? nameKey(submitted[field] ?? "") !== nameKey(candidate[field] ?? "")
+      : submitted[field] !== candidate[field],
+  );
+}
+export function requestBookingInput(review, request) {
+  return {
+    ...(review.patientCreation ? { patientMode: "create_if_unmatched" } : {}),
+    booking: {
+      ...(review.patientCreation
+        ? {}
+        : {
+            patientId: review.patient.id,
+            patientRevision: review.patient.revision,
+          }),
+      date: request.selection.date,
+      scopeId: request.scopeId,
+      sourceSessionId: request.selection.sourceSessionId,
+      sessionVersion: review.session.version,
+      idempotencyKey: review.key,
+    },
+  };
+}
+export default function WebsiteRequests({
+  api,
+  onError,
+  initialView = "requests",
+  initialRequestId,
+  initialNoticeId,
+  onResolved,
+  actionCounts,
+  countsError = false,
+}) {
+  const [storedRows, setRows] = useState([]),
+    [rowsKey, setRowsKey] = useState(null),
+    [listLoading, setListLoading] = useState(true),
+    [listError, setListError] = useState(""),
+    [view, setView] = useState(
+      initialView === "notices" ? "messages" : initialView,
+    ),
     [cursor, setCursor] = useState(null),
     [page, setPage] = useState(0),
     [next, setNext] = useState(null),
-    [noticeState, setNoticeState] = useState(""),
+    [noticeState, setNoticeState] = useState(
+      initialView === "history" ? "all" : "",
+    ),
     [status, setStatus] = useState(""),
     [date, setDate] = useState(""),
     [query, setQuery] = useState(""),
@@ -41,11 +87,8 @@ export default function WebsiteRequests({ api, onError }) {
     [feedback, setFeedback] = useState(""),
     [busy, setBusy] = useState(false),
     [detail, setDetail] = useState(null),
-    [notice, setNotice] = useState(null),
-    [noticeId, setNoticeId] = useState(null),
-    [language, setLanguage] = useState("en"),
+    [noticeId, setNoticeId] = useState(initialNoticeId ?? null),
     [ack, setAck] = useState(false),
-    [sentAck, setSentAck] = useState(false),
     [reason, setReason] = useState(""),
     [notes, setNotes] = useState(""),
     [selected, setSelected] = useState(""),
@@ -53,13 +96,19 @@ export default function WebsiteRequests({ api, onError }) {
     [decision, setDecision] = useState(""),
     [rotationKey, setRotationKey] = useState(null);
   const generation = useRef(0),
+    listLoader = useRef(null),
     pending = useRef(false),
+    openedInitial = useRef(null),
     alive = useRef(true);
+  if (!listLoader.current) listLoader.current = createRequestListLoader();
+  const listKey = JSON.stringify([view, status, date, noticeState]);
+  const rows = rowsKey === listKey ? storedRows : [];
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
       generation.current++;
+      listLoader.current.invalidate();
     };
   }, []);
   async function run(action, body = {}) {
@@ -76,8 +125,12 @@ export default function WebsiteRequests({ api, onError }) {
         setError(e.message);
         if (e.code === "request_forbidden") {
           setDetail(null);
-          setNotice(null);
           setRows([]);
+        }
+        if (e.code === "request_patient_review" && body.id) {
+          setReview(null);
+          setDecision("");
+          setTimeout(() => void open(body.id), 0);
         }
         onError?.(e);
       }
@@ -88,33 +141,68 @@ export default function WebsiteRequests({ api, onError }) {
     }
   }
   async function load(c = null) {
-    const r = await run(view === "requests" ? "list" : "notices", {
-      ...(view === "requests"
-        ? {
-            ...(status ? { status } : {}),
-            ...(date ? { date } : {}),
-            ...(query ? { query } : {}),
-          }
-        : { state: noticeState }),
-      ...(c !== null ? { cursor: c } : {}),
-    });
-    if (r) {
-      setRows(r.requests ?? r.notices);
-      setNext(r.nextCursor);
-      setCursor(c);
-    }
+    setListLoading(true);
+    setListError("");
+    setNext(null);
+    await listLoader.current.load(
+      (action, body) => api.websiteRequests({ action, ...body }),
+      view,
+      {
+        ...(view === "requests"
+          ? {
+              ...(status ? { status } : {}),
+              ...(date ? { date } : {}),
+              ...(query ? { query } : {}),
+            }
+          : { state: noticeState }),
+        ...(c !== null ? { cursor: c } : {}),
+      },
+      (items, nextCursor) => {
+        setRows(items);
+        setRowsKey(listKey);
+        setNext(nextCursor);
+        setCursor(c);
+      },
+      (e) => {
+        setListError(e.message);
+        if (
+          ["request_forbidden", "session_invalid", "session_expired"].includes(
+            e.code,
+          )
+        ) {
+          setRows([]);
+          setDetail(null);
+        }
+        onError?.(e);
+      },
+      () => setListLoading(false),
+    );
   }
   useEffect(() => {
     setPage(0);
-    const timer = setTimeout(() => {
-      void load();
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      await load();
+      if (
+        !cancelled &&
+        alive.current &&
+        view === "requests" &&
+        initialRequestId &&
+        openedInitial.current !== initialRequestId
+      ) {
+        openedInitial.current = initialRequestId;
+        await open(initialRequestId);
+      }
     }, 0);
-    return () => clearTimeout(timer);
-  }, [view, status, date, noticeState]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      listLoader.current.invalidate();
+    };
+  }, [view, status, date, noticeState, initialRequestId]);
   function close() {
     generation.current++;
     setDetail(null);
-    setNotice(null);
     setNoticeId(null);
     setReview(null);
     setDecision("");
@@ -140,6 +228,7 @@ export default function WebsiteRequests({ api, onError }) {
     const id = detail.request.id,
       r = await run(action, { id, revision: detail.request.revision, ...body });
     if (r) {
+      onResolved?.();
       if (r.reviewRequired) {
         setDetail((d) => ({ ...d, matches: r }));
         setFeedback(
@@ -156,56 +245,25 @@ export default function WebsiteRequests({ api, onError }) {
       }
     }
   }
-  async function openNotice(id) {
-    const r = await run("notification", {
-      noticeId: id,
-      noticeAction: "preview",
-      language,
-    });
-    if (r) {
-      setNoticeId(id);
-      setNotice(r);
-      setAck(false);
-      setSentAck(false);
-      setReason("");
-    }
+  function openNotice(id) {
+    setNoticeId(id);
   }
-  async function noticeAction(action, body = {}) {
-    const r = await run("notification", {
-      noticeId,
-      noticeAction: action,
-      language,
-      ...body,
-    });
-    if (r) await openNotice(noticeId);
-  }
-  async function openWhatsApp() {
-    if (pending.current) return;
-    pending.current = true;
-    setBusy(true);
-    setError("");
-    try {
-      await api.websiteRequests({
-        action: "notification",
-        noticeAction: "configure",
-        noticeId,
-        language,
-        contactAcknowledged: ack,
-      });
-      const result = await api.openRequestWhatsApp({ noticeId });
-      setFeedback(
-        result.warning ??
-          "WhatsApp link opened. This is not delivery; mark sent only after manually sending.",
-      );
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      pending.current = false;
-      setBusy(false);
-    }
-    await openNotice(noticeId);
-  }
+  useEffect(() => {
+    setView(initialView === "notices" ? "messages" : initialView);
+    setNoticeState(initialView === "history" ? "all" : "");
+  }, [initialView]);
+  useEffect(() => {
+    if (initialNoticeId) setNoticeId(initialNoticeId);
+  }, [initialNoticeId]);
   const r = detail?.request;
+  const chosenPatient = detail?.matches?.candidates.find(
+    (p) => p.id === selected,
+  );
+  const discrepancies =
+    chosenPatient && r
+      ? requestPatientDiscrepancies(r.patient, chosenPatient)
+      : [];
+  const needsPatientReview = Boolean(discrepancies.length);
   return (
     <div className="cedar-preview">
       <div className="request-inbox-heading">
@@ -224,6 +282,7 @@ export default function WebsiteRequests({ api, onError }) {
             const result = await run("refresh");
             if (result) {
               await load();
+              onResolved?.();
               setFeedback(
                 result.partial
                   ? "Refresh paused at its time limit. Some requests or tracking updates remain pending; use Refresh requests again."
@@ -235,20 +294,43 @@ export default function WebsiteRequests({ api, onError }) {
           {busy ? "Refreshing…" : "Refresh requests"}
         </button>
       </div>
-      <div className="staff-actions">
+      <div className="staff-actions staff-request-tabs">
         <button
           className="staff-button"
           aria-pressed={view === "requests"}
           onClick={() => setView("requests")}
         >
-          Inbox
+          Requests
+          <RequestActionCount
+            value={actionCounts?.requestsAwaitingDecision}
+            label="requests awaiting decision"
+            stale={countsError}
+          />
         </button>
         <button
           className="staff-button"
-          aria-pressed={view === "notices"}
-          onClick={() => setView("notices")}
+          aria-pressed={view === "messages"}
+          onClick={() => {
+            setView("messages");
+            setNoticeState("");
+          }}
         >
-          Notification worklist
+          Messages to send
+          <RequestActionCount
+            value={actionCounts?.messagesToSend}
+            label="messages needing action"
+            stale={countsError}
+          />
+        </button>
+        <button
+          className="staff-button"
+          aria-pressed={view === "history"}
+          onClick={() => {
+            setView("history");
+            setNoticeState("all");
+          }}
+        >
+          History
         </button>
       </div>
       {feedback && (
@@ -260,6 +342,14 @@ export default function WebsiteRequests({ api, onError }) {
         <p role="alert" className="request-error">
           {error}
         </p>
+      )}
+      {listError && (
+        <div role="alert" className="request-error">
+          {listError}{" "}
+          <button className="staff-button" onClick={() => void load()}>
+            Retry list
+          </button>
+        </div>
       )}
       {view === "requests" && (
         <form
@@ -302,7 +392,7 @@ export default function WebsiteRequests({ api, onError }) {
           </button>
         </form>
       )}
-      {view === "notices" && (
+      {view !== "requests" && (
         <label className="request-field">
           Notification status
           <select
@@ -321,11 +411,20 @@ export default function WebsiteRequests({ api, onError }) {
       )}
       {!rows.length ? (
         <div className="request-alert">
-          {busy
-            ? "Loading…"
-            : error
-              ? "Requests unavailable. Try Refresh requests."
-              : "No requests found."}
+          {listLoading || (rowsKey !== listKey && !listError) ? (
+            <LoadingStatus
+              label={
+                view === "requests" ? "Loading requests…" : "Loading messages…"
+              }
+              wakeHint
+            />
+          ) : listError || error ? (
+            "Requests unavailable. Try Refresh requests."
+          ) : view === "requests" ? (
+            "No requests found."
+          ) : (
+            "No matching messages on this page."
+          )}
         </div>
       ) : view === "requests" ? (
         <>
@@ -342,7 +441,12 @@ export default function WebsiteRequests({ api, onError }) {
               </thead>
               <tbody>
                 {rows.map((x) => (
-                  <tr key={x.id}>
+                  <tr
+                    key={x.id}
+                    className={
+                      x.status === "awaiting" ? "request-needs-action" : ""
+                    }
+                  >
                     <td>{x.reference}</td>
                     <td>
                       {fullName(x.patient)}
@@ -384,7 +488,12 @@ export default function WebsiteRequests({ api, onError }) {
           </div>
           <div className="request-inbox-mobile">
             {rows.map((x) => (
-              <article key={x.id}>
+              <article
+                key={x.id}
+                className={
+                  x.status === "awaiting" ? "request-needs-action" : ""
+                }
+              >
                 <strong>
                   {x.reference} · {names[x.status]}
                 </strong>
@@ -432,7 +541,7 @@ export default function WebsiteRequests({ api, onError }) {
         <span>Page {page + 1}</span>
         <button
           className="staff-button"
-          disabled={busy || next === null}
+          disabled={busy || listLoading || next === null}
           onClick={() => {
             setPage((p) => p + 1);
             void load(next);
@@ -511,12 +620,27 @@ export default function WebsiteRequests({ api, onError }) {
                         ? " — dates differ"
                         : " — matches"}
                       <br />
-                      Mother: {c.motherFirstName}
+                      Mother: {c.motherFirstName} · Phone: <bdi>{c.phone}</bdi>{" "}
+                      · Gender: {c.gender}
                     </span>
                   </label>
                 ))}
+                {detail.matches.candidates.length === 0 &&
+                  !detail.matches.hasMore && (
+                    <p className="request-note">
+                      No matching patients found. Confirming creates and links a
+                      patient only if the registry still has no candidates.
+                      Opening this request creates nothing.
+                    </p>
+                  )}
+                {needsPatientReview && (
+                  <p className="request-alert">
+                    Review differences: {discrepancies.join(", ")}.
+                  </p>
+                )}
                 <label className="request-field">
-                  Private reason / discrepancy review
+                  Private reason / discrepancy review (only required for
+                  differences or creating a separate patient)
                   <textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
@@ -534,7 +658,10 @@ export default function WebsiteRequests({ api, onError }) {
                 <div className="staff-actions">
                   <button
                     className="staff-button"
-                    disabled={!selected || !ack || !reason.trim()}
+                    disabled={
+                      !selected ||
+                      (needsPatientReview && (!ack || !reason.trim()))
+                    }
                     onClick={() => {
                       const p = detail.matches.candidates.find(
                         (p) => p.id === selected,
@@ -542,8 +669,9 @@ export default function WebsiteRequests({ api, onError }) {
                       void change("link", {
                         patientId: p.id,
                         patientRevision: p.revision,
-                        acknowledged: true,
-                        reason,
+                        ...(needsPatientReview
+                          ? { acknowledged: true, reason }
+                          : {}),
                       });
                     }}
                   >
@@ -551,7 +679,11 @@ export default function WebsiteRequests({ api, onError }) {
                   </button>
                   <button
                     className="staff-button"
-                    disabled={!ack || !reason.trim()}
+                    disabled={
+                      !detail.matches.candidates.length ||
+                      !ack ||
+                      !reason.trim()
+                    }
                     onClick={() =>
                       change("createPatient", {
                         reviewDigest: detail.matches.reviewDigest,
@@ -588,7 +720,11 @@ export default function WebsiteRequests({ api, onError }) {
               <div className="staff-actions">
                 <button
                   className="staff-button staff-button-primary"
-                  disabled={!r.linkedPatientId}
+                  disabled={
+                    !r.linkedPatientId &&
+                    (detail.matches.candidates.length > 0 ||
+                      detail.matches.hasMore)
+                  }
                   onClick={async () => {
                     const v = await run("review", { id: r.id });
                     if (v) {
@@ -666,17 +802,7 @@ export default function WebsiteRequests({ api, onError }) {
                     review.session.remaining === 0
                   }
                   onClick={() =>
-                    change("confirm", {
-                      booking: {
-                        patientId: review.patient.id,
-                        patientRevision: review.patient.revision,
-                        date: r.selection.date,
-                        scopeId: r.scopeId,
-                        sourceSessionId: r.selection.sourceSessionId,
-                        sessionVersion: review.session.version,
-                        idempotencyKey: review.key,
-                      },
-                    })
+                    change("confirm", requestBookingInput(review, r))
                   }
                 >
                   Confirm booking
@@ -876,161 +1002,18 @@ export default function WebsiteRequests({ api, onError }) {
           </fieldset>
         </PreviewDialog>
       )}
-      {notice && (
-        <PreviewDialog
-          title="Manual WhatsApp"
-          onClose={() => {
-            setNotice(null);
-            setNoticeId(null);
-            setAck(false);
-            setReason("");
+      {noticeId && (
+        <RequestNoticeDialog
+          key={noticeId}
+          api={api}
+          noticeId={noticeId}
+          onError={onError}
+          onClose={() => setNoticeId(null)}
+          onChanged={() => {
+            void load(cursor);
+            onResolved?.();
           }}
-        >
-          <div className="request-alert">
-            Messages are sent from the WhatsApp account signed in on this
-            computer. Opening is not delivery. Localhost tracking links work
-            only on this review computer.
-          </div>
-          <label className="request-field">
-            Message language
-            <select
-              aria-label="Message language"
-              value={language}
-              onChange={async (e) => {
-                setLanguage(e.target.value);
-                const out = await run("notification", {
-                  noticeId,
-                  noticeAction: "preview",
-                  language: e.target.value,
-                });
-                if (out) setNotice(out);
-              }}
-            >
-              <option value="en">English</option>
-              <option value="ar">العربية</option>
-            </select>
-          </label>
-          {notice.openingUncertain && (
-            <div className="request-alert">
-              <p>
-                An opening attempt may have occurred, but its outcome is not
-                recorded. Check WhatsApp before trying again. Nothing is marked
-                sent.
-              </p>
-              <button
-                className="staff-button"
-                disabled={busy || notice.stale}
-                onClick={() => noticeAction("resolve_uncertain")}
-              >
-                I checked WhatsApp — allow another opening
-              </button>
-            </div>
-          )}
-          {notice.phoneWarning && (
-            <p className="request-alert" role="status">
-              {notice.phoneWarning}
-            </p>
-          )}
-          <pre
-            className="request-message"
-            dir={language === "ar" ? "rtl" : "ltr"}
-          >
-            {notice.message.split("\n").map((line, i) => (
-              <span key={i}>
-                {/^\*[^*]+\*$/.test(line) ? (
-                  <strong>{line.slice(1, -1)}</strong>
-                ) : (
-                  line
-                )}
-                {"\n"}
-              </span>
-            ))}
-          </pre>
-          <p>
-            {noticeNames[notice.notice.state]}
-            {notice.stale ? " — outdated notice; history only" : ""}
-          </p>
-          <label className="request-checkbox">
-            <input
-              type="checkbox"
-              checked={ack}
-              onChange={(e) => setAck(e.target.checked)}
-            />
-            I checked the original submitted phone, including any difference
-            from the registry. This phone remains unverified.
-          </label>
-          <label className="request-checkbox">
-            <input
-              type="checkbox"
-              checked={sentAck}
-              disabled={notice.stale || notice.notice.state !== "opened"}
-              onChange={(e) => setSentAck(e.target.checked)}
-            />
-            I manually sent this message in WhatsApp.
-          </label>
-          <div className="staff-actions">
-            <button
-              className="staff-button staff-button-primary"
-              disabled={
-                busy ||
-                notice.stale ||
-                notice.openingUncertain ||
-                !ack ||
-                notice.notice.state === "sent"
-              }
-              onClick={openWhatsApp}
-            >
-              Send via WhatsApp
-            </button>
-            <button
-              className="staff-button"
-              disabled={
-                busy ||
-                notice.stale ||
-                notice.notice.state !== "opened" ||
-                !sentAck
-              }
-              onClick={() => noticeAction("sent")}
-            >
-              I manually sent it — mark sent
-            </button>
-            <button
-              className="staff-button"
-              disabled={busy || notice.stale}
-              onClick={() => noticeAction("call_required")}
-            >
-              Call fallback
-            </button>
-          </div>
-          <label className="request-field">
-            Private call outcome
-            <input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              maxLength={240}
-            />
-          </label>
-          <button
-            className="staff-button"
-            disabled={busy || notice.stale || !reason.trim()}
-            onClick={() => noticeAction("call_recorded", { outcome: reason })}
-          >
-            Record call outcome
-          </button>
-          <h3>Notification history</h3>
-          <ul>
-            {notice.notice.history.map((h, i) => (
-              <li key={i}>
-                {h.action} · {new Date(h.at).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-          {error && (
-            <p role="alert" className="request-error">
-              {error}
-            </p>
-          )}
-        </PreviewDialog>
+        />
       )}
     </div>
   );

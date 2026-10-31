@@ -10,6 +10,7 @@ import {
 } from "../../../shared/published-timeline.mjs";
 import { assertPublicationStorage } from "../../../shared/publication-environment.mjs";
 import { hostedReviewIdentity } from "../../../shared/hosted-review-config.mjs";
+import { hostedNormalIdentity } from "../../../shared/hosted-normal-config.mjs";
 import { getPublicProfessionals } from "./professionals.js";
 import { getBeirutToday, getScheduleForDate } from "./schedule.js";
 import {
@@ -263,10 +264,13 @@ export async function createPublicationReceiver({
     throw new Error("Missing private publication receiver configuration.");
   const state = db.collection(PUBLIC_COLLECTIONS.state),
     versions = db.collection(PUBLIC_COLLECTIONS.versions);
-  if (environment.mode === "hosted-review") {
+  if (["hosted-review", "normal-hosted"].includes(environment.mode)) {
+    const normal = environment.mode === "normal-hosted";
     const marker = await db
-      .collection("hosted_review_configuration")
-      .findOne({ _id: "review" });
+      .collection(
+        normal ? "hosted_normal_configuration" : "hosted_review_configuration",
+      )
+      .findOne({ _id: normal ? "normal" : "review" });
     const authority = await db
       .collection("public_data_authority")
       .findOne({ _id: "source" });
@@ -274,7 +278,10 @@ export async function createPublicationReceiver({
     if (
       marker?.version !== 1 ||
       marker.status !== "ready" ||
-      marker.configDigest !== hostedReviewIdentity(environment) ||
+      marker.configDigest !==
+        (normal
+          ? hostedNormalIdentity(environment)
+          : hostedReviewIdentity(environment)) ||
       authority?.mode !== "cedar" ||
       authority.streamId !== streamId ||
       !current ||
@@ -322,13 +329,14 @@ export async function createPublicationReceiver({
       const presented = request
         .get("Authorization")
         ?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
-      const intendedHost =
-        environment.mode === "hosted-review"
-          ? !request.get("Origin") &&
-            request.get("Host") === new URL(environment.apiOrigin).host
-          : ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(
-              request.socket.remoteAddress,
-            ) && ["127.0.0.1", "localhost", "[::1]"].includes(request.hostname);
+      const intendedHost = ["hosted-review", "normal-hosted"].includes(
+        environment.mode,
+      )
+        ? !request.get("Origin") &&
+          request.get("Host") === new URL(environment.apiOrigin).host
+        : ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(
+            request.socket.remoteAddress,
+          ) && ["127.0.0.1", "localhost", "[::1]"].includes(request.hostname);
       return (
         intendedHost &&
         Boolean(

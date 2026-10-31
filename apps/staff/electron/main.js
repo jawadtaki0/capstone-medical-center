@@ -21,6 +21,7 @@ const broker = createBroker({
   url: apiUrl,
   demoMode,
   reviewColdStart: process.argv.includes("--hosted-review"),
+  hostedConnection: process.argv.includes("--hosted-capstone"),
   openWhatsApp: (phone, message) =>
     shell.openExternal(whatsappUrl(phone, message)),
 });
@@ -51,6 +52,7 @@ function validatePayload(name, payload) {
     const actionFields = {
       list: ["status", "date", "cursor", "query"],
       notices: ["cursor", "state"],
+      bookingNoticeLookup: ["bookingId"],
       refresh: [],
       detail: ["id"],
       link: [
@@ -64,7 +66,7 @@ function validatePayload(name, payload) {
       createPatient: ["id", "revision", "reviewDigest", "duplicateOverride"],
       notes: ["id", "revision", "notes"],
       review: ["id"],
-      confirm: ["id", "revision", "booking"],
+      confirm: ["id", "revision", "booking", "patientMode"],
       reconcileBooking: [
         "id",
         "revision",
@@ -90,6 +92,8 @@ function validatePayload(name, payload) {
     return;
   }
   const fields = {
+    operationalSummary: [],
+    viewOperationalActivity: ["eventId"],
     openRequestWhatsApp: ["noticeId"],
     bookingSessions: ["date"],
     reviewBooking: [
@@ -148,6 +152,12 @@ function validatePayload(name, payload) {
       "confirmed",
     ],
     previewOperationalPublication: ["date"],
+    reviewOperationalChanges: [
+      "scopeIds",
+      "expectedRevision",
+      "expectedHead",
+      "effectiveFrom",
+    ],
     retryOperationalDelivery: ["deliveryId"],
     requestRecovery: ["username"],
     verifyRecovery: ["code"],

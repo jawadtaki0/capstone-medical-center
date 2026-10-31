@@ -1,4 +1,13 @@
 import { REQUEST_REASONS } from "./website-request-contract.mjs";
+export function websiteNoticeLocationText(localReviewOnly = true) {
+  return (
+    "Messages are sent from the WhatsApp account signed in on this computer. Opening is not delivery. " +
+    (localReviewOnly === false
+      ? "Private tracking links open the hosted review website."
+      : "Localhost tracking links work only on this review computer.")
+  );
+}
+
 export function websiteNoticeText(
   {
     name,

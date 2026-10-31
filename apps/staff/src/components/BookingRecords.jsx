@@ -2,6 +2,7 @@ import { REQUEST_REASONS } from "../../../../shared/website-request-contract.mjs
 import { useEffect, useId, useRef, useState } from "react";
 import OperationalDialog from "./OperationalDialog.jsx";
 import { isAccessError } from "../lib/staffManagement.js";
+import { BookingNoticeButton } from "./RequestNoticeDialog.jsx";
 
 export default function BookingRecords({
   api,
@@ -10,6 +11,7 @@ export default function BookingRecords({
   affected = false,
   onError,
   refresh = 0,
+  onResolved,
 }) {
   const id = useId(),
     generation = useRef(0),
@@ -74,6 +76,7 @@ export default function BookingRecords({
           "Booking cancelled. Its place was released once; the history is retained.",
         );
         await load();
+        onResolved?.();
       }
     } catch (e) {
       if (n === generation.current) {
@@ -140,6 +143,14 @@ export default function BookingRecords({
             </p>
             {b.cancellationReason && (
               <p>Cancellation: {b.cancellationReason}</p>
+            )}
+            {(b.canCancel ?? result.canCancel) && (
+              <BookingNoticeButton
+                api={api}
+                bookingId={b.id}
+                onError={onError}
+                onChanged={onResolved}
+              />
             )}
             {b.status === "confirmed" && (b.canCancel ?? result.canCancel) && (
               <button

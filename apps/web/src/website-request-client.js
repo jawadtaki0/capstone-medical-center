@@ -137,6 +137,8 @@ export function createSubmissionAttempt(makeKey) {
         date: session?.date,
         professionalId: session?.professionalId,
         sourceSessionId: session?.sourceSessionId ?? session?.id,
+        startTime: session?.startTime,
+        endTime: session?.endTime,
       },
       honeypot,
     });

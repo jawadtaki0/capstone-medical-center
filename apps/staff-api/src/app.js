@@ -217,6 +217,7 @@ export function createApp({
     "cancel",
     "rotate",
     "notification",
+    "bookingNoticeLookup",
   ]) {
     app.post(
       `/website-requests/${action}`,
@@ -225,6 +226,16 @@ export function createApp({
       ),
     );
   }
+  app.post(
+    "/summary/read",
+    route((service, request) => service.summary.read(bearer(request))),
+  );
+  app.post(
+    "/summary/viewed",
+    route((service, request) =>
+      service.summary.viewed(bearer(request), request.body),
+    ),
+  );
   // Fixed, permission-checked staff operations; no generic collection browser.
   for (const action of ["search", "read", "check", "create", "update"]) {
     app.post(
@@ -387,7 +398,14 @@ export function createApp({
     "/operations",
     route((service, request) => service.operations.read(bearer(request))),
   );
-  for (const action of ["save", "grants", "publish", "preview", "retry"]) {
+  for (const action of [
+    "save",
+    "grants",
+    "publish",
+    "preview",
+    "retry",
+    "review",
+  ]) {
     app.post(
       `/operations/${action}`,
       route((service, request) =>

@@ -9,14 +9,49 @@ const CROSS_COLLECTION = new Set([
   "$merge",
 ]);
 
-function assertLocalPipeline(value) {
+function summaryLookup(value) {
+  if (
+    !value ||
+    Object.keys(value).sort().join() !==
+      "as,foreignField,from,localField,pipeline"
+  )
+    return false;
+  if (
+    value.from !== PREFIX + "website_request_inbox" ||
+    value.localField !== "requestId" ||
+    value.foreignField !== "_id" ||
+    value.as !== "request"
+  )
+    return false;
+  if (
+    !Array.isArray(value.pipeline) ||
+    value.pipeline.length !== 1 ||
+    Object.keys(value.pipeline[0]).join() !== "$project"
+  )
+    return false;
+  const p = value.pipeline[0].$project;
+  return (
+    [
+      "_id,expiresAt,generation,purgedAt,rotation,scopeId,sequence",
+      "purgedAt,scopeId",
+    ].includes(Object.keys(p).sort().join()) &&
+    Object.values(p).every((v) => v === 1)
+  );
+}
+function assertLocalPipeline(value, source) {
   if (!value || typeof value !== "object") return;
   for (const [key, child] of Object.entries(value)) {
+    if (
+      key === "$lookup" &&
+      ["website_request_notices", "website_request_events"].includes(source) &&
+      summaryLookup(child)
+    )
+      continue;
     if (CROSS_COLLECTION.has(key))
       throw new Error(
         "Hosted review cross-collection aggregation is unsupported.",
       );
-    assertLocalPipeline(child);
+    assertLocalPipeline(child, source);
   }
 }
 
@@ -52,7 +87,7 @@ export function createHostedReviewDatabase(connection) {
                 throw new Error(
                   "Hosted review cross-collection aggregation is unsupported.",
                 );
-              assertLocalPipeline(pipeline);
+              assertLocalPipeline(pipeline, name);
               return collection.aggregate(pipeline, options);
             };
           const value = Reflect.get(collection, property);

@@ -37,7 +37,12 @@ import {
 const sourceRoot = new URL("../src/", import.meta.url).href;
 const jsxHook = registerHooks({
   load(url, context, nextLoad) {
-    if (!url.startsWith(sourceRoot) || !url.endsWith(".jsx"))
+    const shared = url.startsWith(
+      new URL("../../../shared/ui/", import.meta.url).href,
+    );
+    if (shared && url.endsWith(".css"))
+      return { format: "module", source: "", shortCircuit: true };
+    if ((!url.startsWith(sourceRoot) && !shared) || !url.endsWith(".jsx"))
       return nextLoad(url, context);
     const code = transformSync(
       fileURLToPath(url),
