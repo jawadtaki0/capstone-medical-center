@@ -1,7 +1,9 @@
 import BookingRecords from "./BookingRecords.jsx";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import "./bookings.css";
 import { useEffect, useId, useRef, useState } from "react";
 import OperationalEditor from "./OperationalEditor.jsx";
+import OneDateEditor from "./OneDateEditor.jsx";
 import OperationalPublish from "./OperationalPublish.jsx";
 import OperationalRegistry from "./OperationalRegistry.jsx";
 import PublicationDelivery from "./PublicationDelivery.jsx";
@@ -21,6 +23,9 @@ export default function OperationsPanel({
   onError,
   onSensitiveAction,
   onPendingChange,
+  initialScheduleMode = "weekly",
+  initialAffectedBookings = false,
+  unpublishedChanges,
 }) {
   const id = useId(),
     alive = useRef(true),
@@ -39,9 +44,10 @@ export default function OperationsPanel({
     [query, setQuery] = useState(""),
     [date, setDate] = useState(centerToday()),
     [day, setDay] = useState(1),
-    [dated, setDated] = useState(false),
+    [dated, setDated] = useState(initialScheduleMode === "dated"),
     [preview, setPreview] = useState(null),
-    [showBookings, setShowBookings] = useState(false);
+    [showBookings, setShowBookings] = useState(initialAffectedBookings),
+    [hasAffectedBookings, setHasAffectedBookings] = useState(false);
   function failure(value) {
     if (!alive.current) return;
     setError(value.message);
@@ -58,6 +64,34 @@ export default function OperationsPanel({
       const value = await api.operationalState();
       if (alive.current && version === generation.current) {
         setState(value);
+        if (
+          ["professionals", "schedule", "website-updates"].includes(mode) &&
+          value.scopes.some(
+            (scope) => scope.kind === "clinic" && scope.access.edit,
+          ) &&
+          api.affectedBookings
+        ) {
+          api
+            .affectedBookings({})
+            .then((result) => {
+              if (alive.current && version === generation.current) {
+                const relevant = Boolean(result.bookings?.length);
+                setHasAffectedBookings(relevant);
+                if (!relevant) setShowBookings(false);
+              }
+            })
+            .catch((failure) => {
+              if (
+                alive.current &&
+                version === generation.current &&
+                isAccessError(failure)
+              )
+                callbacks.current.onError?.(failure);
+            });
+        } else {
+          setHasAffectedBookings(false);
+          setShowBookings(false);
+        }
         if (announce) setNotice("Drafts refreshed");
       }
     } catch (value) {
@@ -101,11 +135,15 @@ export default function OperationsPanel({
       if (alive.current) {
         await load();
         setNotice(
-          result.published
-            ? "Published locally. Website delivery is pending; receiver acceptance has not yet been confirmed."
-            : result.retryScheduled
-              ? "Retry scheduled. Waiting for receiver acknowledgement."
-              : "Saved to the local staff authority. Unpublished edits remain drafts.",
+          result.patientLimitUpdated
+            ? "Patient limit updated. It takes effect immediately; no website publication is required."
+            : result.published
+              ? "Published locally. Website delivery is pending; receiver acceptance has not yet been confirmed."
+              : result.retryScheduled
+                ? "Retry scheduled. Waiting for receiver acknowledgement."
+                : result.publicDraftChanged
+                  ? "Public changes saved as drafts. Any patient-limit changes take effect immediately; the website changes only after publication."
+                  : "Saved to the local staff authority. Unpublished edits remain drafts.",
         );
         setPreview(null);
       }
@@ -123,14 +161,17 @@ export default function OperationsPanel({
     setEditor({ type, record });
   };
   const canEdit = state?.scopes.some((s) => s.access.edit),
+    canPublish = state?.scopes.some((s) => s.access.publish),
     editableScopes =
       state?.scopes.filter((s) => s.access.edit && s.active) ?? [];
   const heading =
     mode === "professionals"
       ? "Professionals"
       : mode === "registry"
-        ? "Clinics, services & assignments"
-        : "Schedules";
+        ? "Center settings"
+        : mode === "website-updates"
+          ? "Website updates"
+          : "Schedules";
   const names = (scopeId) =>
     state.scopes.find((s) => s.id === scopeId)?.name ?? scopeId;
   const professionalName = (professionalId) =>
@@ -151,14 +192,16 @@ export default function OperationsPanel({
     <section className="operational-page">
       <p className="staff-eyebrow">CENTER-LOCAL · ASIA/BEIRUT</p>
       <h1 tabIndex={-1}>{heading}</h1>
-      {state?.scopes.some((s) => s.kind === "clinic" && s.access.view) && (
+      {hasAffectedBookings && (
         <>
           <button
             type="button"
             className="staff-button"
             onClick={() => setShowBookings(!showBookings)}
           >
-            {showBookings ? "Hide affected bookings" : "Affected bookings"}
+            {showBookings
+              ? "Close affected bookings"
+              : "Review affected bookings"}
           </button>
           {showBookings && (
             <BookingRecords
@@ -171,10 +214,22 @@ export default function OperationsPanel({
         </>
       )}
       <p className="staff-intro">
-        Manage private drafts and authorized publications. Website updates
-        require receiver acceptance and explicit operator source activation. No
-        automatic booking changes or notifications.
+        {mode === "website-updates"
+          ? "Review private changes before updating the website. A saved local version is not proof of website delivery."
+          : mode === "registry"
+            ? "Manage the clinic and separate services. Staff access is managed separately in Staff Directory."
+            : "Changes stay private drafts until an authorized website update. Existing bookings and manual patient limits remain protected."}
       </p>
+      {canPublish && Number.isSafeInteger(unpublishedChanges) && (
+        <p
+          className={unpublishedChanges > 0 ? "staff-notice" : "staff-help"}
+          role="status"
+        >
+          {unpublishedChanges > 0
+            ? `Unpublished changes: ${unpublishedChanges}`
+            : "No unpublished public changes"}
+        </p>
+      )}
       {error && (
         <p className="staff-error" role="alert">
           {error}
@@ -205,41 +260,56 @@ export default function OperationsPanel({
           )}
           {refreshing ? "Reloading drafts…" : "Reload drafts"}
         </button>
-        {canEdit && (
+        {canPublish && mode === "website-updates" && (
           <button
             className="staff-button staff-button-primary"
             disabled={busy || refreshing || state?.publicationBlocked}
             type="button"
             onClick={() => setPublishing(true)}
           >
-            Review publication
+            Review & update website
           </button>
         )}
       </div>
       {!state ? (
-        <p role="status">
-          {error
-            ? "Operational data unavailable. Use Reload drafts to retry."
-            : "Loading operational data…"}
-        </p>
+        error ? (
+          <p role="status">
+            Operational data unavailable. Use Reload drafts to retry.
+          </p>
+        ) : (
+          <LoadingStatus label="Loading operational data…" />
+        )
       ) : (
         <>
-          <p className="staff-help">
-            Draft revision {state.revision} · Published version {state.head}. No
-            assigned scopes means no operational authority.
-          </p>
-          <PublicationDelivery
-            configured={state.deliveryConfigured}
-            deliveries={state.deliveries}
-            busy={busy}
-            refreshing={refreshing}
-            onRefresh={() => load()}
-            onRetry={(deliveryId) =>
-              mutate(() => api.retryOperationalDelivery({ deliveryId })).catch(
-                () => {},
-              )
-            }
-          />
+          {mode === "website-updates" && (
+            <>
+              <p className="staff-help">
+                Review professional details, sessions, dated changes and opening
+                hours for the scopes you are authorized to publish. Private
+                patient limits never appear on the website.
+              </p>
+              <PublicationDelivery
+                configured={state.deliveryConfigured}
+                deliveries={state.deliveries}
+                busy={busy}
+                refreshing={refreshing}
+                onRefresh={() => load()}
+                onRetry={(deliveryId) =>
+                  mutate(() =>
+                    api.retryOperationalDelivery({ deliveryId }),
+                  ).catch(() => {})
+                }
+              />
+              <details>
+                <summary>Technical details</summary>
+                <p>
+                  Draft revision {state.revision} · Published version{" "}
+                  {state.head}. No assigned scopes means no operational
+                  authority.
+                </p>
+              </details>
+            </>
+          )}
           {!state.scopes.length && !state.isAdmin && (
             <p role="status">
               No operational scopes are assigned to your current roles. Ask an
@@ -299,7 +369,6 @@ export default function OperationsPanel({
                       kind: "doctor",
                       gender: "neutral",
                       active: true,
-                      scopeIds: [],
                     })
                   }
                 >
@@ -345,15 +414,29 @@ export default function OperationsPanel({
           )}
           {mode === "schedule" && (
             <>
-              <div className="operational-toolbar">
-                <label className="staff-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={dated}
-                    onChange={(e) => setDated(e.target.checked)}
-                  />
-                  View a specific date (including dated exceptions)
-                </label>
+              <div className="operational-schedule-controls">
+                <div
+                  className="staff-actions"
+                  role="group"
+                  aria-label="Schedule view"
+                >
+                  <button
+                    type="button"
+                    className="staff-button"
+                    aria-pressed={!dated}
+                    onClick={() => setDated(false)}
+                  >
+                    Weekly schedule
+                  </button>
+                  <button
+                    type="button"
+                    className="staff-button"
+                    aria-pressed={dated}
+                    onClick={() => setDated(true)}
+                  >
+                    Changes for a date
+                  </button>
+                </div>
                 <div className="staff-field">
                   {dated ? (
                     <>
@@ -366,50 +449,65 @@ export default function OperationsPanel({
                       />
                     </>
                   ) : (
-                    <>
-                      <label htmlFor={`${id}-day`}>Recurring weekday</label>
-                      <select
-                        id={`${id}-day`}
-                        value={day}
-                        onChange={(e) => setDay(Number(e.target.value))}
-                      >
-                        {WEEKDAYS.map((name, n) => (
-                          <option value={n} key={name}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
-                    </>
+                    <div
+                      className="operational-weekdays"
+                      role="group"
+                      aria-label="Recurring weekday"
+                    >
+                      {WEEKDAYS.map((name, n) => (
+                        <button
+                          type="button"
+                          className="staff-button"
+                          aria-pressed={day === n}
+                          onClick={() => setDay(n)}
+                          key={name}
+                        >
+                          {name}
+                          <span>
+                            {
+                              state.sessions.filter(
+                                (session) => session.weekday === n,
+                              ).length
+                            }{" "}
+                            sessions / service hours
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
               <p className="staff-help">
                 {dated
-                  ? "Showing the effective sessions for this date: recurring weekly hours plus any dated replacements. To change only this date, use Add dated leave / changed hours or Edit dated exception below. Turn off View a specific date to edit recurring weekly hours."
-                  : "Showing recurring weekly hours. Edit session changes that weekly rule. For leave or changed hours on one date only, turn on View a specific date and use the Dated exceptions section below."}
+                  ? "Showing the effective sessions for this date. Use Change one date for a closure, absence or different hours. Only this date changes. The weekly schedule stays unchanged."
+                  : "Showing recurring weekly hours. Edit session changes that weekly rule. For leave or changed hours on one date only, choose Changes for a date and use the Dated exceptions section below."}
               </p>
               {canEdit && (
                 <div className="staff-actions">
-                  <button
-                    className="staff-button"
-                    onClick={() => edit("sessions", newSession("", day))}
-                  >
-                    Add recurring session / service hours
-                  </button>
-                  <button
-                    className="staff-button"
-                    onClick={() =>
-                      edit("exceptions", {
-                        id: `exception:${crypto.randomUUID()}`,
-                        scopeId: "",
-                        date,
-                        closed: true,
-                        sessions: [],
-                      })
-                    }
-                  >
-                    Add dated leave / changed hours
-                  </button>
+                  {!dated && (
+                    <button
+                      className="staff-button"
+                      onClick={() => edit("sessions", newSession("", day))}
+                    >
+                      Add recurring session / service hours
+                    </button>
+                  )}
+                  {dated && (
+                    <button
+                      className="staff-button"
+                      onClick={() =>
+                        edit("exceptions", {
+                          id: `exception:${crypto.randomUUID()}`,
+                          scopeId: "",
+                          date,
+                          closed: true,
+                          sessions: [],
+                        })
+                      }
+                    >
+                      Change one date
+                    </button>
+                  )}
                 </div>
               )}
               {!sessions.length && (
@@ -449,76 +547,98 @@ export default function OperationsPanel({
                   </li>
                 ))}
               </ul>
-              <h2>Dated exceptions</h2>
-              <p className="staff-help">
-                These apply to one date and replace only that clinic/service's
-                sessions; recurring weekly hours are unchanged. Edit an existing
-                exception here, or use Add dated leave / changed hours to create
-                one.
-              </p>
-              {!state.exceptions.length && <p>No dated exceptions saved.</p>}
-              <ul className="operational-list">
-                {state.exceptions.map((e) => (
-                  <li key={e.id}>
-                    <div>
-                      <h3>{names(e.scopeId)}</h3>
-                      <p>
-                        {e.date} ·{" "}
-                        {e.closed
-                          ? "No sessions"
-                          : `${e.sessions.length} replacement sessions`}
-                      </p>
-                    </div>
-                    {state.scopes.find((s) => s.id === e.scopeId)?.access
-                      .edit && (
-                      <button
-                        className="staff-button"
-                        onClick={() => edit("exceptions", e)}
-                      >
-                        Edit dated exception
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <h2>Center opening hours</h2>
-              {state.isAdmin && (
-                <button
-                  className="staff-button"
-                  onClick={() =>
-                    edit("hours", {
-                      id: "1",
-                      closed: false,
-                      startTime: "",
-                      endTime: "",
-                    })
-                  }
-                >
-                  Add weekday / dated opening hours
-                </button>
-              )}
-              <ul className="operational-list">
-                {state.hours.map((h) => (
-                  <li key={h.id}>
+              {dated && (
+                <>
+                  <h2>Changes saved for {date}</h2>
+                  <p className="staff-help">
+                    These apply to one date and replace only that
+                    clinic/service's sessions; recurring weekly hours are
+                    unchanged. Edit an existing exception here, or use Change
+                    one date.
+                  </p>
+                  {!state.exceptions.some((entry) => entry.date === date) && (
                     <p>
-                      {h.id.length === 1 ? WEEKDAYS[Number(h.id)] : h.id}:{" "}
-                      {h.closed ? "Closed" : `${h.startTime}–${h.endTime}`}
+                      No dated changes saved for this date. Recurring sessions
+                      apply.
                     </p>
-                    {state.isAdmin && (
-                      <button
-                        className="staff-button"
-                        onClick={() => edit("hours", h)}
-                      >
-                        Edit {h.id.length === 1 ? WEEKDAYS[Number(h.id)] : h.id}{" "}
-                        hours
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                  )}
+                  <ul className="operational-list">
+                    {state.exceptions
+                      .filter((entry) => entry.date === date)
+                      .map((e) => (
+                        <li key={e.id}>
+                          <div>
+                            <h3>{names(e.scopeId)}</h3>
+                            <p>
+                              {e.date} ·{" "}
+                              {e.closed
+                                ? "No sessions"
+                                : `${e.sessions.length} replacement sessions`}
+                            </p>
+                          </div>
+                          {state.scopes.find((s) => s.id === e.scopeId)?.access
+                            .edit && (
+                            <button
+                              className="staff-button"
+                              onClick={() => edit("exceptions", e)}
+                            >
+                              Edit dated exception
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                </>
+              )}
+              <section className="staff-workspace-card">
+                <h2>Center opening hours</h2>
+                <p className="staff-help">
+                  These are the center's opening times, separate from individual
+                  professional sessions and Laboratory/Audiometry service hours.
+                </p>
+                {state.isAdmin && (
+                  <button
+                    className="staff-button"
+                    onClick={() =>
+                      edit("hours", {
+                        id: "1",
+                        closed: false,
+                        startTime: "",
+                        endTime: "",
+                      })
+                    }
+                  >
+                    Add weekday / dated opening hours
+                  </button>
+                )}
+                <ul className="operational-list">
+                  {state.hours
+                    .filter((entry) =>
+                      dated ? entry.id === date : entry.id === String(day),
+                    )
+                    .map((h) => (
+                      <li key={h.id}>
+                        <p>
+                          {h.id.length === 1 ? WEEKDAYS[Number(h.id)] : h.id}:{" "}
+                          {h.closed ? "Closed" : `${h.startTime}–${h.endTime}`}
+                        </p>
+                        {state.isAdmin && (
+                          <button
+                            className="staff-button"
+                            onClick={() => edit("hours", h)}
+                          >
+                            Edit{" "}
+                            {h.id.length === 1 ? WEEKDAYS[Number(h.id)] : h.id}{" "}
+                            hours
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                </ul>
+              </section>
             </>
           )}
-          {state.isAdmin && (
+          {state.isAdmin && mode === "website-updates" && (
             <section className="staff-workspace-card">
               <h2>Read-only public contract preview</h2>
               <p className="staff-help">
@@ -580,26 +700,32 @@ export default function OperationsPanel({
           )}
         </>
       )}
-      {editor && (
-        <OperationalEditor
-          type={editor.type}
-          initial={editor.record}
-          state={state}
-          onClose={() => setEditor(null)}
-          onSave={(record, expectedRevision) =>
-            mutate(() =>
-              api.saveOperationalRecord({
-                type: editor.type,
-                record: cleanOperationalRecord(editor.type, record),
-                expectedRevision,
-              }),
-            )
-          }
-        />
-      )}
+      {editor &&
+        (() => {
+          const Editor =
+            editor.type === "exceptions" ? OneDateEditor : OperationalEditor;
+          return (
+            <Editor
+              type={editor.type}
+              initial={editor.record}
+              state={state}
+              onClose={() => setEditor(null)}
+              onSave={(record, expectedRevision) =>
+                mutate(() =>
+                  api.saveOperationalRecord({
+                    type: editor.type,
+                    record: cleanOperationalRecord(editor.type, record),
+                    expectedRevision,
+                  }),
+                )
+              }
+            />
+          );
+        })()}
       {publishing && (
         <OperationalPublish
           state={state}
+          onReview={(payload) => api.reviewOperationalChanges(payload)}
           onClose={() => setPublishing(false)}
           onPublish={(payload) =>
             mutate(() => api.publishOperationalDrafts(payload))

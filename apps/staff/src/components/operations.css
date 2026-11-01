@@ -89,6 +89,15 @@
 .operational-toolbar > .staff-field {
   flex: 1 1 15rem;
 }
+.operational-schedule-controls {
+  display: grid;
+  align-items: start;
+  gap: 1rem;
+  min-width: 0;
+}
+.operational-schedule-controls > .staff-field {
+  min-width: 0;
+}
 .operational-fields {
   display: grid;
   gap: 1rem;
@@ -147,6 +156,26 @@
 }
 .operational-page .staff-field {
   min-width: 0;
+}
+.operational-weekdays {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: 0.6rem;
+}
+.operational-weekdays .staff-button {
+  display: grid;
+  gap: 0.35rem;
+  text-align: start;
+  white-space: normal;
+  min-width: 0;
+}
+.operational-weekdays .staff-button span {
+  font-size: 0.8rem;
+  font-weight: normal;
+}
+.operational-weekdays .staff-button[aria-pressed="true"] {
+  background: #e8f5fc;
+  border-color: #00749b;
 }
 @media (max-width: 600px) {
   .operational-list > li {

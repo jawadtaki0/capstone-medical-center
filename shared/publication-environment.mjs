@@ -1,4 +1,6 @@
 import { assertPublicationReviewStorage } from "./publication-review-guard.mjs";
+import { validateHostedReviewConfig } from "./hosted-review-config.mjs";
+import { validateHostedNormalConfig } from "./hosted-normal-config.mjs";
 
 export function assertPublicationStorage(
   db,
@@ -9,7 +11,31 @@ export function assertPublicationStorage(
 ) {
   if (environment.mode === "test")
     return assertPublicationReviewStorage(db, client, demoMode);
-  if (environment.mode !== "normal-local" || demoMode !== true)
+  if (environment.mode === "hosted-review") {
+    validateHostedReviewConfig(environment);
+    if (role === "staff")
+      return assertPublicationReviewStorage(db, client, demoMode);
+    const options = client?.options ?? {};
+    if (
+      role === "public" &&
+      db?.databaseName === environment.publicDatabase &&
+      options.srvHost === environment.publicSrvHost &&
+      options.tls === true &&
+      !options.tlsInsecure &&
+      !options.tlsAllowInvalidCertificates &&
+      !options.tlsAllowInvalidHostnames
+    )
+      return;
+    throw new Error(
+      "Hosted review storage does not match its explicitly configured isolated target.",
+    );
+  }
+  if (environment.mode === "normal-hosted")
+    validateHostedNormalConfig(environment);
+  if (
+    !["normal-local", "normal-hosted"].includes(environment.mode) ||
+    demoMode !== true
+  )
     throw new Error("Explicit local publication configuration is required.");
   const options = client?.options ?? {},
     hosts = options.hosts ?? [];
@@ -23,7 +49,13 @@ export function assertPublicationStorage(
     )
       return;
   } else if (role === "public") {
-    const target = environment.publicTarget;
+    const target =
+      environment.mode === "normal-hosted"
+        ? {
+            database: environment.publicDatabase,
+            srvHost: environment.publicSrvHost,
+          }
+        : environment.publicTarget;
     if (
       target?.database === "medical-center-dev" &&
       db?.databaseName === target.database &&

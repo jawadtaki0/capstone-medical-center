@@ -5,7 +5,28 @@ import {
   assertNoOverlap,
   validateOperationalRecord,
   operationalAccess,
+  resolveProfessionalClinic,
 } from "../src/operational-model.js";
+
+test("professional clinic is server-resolved only when exactly one active clinic exists", () => {
+  const clinic = { id: "clinic:one", kind: "clinic", active: true };
+  assert.deepEqual(resolveProfessionalClinic({ name: "Synthetic" }, [clinic]), {
+    name: "Synthetic",
+    scopeIds: [clinic.id],
+  });
+  for (const scopes of [
+    [],
+    [{ ...clinic, active: false }],
+    [clinic, { ...clinic, id: "clinic:two" }],
+  ])
+    assert.throws(() => resolveProfessionalClinic({}, scopes), {
+      code: "clinic_configuration",
+    });
+  for (const scopeIds of [[], ["service:lab"], [clinic.id, "clinic:two"]])
+    assert.throws(() => resolveProfessionalClinic({ scopeIds }, [clinic]), {
+      code: "invalid_input",
+    });
+});
 
 const weekly = (id, scopeId, startTime, endTime, extra = {}) => ({
   id,

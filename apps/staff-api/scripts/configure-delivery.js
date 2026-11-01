@@ -65,10 +65,8 @@ async function run() {
     throw new Error("Explicit Windows local demo required.");
   const increase = allowanceIncreaseInput(process.argv.slice(2));
   if (increase) {
-    await assertExistingAuthority();
-    const result = await increaseDeliveryAllowance(increase);
     console.log(
-      `Approved email allowance total increased from ${result.previousAllowance} to ${result.allowance}. Budget identity, credentials, activation and usage counters preserved. Monthly ceiling remains 20. No message sent or resend started.`,
+      "The demonstration email allowance and monthly ceiling are retired. No configuration or usage counters were changed; hourly/daily abuse controls still apply.",
     );
     return;
   }
@@ -103,7 +101,7 @@ async function run() {
     // Never overwrite unreadable protected settings or grant a new allowance.
     if (error.code !== "ENOENT") throw error;
   }
-  if (approval && (!existing?.allowance || !existing.approvalId)) {
+  if (approval && !existing?.approvalId) {
     console.error(
       "No existing approved allowance is available. This tool cannot create or replenish it. Review the center-wide sending allowance before activation.",
     );

@@ -7,6 +7,23 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $form = $null
 $boxes = @()
+$reviewCodeBox = $null
+$reviewCodeCopy = $null
+$reviewCodeExpiry = $null
+function Update-CedarReviewCode {
+  if (-not $options.reviewDisplay -or $null -eq $reviewCodeBox) { return }
+  $at = [DateTime]::UtcNow
+  $period = @($options.reviewCodePeriods | Where-Object { [DateTime]::Parse($_.validFrom).ToUniversalTime() -le $at -and $at -lt [DateTime]::Parse($_.validUntil).ToUniversalTime() }) | Select-Object -First 1
+  if ($null -eq $period) {
+    $reviewCodeBox.Clear(); $reviewCodeCopy.Enabled = $false
+    $reviewCodeExpiry.Text = 'Code unavailable or expired. Reopen the private viewer.'
+    return
+  }
+  if ($reviewCodeBox.Text -ne $period.code) { $reviewCodeBox.Text = $period.code; $reviewCodeCopy.Text = 'Copy current code' }
+  $reviewCodeCopy.Enabled = $true
+  $remaining = [Math]::Max(0, [Math]::Ceiling(([DateTime]::Parse($period.validUntil).ToUniversalTime() - $at).TotalSeconds))
+  $reviewCodeExpiry.Text = 'Expires in ' + $remaining + ' seconds. Refreshes automatically.'
+}
 try {
   $options = ConvertFrom-Json ([Console]::In.ReadLine())
   Add-Type -AssemblyName System.Windows.Forms
@@ -14,7 +31,7 @@ try {
   Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class CedarRecoveryWindow { [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr handle); }'
   [System.Windows.Forms.Application]::EnableVisualStyles()
   $form = [System.Windows.Forms.Form]::new()
-  $form.Text = 'Private Cedar Staff recovery - do not screenshot'
+  $form.Text = $options.title
   $form.ClientSize = [System.Drawing.Size]::new(660, [Math]::Min(680, 145 + 68 * $options.fields.Count))
   $form.StartPosition = 'CenterScreen'
   $form.AutoScaleMode = 'Dpi'
@@ -30,6 +47,14 @@ try {
   $form.Controls.Add($note)
   $y = 75
   foreach ($field in $options.fields) {
+    if ($options.reviewDisplay -and $field.section) {
+      $section = [System.Windows.Forms.Label]::new()
+      $section.Text = $field.section
+      $section.Location = [System.Drawing.Point]::new(20, $y)
+      $section.Size = [System.Drawing.Size]::new(610, 28)
+      $section.Font = [System.Drawing.Font]::new('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+      $form.Controls.Add($section); $y += 34
+    }
     $label = [System.Windows.Forms.Label]::new()
     $label.Text = $field.label
     $label.Location = [System.Drawing.Point]::new(20, $y)
@@ -41,13 +66,58 @@ try {
     $box.MaxLength = 512
     $box.Text = $field.value
     $box.ReadOnly = [bool]$field.readOnly
-    $box.UseSystemPasswordChar = [bool]$field.private
+    $box.UseSystemPasswordChar = [bool]$field.private -and -not ($options.reviewDisplay -and $field.initialVisible)
+    if ($field.private -and $field.asteriskMask -and -not $field.readOnly) {
+      $box.UseSystemPasswordChar = $false
+      $box.PasswordChar = '*'
+    }
     $form.Controls.Add($box)
     $boxes += $box
-    $y += 68
+    if ($field.readOnly -and (($field.private -and ($field.copyPassword -or $field.copySecret)) -or ($options.reviewDisplay -and $field.copyValue))) {
+      $box.Width = 360
+      $copy = [System.Windows.Forms.Button]::new()
+      $copy.Text = if ($field.copyLabel) { $field.copyLabel } else { 'Copy password' }
+      $copy.AccessibleName = $field.label + ': ' + $copy.Text
+      $copy.Location = [System.Drawing.Point]::new(390, ($y + 22))
+      $copy.Size = [System.Drawing.Size]::new(130, 30)
+      $copy.Tag = $box
+      $copy.Add_Click({
+        try {
+          if ([DateTime]::UtcNow -ge $expires) { $form.Close(); return }
+          Update-CedarReviewCode
+          if (-not $this.Enabled) { return }
+          [System.Windows.Forms.Clipboard]::SetText($this.Tag.Text)
+          $this.Text = 'Copied'
+        } catch { $this.Text = 'Copy failed; retry' }
+      })
+      $form.Controls.Add($copy)
+      if ($options.reviewDisplay -and $field.currentCode) {
+        $reviewCodeBox = $box; $reviewCodeCopy = $copy
+        $box.Font = [System.Drawing.Font]::new('Consolas', 14, [System.Drawing.FontStyle]::Bold)
+        $reviewCodeExpiry = [System.Windows.Forms.Label]::new()
+        $reviewCodeExpiry.Location = [System.Drawing.Point]::new(20, ($y + 52))
+        $reviewCodeExpiry.Size = [System.Drawing.Size]::new(610, 20)
+        $form.Controls.Add($reviewCodeExpiry)
+      }
+      if ($field.private) {
+      $show = [System.Windows.Forms.Button]::new()
+      $show.Text = if ($box.UseSystemPasswordChar) { 'Show' } else { 'Hide' }
+      $show.AccessibleName = $field.label + ': Show or hide private value'
+      $show.Location = [System.Drawing.Point]::new(530, ($y + 22))
+      $show.Size = [System.Drawing.Size]::new(100, 30)
+      $show.Tag = $box
+      $show.Add_Click({
+        if ([DateTime]::UtcNow -ge $expires) { $form.Close(); return }
+        $this.Tag.UseSystemPasswordChar = -not $this.Tag.UseSystemPasswordChar
+        if ($this.Tag.UseSystemPasswordChar) { $this.Text = 'Show' } else { $this.Text = 'Hide' }
+      })
+      $form.Controls.Add($show)
+      }
+    }
+    $y += if ($options.reviewDisplay -and $field.currentCode) { 90 } else { 68 }
   }
   $ok = [System.Windows.Forms.Button]::new()
-  $ok.Text = 'Confirm and continue'
+  $ok.Text = if ($options.reviewDisplay) { 'Close' } else { 'Confirm and continue' }
   $ok.Location = [System.Drawing.Point]::new(20, $y)
   $ok.Size = [System.Drawing.Size]::new(240, 38)
   $ok.DialogResult = 'OK'
@@ -60,10 +130,11 @@ try {
   $cancel.DialogResult = 'Cancel'
   $form.Controls.Add($cancel)
   $form.CancelButton = $cancel
+  if ($options.reviewDisplay) { $cancel.Visible = $false; $ok.DialogResult = 'Cancel'; $form.CancelButton = $ok }
   $timer = [System.Windows.Forms.Timer]::new()
   $timer.Interval = 250
   $expires = [DateTime]::Parse($options.expiresAt).ToUniversalTime()
-  $timer.Add_Tick({ if ([DateTime]::UtcNow -ge $expires) { foreach ($box in $boxes) { $box.Clear() }; $form.DialogResult = 'Cancel'; $form.Close() } })
+  $timer.Add_Tick({ if ([DateTime]::UtcNow -ge $expires) { foreach ($box in $boxes) { $box.Clear() }; $form.DialogResult = 'Cancel'; $form.Close() } else { Update-CedarReviewCode } })
   $form.Add_Shown({
     if (-not [CedarRecoveryWindow]::IsWindowVisible($form.Handle)) { throw 'Private window unavailable' }
     if ([DateTime]::UtcNow -ge $expires) {
@@ -77,10 +148,12 @@ try {
     $form.TopMost = $false
     if ($boxes.Count -gt 0) { $boxes[0].Focus() | Out-Null }
     $timer.Start()
+    Update-CedarReviewCode
     [Console]::Out.WriteLine('READY')
     [Console]::Out.Flush()
   })
-  if ($form.ShowDialog() -eq 'OK' -and [DateTime]::UtcNow -lt $expires) {
+  $dialogResult = $form.ShowDialog()
+  if (-not $options.reviewDisplay -and $dialogResult -eq 'OK' -and [DateTime]::UtcNow -lt $expires) {
     $values = @($boxes | ForEach-Object { $_.Text })
     [Console]::Out.WriteLine('RESULT:' + (ConvertTo-Json -InputObject $values -Compress))
   } else { [Console]::Out.WriteLine('CANCELLED') }
@@ -98,6 +171,9 @@ export function privateRecoveryForm(
     fields,
     expiryMs = 300000,
     expiresAt = new Date(Date.now() + expiryMs).toISOString(),
+    purpose = "recovery",
+    reviewDisplay = false,
+    reviewCodePeriods,
   },
   { spawnProcess = spawn, signals = process } = {},
 ) {
@@ -138,6 +214,23 @@ export function privateRecoveryForm(
       15000,
     );
     try {
+      if (
+        reviewDisplay &&
+        (purpose !== "hosted-review" ||
+          !Array.isArray(reviewCodePeriods) ||
+          reviewCodePeriods.length < 1 ||
+          reviewCodePeriods.length > 11 ||
+          !fields.every((field) => field.readOnly) ||
+          reviewCodePeriods.some(
+            (period) =>
+              !/^\d{6}$/.test(period.code) ||
+              !Number.isFinite(Date.parse(period.validFrom)) ||
+              !Number.isFinite(Date.parse(period.validUntil)) ||
+              Date.parse(period.validUntil) - Date.parse(period.validFrom) !==
+                30000,
+          ))
+      )
+        throw safeFailure();
       child = spawnProcess(
         "powershell.exe",
         [
@@ -153,7 +246,20 @@ export function privateRecoveryForm(
         { windowsHide: false, stdio: ["pipe", "pipe", "pipe"] },
       );
       child.stdin.on("error", () => finish(safeFailure(), null, true));
-      child.stdin.end(JSON.stringify({ note, fields, expiresAt }) + "\n");
+      child.stdin.end(
+        JSON.stringify({
+          note,
+          fields,
+          expiresAt,
+          ...(reviewDisplay ? { reviewDisplay: true, reviewCodePeriods } : {}),
+          title:
+            purpose === "hosted-review"
+              ? "Private Cedar hosted review setup - do not screenshot"
+              : purpose === "hosted-normal"
+                ? "Private Cedar capstone hosting setup - do not screenshot"
+                : "Private Cedar Staff recovery - do not screenshot",
+        }) + "\n",
+      );
       signals.once("SIGINT", interrupt);
       signals.once("SIGTERM", interrupt);
       child.stderr.resume();
@@ -174,7 +280,7 @@ export function privateRecoveryForm(
               Math.max(0, Date.parse(expiresAt) - Date.now()) + 1000,
             );
           } else if (ready && line === "CANCELLED") answer = null;
-          else if (ready && line.startsWith("RESULT:")) {
+          else if (ready && !reviewDisplay && line.startsWith("RESULT:")) {
             try {
               const result = JSON.parse(line.slice(7));
               if (

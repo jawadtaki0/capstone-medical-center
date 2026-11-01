@@ -30,7 +30,7 @@ export function ProfileDetails({ account, profile }) {
     [
       phone.legacyInvalid
         ? `Phone — unverified / legacy invalid number (${phone.countryName})`
-        : `Phone — unverified (${phone.countryName})`,
+        : `Phone — ${contactLabel(profile.contactStatus?.phone)} (${phone.countryName})`,
       phone.display,
     ],
     [
@@ -73,10 +73,13 @@ export default function StaffProfile({
   const [addressConflict, setAddressConflict] = useState(false);
   const [refreshNeeded, setRefreshNeeded] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [verifySavedEmail, setVerifySavedEmail] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const changePassword = useRef(null);
   const changeEmail = useRef(null),
     saving = useRef(false);
+  const verifyPhone = useRef(null);
   const live = useRef(true);
   const page = useRef(null);
   const pendingChange = useRef(onPendingChange);
@@ -155,7 +158,14 @@ export default function StaffProfile({
   }
   async function save(event) {
     event.preventDefault();
-    if (saving.current || refreshNeeded || addressConflict || emailOpen) return;
+    if (
+      saving.current ||
+      refreshNeeded ||
+      addressConflict ||
+      emailOpen ||
+      phoneOpen
+    )
+      return;
     saving.current = true;
     pendingChange.current?.(true);
     setBusy(true);
@@ -230,11 +240,45 @@ export default function StaffProfile({
       ) : (
         <>
           <ProfileDetails account={record.account} profile={record.profile} />
+          {!editing && record.profile.contactStatus?.email !== "verified" && (
+            <button
+              ref={changeEmail}
+              className="staff-button"
+              type="button"
+              disabled={busy || phoneOpen || passwordOpen}
+              onClick={() => {
+                setVerifySavedEmail(true);
+                setEmailOpen(true);
+                setError("");
+              }}
+            >
+              Verify email
+            </button>
+          )}
+          {!editing && record.profile.contactStatus?.phone !== "verified" && (
+            <button
+              ref={verifyPhone}
+              className="staff-button"
+              type="button"
+              disabled={
+                busy ||
+                emailOpen ||
+                passwordOpen ||
+                savedPhone(record.profile).legacyInvalid
+              }
+              onClick={() => {
+                setPhoneOpen(true);
+                setError("");
+              }}
+            >
+              Verify phone number
+            </button>
+          )}
           <button
             ref={changePassword}
             className="staff-button"
             type="button"
-            disabled={busy || emailOpen}
+            disabled={busy || emailOpen || phoneOpen}
             onClick={() => setPasswordOpen(true)}
           >
             Change password
@@ -281,16 +325,36 @@ export default function StaffProfile({
                   type="button"
                   disabled={busy}
                   onClick={() => {
+                    setVerifySavedEmail(
+                      record.profile.contactStatus?.email !== "verified",
+                    );
                     setEmailOpen(true);
                     setError("");
                   }}
                 >
-                  Change email
+                  {record.profile.contactStatus?.email === "verified"
+                    ? "Change email"
+                    : "Verify email"}
                 </button>
+                {record.profile.contactStatus?.email !== "verified" && (
+                  <button
+                    className="staff-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setVerifySavedEmail(false);
+                      setEmailOpen(true);
+                      setError("");
+                    }}
+                  >
+                    Change email
+                  </button>
+                )}
               </div>
               <div className="staff-field">
                 <label htmlFor={`${id}-phone`}>
-                  Saved phone — unverified
+                  Saved phone —{" "}
+                  {contactLabel(record.profile.contactStatus?.phone)}
                   {savedPhone(record.profile).legacyInvalid
                     ? ` / legacy invalid number (${savedPhone(record.profile).countryName})`
                     : ` (${savedPhone(record.profile).countryName})`}
@@ -304,6 +368,26 @@ export default function StaffProfile({
                 <p className="staff-help">
                   Phone replacement is not available yet.
                 </p>
+                {record.profile.contactStatus?.phone !== "verified" && (
+                  <button
+                    ref={verifyPhone}
+                    className="staff-button"
+                    type="button"
+                    disabled={busy || savedPhone(record.profile).legacyInvalid}
+                    onClick={() => {
+                      setPhoneOpen(true);
+                      setError("");
+                    }}
+                  >
+                    Verify phone number
+                  </button>
+                )}
+                {savedPhone(record.profile).legacyInvalid && (
+                  <p className="staff-help">
+                    This saved legacy number has invalid country numbering
+                    structure and cannot be verified.
+                  </p>
+                )}
               </div>
               <p className="staff-help">
                 This form never changes saved email or phone. No password, role
@@ -371,6 +455,8 @@ export default function StaffProfile({
           {emailOpen && (
             <ContactChange
               api={api}
+              savedEmail={record.profile.email}
+              verifySavedEmail={verifySavedEmail}
               revision={record.profile.revision}
               roles={record.account.roles}
               onSaved={contactSaved}
@@ -379,6 +465,26 @@ export default function StaffProfile({
               onPendingChange={onPendingChange}
               onClose={() => setEmailOpen(false)}
               returnFocus={changeEmail}
+            />
+          )}
+          {phoneOpen && (
+            <ContactChange
+              api={api}
+              contactType="phone"
+              savedPhone={record.profile.phone}
+              revision={record.profile.revision}
+              roles={record.account.roles}
+              onSaved={async () => {
+                setNotice(
+                  "Phone verified. Phone replacement remains unavailable.",
+                );
+                return refreshProfile();
+              }}
+              onRefresh={refreshProfile}
+              onError={onError}
+              onPendingChange={onPendingChange}
+              onClose={() => setPhoneOpen(false)}
+              returnFocus={verifyPhone}
             />
           )}
         </>

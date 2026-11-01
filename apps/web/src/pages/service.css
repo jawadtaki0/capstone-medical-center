@@ -1,0 +1,27 @@
+.service-information .schedule-results > h2 {
+  margin-bottom: var(--s3);
+}
+.service-information-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+.service-information-actions p {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+.service-information .schedule-card-meta {
+  align-items: center;
+}
+@media (max-width: 600px) {
+  .service-information .schedule-picker-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .service-information-actions > a {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}

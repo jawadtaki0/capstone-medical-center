@@ -92,6 +92,35 @@ async function seededDatabase() {
   return db;
 }
 
+test("public schedule keeps stable professional IDs for dated booking links and derives avatars without exposing gender", async () => {
+  const db = await seededDatabase();
+  const day = await getScheduleForDate("2027-11-03", db);
+  for (const session of [...day.doctorSessions, ...day.specialistSessions]) {
+    const collection = session.doctorName
+      ? COLLECTIONS.doctors
+      : COLLECTIONS.specialists;
+    const profile = db.records(collection).get(session.professionalId);
+    assert.ok(profile, "the link must identify the exact referenced profile");
+    assert.equal(session.avatarVariant, profile.gender);
+    assert.equal(Object.hasOwn(session, "gender"), false);
+    assert.equal(Object.hasOwn(session, "capacity"), false);
+    assert.equal(Object.hasOwn(session, "remaining"), false);
+  }
+  const session = day.doctorSessions[0];
+  const stored = db.records(COLLECTIONS.doctors).get(session.professionalId);
+  db.put(COLLECTIONS.doctors, {
+    ...stored,
+    gender: undefined,
+    avatarVariant: "female",
+    name: "Synthetic Neutral",
+  });
+  const missing = (
+    await getScheduleForDate("2027-11-03", db)
+  ).doctorSessions.find((item) => item.professionalId === stored._id);
+  assert.equal(missing.avatarVariant, "neutral");
+  assert.equal(missing.doctorName, "Synthetic Neutral");
+});
+
 test("initialization uses neutral IDs, confirmed genders, current wording and the agreed schema", () => {
   const timestamp = "2026-10-01T09:00:00.000Z";
   const seed = buildScheduleSeed(timestamp);
@@ -655,7 +684,12 @@ test("schedule profile lookup uses only active visibility and safe public fields
   for (const { query, options } of reads) {
     assert.deepEqual(Object.keys(query).sort(), ["_id", "active"]);
     assert.equal(query.active, true);
-    assert.deepEqual(options.projection, { _id: 1, name: 1, specialty: 1 });
+    assert.deepEqual(options.projection, {
+      _id: 1,
+      name: 1,
+      specialty: 1,
+      gender: 1,
+    });
     assert.equal(
       query._id.$in.every((id) => !id.startsWith("cedar:")),
       true,

@@ -37,7 +37,12 @@ import {
 const sourceRoot = new URL("../src/", import.meta.url).href;
 const jsxHook = registerHooks({
   load(url, context, nextLoad) {
-    if (!url.startsWith(sourceRoot) || !url.endsWith(".jsx"))
+    const shared = url.startsWith(
+      new URL("../../../shared/ui/", import.meta.url).href,
+    );
+    if (shared && url.endsWith(".css"))
+      return { format: "module", source: "", shortCircuit: true };
+    if ((!url.startsWith(sourceRoot) && !shared) || !url.endsWith(".jsx"))
       return nextLoad(url, context);
     const code = transformSync(
       fileURLToPath(url),
@@ -630,7 +635,7 @@ test("directory loading never invents staff and verification renders a labelled 
   assert.doesNotMatch(verification, /value="[^"\s]+"/);
 });
 
-test("contact screen is honest about pending verification, unavailable WhatsApp and TEST-only labels", async () => {
+test("contact screens distinguish saved-phone manual assistance, email possession and TEST-only labels", async () => {
   const { default: Contacts } =
     await import("../src/components/ContactChange.jsx");
   const html = renderToStaticMarkup(
@@ -638,8 +643,22 @@ test("contact screen is honest about pending verification, unavailable WhatsApp 
   );
   assert.match(html, /Checking contact delivery/);
   assert.match(html, /saved email stays unchanged/);
-  assert.match(html, /Phone changes are unavailable/);
-  assert.match(html, /does not enable password recovery/);
+  assert.match(html, /Phone replacement remains unavailable/);
+  const phone = renderToStaticMarkup(
+    createElement(Contacts, {
+      api: {},
+      revision: 0,
+      contactType: "phone",
+      savedPhone: "+96171123456",
+    }),
+  );
+  assert.match(phone, /Verify phone number/);
+  assert.match(phone, /Ask another Admin to send the code/);
+  assert.match(phone, /Enter only the code you receive/);
+  assert.doesNotMatch(
+    phone,
+    /Proposed email|Authenticator setup|wa\.me|message=/,
+  );
   assert.equal(contactLabel("verified"), "verified");
   assert.equal(contactLabel("unexpected"), "unverified");
   assert.match(contactLabel("test_only"), /not real verification/);

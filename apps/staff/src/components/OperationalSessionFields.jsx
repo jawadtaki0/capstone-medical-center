@@ -11,6 +11,7 @@ export default function OperationalSessionFields({
   state,
   fixedScope = false,
   dated = false,
+  fixedProfessional = false,
 }) {
   const id = useId();
   const set = (key, next) => onChange({ ...value, [key]: next });
@@ -89,6 +90,7 @@ export default function OperationalSessionFields({
             value={value.professionalId ?? ""}
             onChange={(e) => set("professionalId", e.target.value || null)}
             required
+            disabled={fixedProfessional}
           >
             <option value="">Choose professional</option>
             {professionals.map((p) => (

@@ -1,3 +1,5 @@
+import { createWebsiteRequestService } from "./website-requests.js";
+import { createOperationalSummaryService } from "./operational-summary.js";
 import {
   createHash,
   randomBytes,
@@ -136,6 +138,7 @@ export function createAuthService({
   vault,
   clock = () => new Date(),
   contactDelivery,
+  requestIntegration = null,
   testSetupHash,
   testPasswordWork,
   publicationDeliveryConfigured = false,
@@ -724,7 +727,7 @@ export function createAuthService({
 
   // Health/setup validation must not touch unrelated registry collections.
   // Initialize private services only when their named authenticated route is used.
-  let bookings, patients;
+  let bookings, patients, websiteRequests;
   const operations = createOperationsService({
     db,
     transaction,
@@ -797,6 +800,7 @@ export function createAuthService({
     );
   }
   const contacts = createContactService({
+    idleMs: AUTH_POLICY.idleMs,
     db,
     client,
     vault,
@@ -851,6 +855,28 @@ export function createAuthService({
   return {
     management,
     operations,
+    summary: createOperationalSummaryService({
+      db,
+      transaction,
+      authenticated,
+      now,
+    }),
+    get websiteRequests() {
+      if (!requestIntegration)
+        throw new StaffError(
+          "requests_disabled",
+          "Website request integration is not configured.",
+          503,
+        );
+      return (websiteRequests ??= createWebsiteRequestService({
+        db,
+        transaction,
+        guard,
+        authenticated,
+        now,
+        config: requestIntegration,
+      }));
+    },
     get bookings() {
       return (bookings ??= createBookingService({
         db,
@@ -858,6 +884,9 @@ export function createAuthService({
         guard,
         authenticated,
         now,
+        afterWrite: requestIntegration
+          ? (...args) => this.websiteRequests.bookingNotice(...args)
+          : undefined,
       }));
     },
     get patients() {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import Icon from "../components/Icon.jsx";
 import SpecialtyIcon from "../components/SpecialtyIcon.jsx";
 import GrainientPage from "../components/GrainientPage.jsx";
@@ -47,9 +48,9 @@ function SessionCard({ session, label, onPreview }) {
         <button
           className="button schedule-outline-button schedule-book-button"
           type="button"
-          onClick={() => onPreview("Book appointment (prototype)")}
+          onClick={() => onPreview("Book an appointment", session)}
         >
-          Book appointment (prototype)
+          Book an appointment
         </button>
       )}
     </article>
@@ -159,8 +160,8 @@ export default function SchedulePage({ onPreview }) {
           </div>
 
           {result.status === "loading" && (
-            <div className="schedule-state" role="status">
-              Loading this day’s schedule…
+            <div className="schedule-state">
+              <LoadingStatus label="Loading this day’s schedule…" wakeHint />
             </div>
           )}
           {result.status === "error" && (

@@ -46,11 +46,9 @@ export function validateDeliveryConfig(value) {
   if (
     !Number.isInteger(value.allowance) ||
     value.allowance < 0 ||
-    value.allowance > 20 ||
-    (value.enabled &&
-      (!value.allowance || !/^[a-f0-9-]{36}$/.test(value.approvalId)))
+    (value.enabled && !/^[a-f0-9-]{36}$/.test(value.approvalId))
   )
-    throw new Error("An approved sending allowance is required.");
+    throw new Error("Valid delivery usage metadata is required.");
   return {
     version: value.version,
     provider: "gmail",
@@ -64,7 +62,7 @@ export function validateDeliveryConfig(value) {
 }
 export function enableStaffSelfService(value) {
   const existing = validateDeliveryConfig(value);
-  if (!existing.allowance || !/^[a-f0-9-]{36}$/.test(existing.approvalId ?? ""))
+  if (!/^[a-f0-9-]{36}$/.test(existing.approvalId ?? ""))
     throw new Error(
       "An existing approved allowance is required; this operation cannot create or replenish it.",
     );

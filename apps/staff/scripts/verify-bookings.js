@@ -339,6 +339,9 @@ try {
       .getByLabel("Cancellation reason")
       .fill("Synthetic patient requested cancellation");
     await dialog
+      .getByLabel("Patient-facing cancellation reason")
+      .selectOption("other");
+    await dialog
       .getByRole("button", { name: "Confirm cancellation", exact: true })
       .click();
     await dialog.waitFor({ state: "detached" });

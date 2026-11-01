@@ -10,7 +10,11 @@ import { createBroker } from "../electron/transport.js";
 const root = new URL("../src/", import.meta.url).href;
 const hook = registerHooks({
   load(url, context, next) {
-    if (!url.startsWith(root)) return next(url, context);
+    if (
+      !url.startsWith(root) &&
+      !url.startsWith(new URL("../../../shared/ui/", import.meta.url).href)
+    )
+      return next(url, context);
     if (url.endsWith(".css"))
       return { format: "module", source: "", shortCircuit: true };
     if (!url.endsWith(".jsx")) return next(url, context);

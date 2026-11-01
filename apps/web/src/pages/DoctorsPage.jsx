@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import DirectorySearch from "../components/DirectorySearch.jsx";
 import ProfessionalCard from "../components/ProfessionalCard.jsx";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import GrainientPage from "../components/GrainientPage.jsx";
 import useProfessionals from "../hooks/useProfessionals.js";
 import { filterProfessionals } from "../lib/directory.js";
@@ -33,7 +34,7 @@ export function DirectoryContent({ result, onRetry }) {
       <div id="directory-results" aria-busy={result.status === "loading"}>
         {result.status === "loading" && (
           <div className="directory-state">
-            <h2>Loading doctors and specialists…</h2>
+            <LoadingStatus label="Loading doctors and specialists…" wakeHint />
             <p>The public directory will appear here shortly.</p>
           </div>
         )}

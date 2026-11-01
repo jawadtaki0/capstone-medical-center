@@ -21,6 +21,10 @@ export default function ContactChange({
   onPendingChange,
   onClose,
   returnFocus,
+  savedEmail = "",
+  verifySavedEmail = false,
+  contactType = "email",
+  savedPhone = "",
 }) {
   const id = useId(),
     live = useRef(true),
@@ -28,9 +32,12 @@ export default function ContactChange({
   const dialog = useRef(null),
     inFlight = useRef(false),
     identityExpiry = useRef(null);
+  const statusGeneration = useRef(0);
   const savedResult = useRef(null),
     cancelRef = useRef(null);
   const administrative = requiresMfa(roles);
+  const phone = contactType === "phone";
+  const type = phone ? "phone" : "email";
   const [status, setStatus] = useState(null),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true);
@@ -46,24 +53,31 @@ export default function ContactChange({
       callbacks.current.onError?.(failure);
   }, []);
   const load = useCallback(async () => {
+    const generation = ++statusGeneration.current;
     setLoading(true);
     try {
       const result = await api.contactStatus();
-      if (live.current) {
-        setStatus(result);
-        setPhase(result.pending ? "code" : "start");
+      if (live.current && generation === statusGeneration.current) {
+        const next = phone
+          ? { ...result, pending: result.phonePending }
+          : result;
+        setStatus(next);
+        setPhase(next.pending ? "code" : "start");
       }
     } catch (failure) {
-      if (live.current) report(failure);
+      if (live.current && generation === statusGeneration.current)
+        report(failure);
     } finally {
-      if (live.current) setLoading(false);
+      if (live.current && generation === statusGeneration.current)
+        setLoading(false);
     }
-  }, [api, report]);
+  }, [api, report, phone]);
   useEffect(() => {
     live.current = true;
     void load();
     return () => {
       live.current = false;
+      statusGeneration.current++;
     };
   }, [load]);
   useEffect(() => {
@@ -115,14 +129,14 @@ export default function ContactChange({
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     if (inFlight.current) return;
-    if (!normalizedEmail(String(data.get("destination") ?? ""))) {
+    if (!phone && !normalizedEmail(String(data.get("destination") ?? ""))) {
       setError(EMAIL_INPUT_MESSAGE);
       event.currentTarget.elements.namedItem("password").value = "";
       return;
     }
     const payload = {
-      type: "email",
-      destination: String(data.get("destination") ?? ""),
+      type,
+      destination: phone ? savedPhone : String(data.get("destination") ?? ""),
       password: String(data.get("password") ?? ""),
       expectedRevision: revision,
     };
@@ -146,7 +160,7 @@ export default function ContactChange({
     const data = new FormData(event.currentTarget);
     if (inFlight.current) return;
     const payload = {
-      type: "email",
+      type,
       code: String(data.get("factor") ?? ""),
       method: String(data.get("method") ?? "totp"),
     };
@@ -165,7 +179,7 @@ export default function ContactChange({
     const data = new FormData(event.currentTarget);
     if (inFlight.current) return;
     const payload = {
-      type: "email",
+      type,
       code: String(data.get("code") ?? "").trim(),
     };
     event.currentTarget.reset();
@@ -182,7 +196,7 @@ export default function ContactChange({
       setNotice(
         result.testOnly
           ? "Automated TEST result only. No real contact was verified."
-          : "Email verified and saved. Recovery remains unavailable.",
+          : `${phone ? "Phone" : "Email"} verified and saved.`,
       );
       if (await callbacks.current.onSaved?.(result)) onClose?.();
     });
@@ -198,7 +212,7 @@ export default function ContactChange({
       return;
     }
     void act(async () => {
-      const result = await api.cancelContactChange({ type: "email" });
+      const result = await api.cancelContactChange({ type });
       if (result.cancelled !== true)
         throw Object.assign(
           new Error(
@@ -237,28 +251,37 @@ export default function ContactChange({
       }}
     >
       <h2 ref={heading} id={`${id}-heading`} tabIndex={-1}>
-        Change email
+        {phone
+          ? "Verify phone number"
+          : verifySavedEmail
+            ? "Verify email"
+            : "Change email"}
       </h2>
       <p className="staff-eyebrow" role="status">
         {phase === "start"
-          ? "1 · Proposed email and current password"
+          ? `1 · ${phone ? "Saved phone" : "Proposed email"} and current password`
           : phase === "identity"
             ? "2 · Fresh administrative MFA"
             : phase === "saved"
-              ? "Email saved · Refresh profile"
-              : `${administrative ? "3" : "2"} · Verify the delivered email code`}
+              ? `${phone ? "Phone verified" : "Email saved"} · Refresh profile`
+              : `${administrative ? "3" : "2"} · Enter the received ${phone ? "WhatsApp" : "email"} code`}
       </p>
-      <p id={`${id}-description`} className="staff-help">
-        Your saved email stays unchanged until you confirm the code delivered to
-        the proposed address. Current password
-        {administrative ? " and fresh administrative MFA" : ""} confirm your
-        identity, not ownership of that address.
-      </p>
-      <p className="staff-help">
-        Phone changes are unavailable. Live WhatsApp delivery has not been
-        configured or tested. Email verification does not enable password
-        recovery.
-      </p>
+      {phone ? (
+        <p id={`${id}-description`} className="staff-help">
+          Ask another Admin to send the code to your saved phone through
+          WhatsApp. Enter only the code you receive. This verifies your saved
+          number; it does not replace it. Your password
+          {administrative ? " and fresh MFA" : ""} confirms your identity.
+        </p>
+      ) : (
+        <p id={`${id}-description`} className="staff-help">
+          Your saved email stays unchanged until you confirm the code delivered
+          to the proposed address. Current password
+          {administrative ? " and fresh administrative MFA" : ""} confirm your
+          identity, not ownership of that address.
+        </p>
+      )}
+      <p className="staff-help">Phone replacement remains unavailable.</p>
       {error && (
         <p className="staff-error" role="alert">
           {error}
@@ -277,7 +300,7 @@ export default function ContactChange({
         </button>
       ) : (
         <>
-          {!status.emailReady && (
+          {!(phone ? status.phoneReady : status.emailReady) && (
             <div className="staff-state">
               <p>{status.message}</p>
               <button
@@ -286,40 +309,61 @@ export default function ContactChange({
                 disabled={busy}
                 onClick={() => void load()}
               >
-                Recheck email setup
+                {phone ? "Recheck phone verification" : "Recheck email setup"}
               </button>
             </div>
           )}
-          {phase === "start" && status.emailReady && (
-            <form className="staff-form" onSubmit={begin}>
-              <EmailInput
-                id={`${id}-destination`}
-                name="destination"
-                label="Proposed email address"
-                disabled={busy}
-              />
-              <div className="staff-field">
-                <label htmlFor={`${id}-password`}>
-                  Your current password or passphrase
-                </label>
-                <input
-                  id={`${id}-password`}
-                  name="password"
-                  type="password"
-                  required
+          {phase === "start" &&
+            (phone ? status.phoneReady : status.emailReady) && (
+              <form className="staff-form" onSubmit={begin}>
+                {phone ? (
+                  <div className="staff-field">
+                    <label htmlFor={`${id}-saved-phone`}>
+                      Saved phone number
+                    </label>
+                    <input
+                      id={`${id}-saved-phone`}
+                      type="tel"
+                      value={savedPhone}
+                      readOnly
+                    />
+                  </div>
+                ) : (
+                  <EmailInput
+                    id={`${id}-destination`}
+                    name="destination"
+                    label={
+                      verifySavedEmail
+                        ? "Saved email address"
+                        : "Proposed email address"
+                    }
+                    defaultValue={verifySavedEmail ? savedEmail : ""}
+                    readOnly={verifySavedEmail}
+                    disabled={busy}
+                  />
+                )}
+                <div className="staff-field">
+                  <label htmlFor={`${id}-password`}>
+                    Your current password or passphrase
+                  </label>
+                  <input
+                    id={`${id}-password`}
+                    name="password"
+                    type="password"
+                    required
+                    disabled={busy}
+                    autoComplete="off"
+                  />
+                </div>
+                <button
+                  className="staff-button staff-button-primary"
+                  type="submit"
                   disabled={busy}
-                  autoComplete="off"
-                />
-              </div>
-              <button
-                className="staff-button staff-button-primary"
-                type="submit"
-                disabled={busy}
-              >
-                {busy ? "Checking…" : "Confirm my identity"}
-              </button>
-            </form>
-          )}
+                >
+                  {busy ? "Checking…" : "Confirm my identity"}
+                </button>
+              </form>
+            )}
           {expired && (
             <p className="staff-error" role="alert">
               This request has expired. Cancel and start a new request. Your
@@ -367,7 +411,11 @@ export default function ContactChange({
                 type="submit"
                 disabled={busy || expired}
               >
-                {busy ? "Checking…" : "Verify identity and send email code"}
+                {busy
+                  ? "Checking…"
+                  : phone
+                    ? "Verify identity and request phone code"
+                    : "Verify identity and send email code"}
               </button>
             </form>
           )}
@@ -375,16 +423,24 @@ export default function ContactChange({
             <>
               <div className="staff-state">
                 <p>
-                  Pending email: <strong>{status.pending.destination}</strong>
+                  Pending {type}: <strong>{status.pending.destination}</strong>
                 </p>
                 <p>
                   Original expiry: {handoffExpiry(status.pending.expiresAt)}.
                   Saved contact has not changed.
                 </p>
+                {phone && (
+                  <p>
+                    Ask another Admin to open your Staff Directory record and
+                    send the phone verification code through WhatsApp. Opening
+                    WhatsApp is not proof of delivery. Keep this sign-in open
+                    and enter the code you receive on your phone.
+                  </p>
+                )}
                 {status.pending.testOnly && (
                   <p>Automated TEST delivery only — not real verification.</p>
                 )}
-                {status.pending.state !== "pending" && (
+                {!phone && status.pending.state !== "pending" && (
                   <p>
                     Delivery failed, was interrupted or is still in progress. No
                     contact has been verified. Wait before resending, or cancel
@@ -396,7 +452,9 @@ export default function ContactChange({
                 <form className="staff-form" onSubmit={verifyCode}>
                   <div className="staff-field">
                     <label htmlFor={`${id}-code`}>
-                      Eight-digit code from the proposed email
+                      {phone
+                        ? "Eight-digit code received through WhatsApp"
+                        : "Eight-digit code from the proposed email"}
                     </label>
                     <input
                       id={`${id}-code`}
@@ -416,7 +474,11 @@ export default function ContactChange({
                     type="submit"
                     disabled={busy || expired}
                   >
-                    {busy ? "Verifying…" : "Verify email and save"}
+                    {busy
+                      ? "Verifying…"
+                      : phone
+                        ? "Verify phone number"
+                        : "Verify email and save"}
                   </button>
                 </form>
               )}
@@ -436,12 +498,12 @@ export default function ContactChange({
                 }
                 onClick={() =>
                   void act(async () => {
-                    await api.resendContactCode({ type: "email" });
+                    await api.resendContactCode({ type });
                     await load();
                   })
                 }
               >
-                Resend email code
+                {phone ? "Request a new phone code" : "Resend email code"}
               </button>
               <button
                 className="staff-button"
@@ -456,9 +518,9 @@ export default function ContactChange({
           {phase === "saved" && (
             <>
               <p className="staff-help">
-                Email has been saved, but refreshing your profile has not yet
+                Verification succeeded, but refreshing your profile has not yet
                 succeeded. Your address draft is preserved; do not submit the
-                email code again.
+                verification code again.
               </p>
               <button
                 className="staff-button"

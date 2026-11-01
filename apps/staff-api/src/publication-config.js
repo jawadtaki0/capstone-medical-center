@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { dpapi, protectDirectory, runtimeDirectory } from "./local-security.js";
+import { loadNormalConnection } from "./hosted-normal-config.js";
 
 export function validatePublicationConfig(value) {
   const keys = [
@@ -37,6 +38,9 @@ export async function loadPublicationConfig({
   directory = runtimeDirectory,
   unwrap = dpapi,
 } = {}) {
+  const hosted = await loadNormalConnection({ directory, unwrap });
+  if (hosted)
+    return { ...hosted, target: `${hosted.apiOrigin}/api/publications` };
   let bytes;
   try {
     bytes = await readFile(join(directory, "publication.dpapi"));
@@ -88,10 +92,13 @@ export async function provisionPublicationConfig({
   });
   return value;
 }
-export const publicationEnvironment = (config) => ({
-  mode: "normal-local",
-  publicTarget: {
-    database: config.publicDatabase,
-    srvHost: config.publicSrvHost,
-  },
-});
+export const publicationEnvironment = (config) =>
+  config.mode === "normal-hosted"
+    ? config
+    : {
+        mode: "normal-local",
+        publicTarget: {
+          database: config.publicDatabase,
+          srvHost: config.publicSrvHost,
+        },
+      };

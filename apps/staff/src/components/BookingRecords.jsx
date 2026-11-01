@@ -1,6 +1,8 @@
+import { REQUEST_REASONS } from "../../../../shared/website-request-contract.mjs";
 import { useEffect, useId, useRef, useState } from "react";
 import OperationalDialog from "./OperationalDialog.jsx";
 import { isAccessError } from "../lib/staffManagement.js";
+import { BookingNoticeButton } from "./RequestNoticeDialog.jsx";
 
 export default function BookingRecords({
   api,
@@ -9,6 +11,7 @@ export default function BookingRecords({
   affected = false,
   onError,
   refresh = 0,
+  onResolved,
 }) {
   const id = useId(),
     generation = useRef(0),
@@ -18,7 +21,8 @@ export default function BookingRecords({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [target, setTarget] = useState(null),
-    [reason, setReason] = useState("");
+    [reason, setReason] = useState(""),
+    [publicReason, setPublicReason] = useState("");
   async function load(cursor) {
     const n = ++generation.current;
     setBusy(true);
@@ -54,13 +58,17 @@ export default function BookingRecords({
   }, [api, date, scopeId, affected, refresh]);
   async function cancel(e) {
     e.preventDefault();
+    if (!publicReason) {
+      setError("Choose a fixed patient-facing cancellation reason.");
+      return;
+    }
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     setError("");
     const n = ++generation.current;
     try {
-      await api.cancelBooking({ bookingId: target.id, reason });
+      await api.cancelBooking({ bookingId: target.id, reason, publicReason });
       if (n === generation.current) {
         setTarget(null);
         setReason("");
@@ -68,6 +76,7 @@ export default function BookingRecords({
           "Booking cancelled. Its place was released once; the history is retained.",
         );
         await load();
+        onResolved?.();
       }
     } catch (e) {
       if (n === generation.current) {
@@ -135,6 +144,14 @@ export default function BookingRecords({
             {b.cancellationReason && (
               <p>Cancellation: {b.cancellationReason}</p>
             )}
+            {(b.canCancel ?? result.canCancel) && (
+              <BookingNoticeButton
+                api={api}
+                bookingId={b.id}
+                onError={onError}
+                onChanged={onResolved}
+              />
+            )}
             {b.status === "confirmed" && (b.canCancel ?? result.canCancel) && (
               <button
                 type="button"
@@ -142,6 +159,7 @@ export default function BookingRecords({
                 disabled={busy}
                 onClick={() => {
                   setTarget(b);
+                  setPublicReason("");
                   setReason("");
                   setError("");
                 }}
@@ -171,6 +189,24 @@ export default function BookingRecords({
             setReason("");
           }}
         >
+          <label className="staff-field">
+            Patient-facing cancellation reason
+            <select
+              aria-label="Patient-facing cancellation reason"
+              required
+              value={publicReason}
+              onChange={(e) => setPublicReason(e.target.value)}
+            >
+              <option value="" disabled>
+                Choose a fixed reason
+              </option>
+              {Object.entries(REQUEST_REASONS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.en}
+                </option>
+              ))}
+            </select>
+          </label>
           <h2 id={`${id}-cancel`}>Cancel {target.bookingNumber}?</h2>
           <p>
             {target.patientName} · {target.date} · {target.startTime}–

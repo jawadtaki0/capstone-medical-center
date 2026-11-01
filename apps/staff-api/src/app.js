@@ -24,6 +24,7 @@ export function createApp({
   clock = () => new Date(),
   demoMode = false,
   contactDelivery,
+  requestIntegration = null,
   publicationDeliveryConfigured = false,
   publicationDeliveryBlocked = false,
 } = {}) {
@@ -36,10 +37,12 @@ export function createApp({
           vault,
           clock,
           contactDelivery,
+          requestIntegration,
           publicationDeliveryConfigured,
           publicationDeliveryBlocked,
         })
       : null;
+  app.locals.websiteRequests = () => auth?.websiteRequests;
   app.disable("x-powered-by");
   app.set("trust proxy", false);
   app.use(helmet());
@@ -199,6 +202,40 @@ export function createApp({
       ),
     );
   }
+  for (const action of [
+    "list",
+    "notices",
+    "refresh",
+    "detail",
+    "link",
+    "createPatient",
+    "notes",
+    "review",
+    "confirm",
+    "reconcileBooking",
+    "reject",
+    "cancel",
+    "rotate",
+    "notification",
+    "bookingNoticeLookup",
+  ]) {
+    app.post(
+      `/website-requests/${action}`,
+      route((service, request) =>
+        service.websiteRequests[action](bearer(request), request.body),
+      ),
+    );
+  }
+  app.post(
+    "/summary/read",
+    route((service, request) => service.summary.read(bearer(request))),
+  );
+  app.post(
+    "/summary/viewed",
+    route((service, request) =>
+      service.summary.viewed(bearer(request), request.body),
+    ),
+  );
   // Fixed, permission-checked staff operations; no generic collection browser.
   for (const action of ["search", "read", "check", "create", "update"]) {
     app.post(
@@ -271,6 +308,17 @@ export function createApp({
     "/contacts/status",
     route((service, request) => service.contacts.status(bearer(request))),
   );
+  for (const [path, method] of [
+    ["admin-status", "phoneAdminStatus"],
+    ["prepare", "phonePrepare"],
+    ["opened", "phoneOpened"],
+  ])
+    app.post(
+      `/contacts/phone/${path}`,
+      route((service, request) =>
+        service.contacts[method](bearer(request), request.body),
+      ),
+    );
   app.post(
     "/contacts/identity/start",
     route((service, request) =>
@@ -361,7 +409,14 @@ export function createApp({
     "/operations",
     route((service, request) => service.operations.read(bearer(request))),
   );
-  for (const action of ["save", "grants", "publish", "preview", "retry"]) {
+  for (const action of [
+    "save",
+    "grants",
+    "publish",
+    "preview",
+    "retry",
+    "review",
+  ]) {
     app.post(
       `/operations/${action}`,
       route((service, request) =>

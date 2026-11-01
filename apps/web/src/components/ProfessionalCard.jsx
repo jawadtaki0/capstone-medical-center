@@ -3,6 +3,7 @@ import ProfessionalAvatar from "./ProfessionalAvatar.jsx";
 import { specialtyLabel } from "../data/specialties.js";
 import { professionalName } from "../data/professionalNames.js";
 import "./doctorDirectory.css";
+import { requestSelectionUrl } from "../request-selection.js";
 
 export default function ProfessionalCard({ professional }) {
   return (
@@ -20,6 +21,16 @@ export default function ProfessionalCard({ professional }) {
                 {specialtyLabel(professional.specialty)}
               </p>
             </div>
+            {(import.meta.env.VITE_HOSTED_REVIEW === "1" ||
+              import.meta.env.VITE_HOSTED_CAPSTONE === "1" ||
+              import.meta.env.VITE_WEBSITE_REQUESTS === "1") && (
+              <a
+                className="text-button"
+                href={requestSelectionUrl(professional)}
+              >
+                Request a clinic session
+              </a>
+            )}
           </div>
         </div>
       </div>

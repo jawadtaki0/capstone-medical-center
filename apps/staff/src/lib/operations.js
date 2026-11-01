@@ -38,26 +38,21 @@ export function operationalScopeError(type, record, state) {
     return "Choose a valid assigned scope.";
   if (sessions.some((s) => !validPatientLimit(s.capacity)))
     return "Enter a positive whole patient limit, or leave it blank.";
-  if (
-    type === "professionals" &&
-    (!record.scopeIds?.length ||
-      !record.scopeIds.every((id) => allowed(id, true)))
-  )
-    return "Choose at least one valid assigned clinic.";
+  if (type === "professionals") {
+    const clinics = state.scopes.filter(
+      (scope) => scope.kind === "clinic" && scope.active,
+    );
+    if (clinics.length !== 1)
+      return "Exactly one active clinic must be configured before editing a professional.";
+    if (!allowed(clinics[0].id, true))
+      return "Your current account cannot edit this clinic's professionals.";
+  }
   return "";
 }
 export function cleanOperationalRecord(type, record) {
   const fields = {
     scopes: ["id", "name", "kind", "active"],
-    professionals: [
-      "id",
-      "name",
-      "specialty",
-      "kind",
-      "gender",
-      "active",
-      "scopeIds",
-    ],
+    professionals: ["id", "name", "specialty", "kind", "gender", "active"],
     sessions: [
       "id",
       "scopeId",
@@ -86,6 +81,64 @@ export function cleanOperationalRecord(type, record) {
           : record[key],
       ]),
   );
+}
+export function limitOnlyEdit(type, before, after) {
+  if (!before.revision || !["sessions", "exceptions"].includes(type))
+    return false;
+  const withoutLimit = (record) =>
+    JSON.stringify(cleanOperationalRecord(type, record), (key, value) =>
+      key === "capacity" ? undefined : value,
+    );
+  return withoutLimit(before) === withoutLimit(after);
+}
+
+// One scope/date remains the stored replacement unit. A professional-only edit
+// rebuilds that unit with every unaffected entry preserved, including its limit.
+export function oneDateReplacement(state, date, target, closed, replacements) {
+  const [kind, ...parts] = target.split("|");
+  const targetId = parts.join("|");
+  const professional =
+    kind === "professional"
+      ? state.professionals.find((p) => p.id === targetId)
+      : null;
+  const scopeId = professional?.scopeIds[0] ?? targetId;
+  const scope = state.scopes.find(
+    (s) => s.id === scopeId && s.active && s.access.edit,
+  );
+  if (
+    !scope ||
+    (kind === "professional" && (!professional || !professional.canEdit))
+  )
+    throw new Error("Choose a currently authorized target.");
+  const prior = state.exceptions.find(
+    (e) => e.scopeId === scopeId && e.date === date,
+  );
+  const current = scheduleForDate(state, date).filter(
+    (s) => s.scopeId === scopeId,
+  );
+  const unaffected = professional
+    ? current.filter((s) => s.professionalId !== professional.id)
+    : [];
+  const affected = current.filter(
+    (s) => !professional || s.professionalId === professional.id,
+  );
+  const sessions = [...unaffected, ...(closed ? [] : replacements)].map((s) =>
+    cleanOperationalRecord("sessions", s),
+  );
+  return {
+    prior,
+    current,
+    affected,
+    scope,
+    professional,
+    record: {
+      id: prior?.id ?? `exception:${crypto.randomUUID()}`,
+      scopeId,
+      date,
+      closed: !professional && closed,
+      sessions,
+    },
+  };
 }
 export function scheduleForDate(data, date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];

@@ -1,0 +1,27 @@
+@import "../../web/src/request-preview/preview.css";
+@import "../../web/src/request-preview/cedar-preview.css";
+.staff-verification-dialog .request-fields {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+.request-inbox-mobile-always {
+  display: grid;
+  gap: 1rem;
+}
+.request-needs-action {
+  background: #fff8e8;
+}
+.request-needs-action td:first-child {
+  border-inline-start: 3px solid #b77c11;
+}
+.staff-request-tabs {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.staff-request-tabs .staff-button {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

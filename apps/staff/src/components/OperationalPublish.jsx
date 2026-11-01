@@ -1,8 +1,14 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import OperationalDialog from "./OperationalDialog.jsx";
 import { centerToday } from "../lib/operations.js";
 
-export default function OperationalPublish({ state, onPublish, onClose }) {
+export default function OperationalPublish({
+  state,
+  onReview,
+  onPublish,
+  onClose,
+}) {
   const id = useId(),
     submitting = useRef(false);
   const [selected, setSelected] = useState([]),
@@ -11,9 +17,62 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
     [confirmed, setConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [review, setReview] = useState(null),
+    [reviewing, setReviewing] = useState(false);
+  const reviewGeneration = useRef(0);
+  const reviewer = useRef(onReview);
+  reviewer.current = onReview;
+  const signature = JSON.stringify([
+    selected,
+    baseline,
+    date,
+    state.revision,
+    state.head,
+  ]);
+  useEffect(() => {
+    const version = ++reviewGeneration.current;
+    setReview(null);
+    setConfirmed(false);
+    setError("");
+    if (!selected.length || (!baseline && !/^\d{4}-\d{2}-\d{2}$/.test(date))) {
+      setReviewing(false);
+      return;
+    }
+    setReviewing(true);
+    Promise.resolve()
+      .then(() =>
+        reviewer.current({
+          scopeIds: selected,
+          effectiveFrom: baseline ? null : date,
+          expectedRevision: state.revision,
+          expectedHead: state.head,
+        }),
+      )
+      .then((value) => {
+        if (version === reviewGeneration.current)
+          setReview({ ...value, signature });
+      })
+      .catch((failure) => {
+        if (version === reviewGeneration.current) setError(failure.message);
+      })
+      .finally(() => {
+        if (version === reviewGeneration.current) setReviewing(false);
+      });
+    return () => {
+      reviewGeneration.current++;
+    };
+  }, [signature]);
   async function submit(event) {
     event.preventDefault();
-    if (submitting.current) return;
+    if (
+      submitting.current ||
+      !review ||
+      review.signature !== signature ||
+      !review.total ||
+      review.conflict ||
+      reviewing
+    )
+      return;
     submitting.current = true;
     setBusy(true);
     setError("");
@@ -35,7 +94,7 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
   }
   return (
     <OperationalDialog titleId={`${id}-title`} busy={busy} onClose={onClose}>
-      <h2 id={`${id}-title`}>Review and publish local snapshot</h2>
+      <h2 id={`${id}-title`}>Review & update website</h2>
       <p>
         This saves an immutable local version and delivery work. A configured
         receiver is updated only after validated acceptance. The website uses
@@ -49,6 +108,54 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
         earlier versions remain stored. Blank patient limits may publish and
         remain not configured.
       </p>
+      {reviewing && <LoadingStatus label="Loading website changes…" />}
+      {review && review.signature === signature && (
+        <section aria-label="Website changes" aria-live="polite">
+          {!review.total ? (
+            <p>No unpublished website changes.</p>
+          ) : (
+            <>
+              <h3>
+                {review.total} website change{review.total === 1 ? "" : "s"}
+              </h3>
+              <ul className="operational-list">
+                {review.changes.map((change, index) => (
+                  <li
+                    key={`${change.type}:${change.id}:${change.field}:${index}`}
+                  >
+                    <div>
+                      <strong>{change.label}</strong>
+                      <p>
+                        {change.field}: {String(change.before)} →{" "}
+                        {String(change.after)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {review.truncated && (
+                <p>
+                  Showing the first {review.changes.length} changes of{" "}
+                  {review.total}. Review smaller clinic/service groups to see
+                  all changes.
+                </p>
+              )}
+            </>
+          )}
+          {review.conflict && (
+            <p className="staff-error" role="alert">
+              {review.conflict.message}
+            </p>
+          )}
+          {!review.deliveryConfigured && (
+            <p className="staff-notice">
+              This isolated service is not connected for website delivery.
+              Publishing saves a local version only; no website update will be
+              claimed.
+            </p>
+          )}
+        </section>
+      )}
       {error && (
         <p role="alert" className="staff-error">
           {error}
@@ -56,7 +163,7 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
       )}
       <form className="staff-form" onSubmit={submit}>
         <fieldset disabled={busy} className="operational-fields">
-          <legend>Authorized scopes to publish</legend>
+          <legend>Clinic/services included in this update</legend>
           {state.scopes
             .filter((s) => s.access.publish)
             .map((s) => (
@@ -119,9 +226,16 @@ export default function OperationalPublish({ state, onPublish, onClose }) {
           <button
             className="staff-button staff-button-primary"
             type="submit"
-            disabled={busy || !selected.length}
+            disabled={
+              busy ||
+              reviewing ||
+              !review ||
+              review.signature !== signature ||
+              !review.total ||
+              Boolean(review.conflict)
+            }
           >
-            Publish selected drafts
+            {busy ? "Updating…" : "Confirm website update"}
           </button>
           <button
             className="staff-button"

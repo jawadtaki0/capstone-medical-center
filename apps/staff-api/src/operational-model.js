@@ -5,6 +5,30 @@ import { validPatientLimit } from "../../../shared/session-capacity.mjs";
 import { validRoles } from "./permissions.js";
 
 const invalid = (message) => new StaffError("invalid_input", message);
+// Called with the current guarded transaction snapshot, never renderer claims.
+export function resolveProfessionalClinic(record, scopes) {
+  const clinics = scopes.filter(
+    (scope) => scope.kind === "clinic" && scope.active,
+  );
+  if (clinics.length !== 1)
+    throw new StaffError(
+      "clinic_configuration",
+      "Exactly one active clinic must be configured before editing a professional.",
+      409,
+    );
+  if (!record || typeof record !== "object" || Array.isArray(record))
+    throw invalid("Enter a professional profile.");
+  if (
+    Object.hasOwn(record, "scopeIds") &&
+    (!Array.isArray(record.scopeIds) ||
+      record.scopeIds.length !== 1 ||
+      record.scopeIds[0] !== clinics[0].id)
+  )
+    throw invalid(
+      "The professional must belong to the center's single active clinic.",
+    );
+  return { ...record, scopeIds: [clinics[0].id] };
+}
 export function identifier(value) {
   if (typeof value !== "string" || !/^[a-zA-Z0-9:_-]{1,120}$/.test(value))
     throw invalid(

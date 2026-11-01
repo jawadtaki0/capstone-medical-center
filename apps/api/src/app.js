@@ -1,3 +1,4 @@
+import { websiteRequestRouter } from "./website-request-routes.js";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
@@ -23,12 +24,22 @@ export function createApp({
   publicationReceiver = null,
   publicAuthority = null,
   websiteDirectory = null,
+  websiteRequests = null,
+  clientOrigin = config.clientOrigin,
 } = {}) {
   const app = express();
 
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(cors({ origin: config.clientOrigin }));
+  app.use("/track", (_request, response, next) => {
+    response.set({
+      "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer",
+      "X-Robots-Tag": "noindex, nofollow",
+    });
+    next();
+  });
+  app.use(cors({ origin: clientOrigin }));
   if (publicationReceiver) {
     const legacySchedule = scheduleReader,
       legacyProfessionals = professionalsReader;
@@ -54,7 +65,11 @@ export function createApp({
               error: "publication_authentication_failed",
               message: "Publication authentication is required.",
             }),
-      express.json({ limit: MAX_PUBLICATION_BYTES, strict: true }),
+      express.json({
+        limit: MAX_PUBLICATION_BYTES,
+        strict: true,
+        inflate: false,
+      }),
       async (request, response) => {
         try {
           response.json(await publicationReceiver.accept(request.body));
@@ -78,7 +93,31 @@ export function createApp({
         }),
     );
   }
-  app.use(express.json({ limit: "100kb" }));
+  if (websiteRequests)
+    app.use("/api/requests", websiteRequestRouter(websiteRequests));
+  app.use(express.json({ limit: "100kb", inflate: false }));
+  app.use((error, _request, response, next) => {
+    if (
+      ![
+        "encoding.unsupported",
+        "entity.parse.failed",
+        "entity.too.large",
+      ].includes(error.type)
+    )
+      return next(error);
+    response
+      .status(
+        error.type === "entity.too.large"
+          ? 413
+          : error.type === "encoding.unsupported"
+            ? 415
+            : 400,
+      )
+      .json({
+        error: "invalid_json",
+        message: "Send uncompressed JSON within the permitted size.",
+      });
+  });
 
   app.get("/api/health", async (_request, response) => {
     response.json({
@@ -102,8 +141,8 @@ export function createApp({
       }
       try {
         response.json(await scheduleReader(date));
-      } catch (error) {
-        console.error(`Schedule read failed: ${error.message}`);
+      } catch {
+        console.error("Schedule read failed.");
         response.status(503).json({
           error: "schedule_unavailable",
           message: "The public schedule could not be loaded right now.",
@@ -130,8 +169,10 @@ export function createApp({
 
   if (websiteDirectory) {
     app.use(express.static(websiteDirectory));
-    app.get(["/", "/doctors", "/schedule"], (_request, response) =>
-      response.sendFile("index.html", { root: websiteDirectory }),
+    app.get(
+      ["/", "/doctors", "/schedule", "/request", "/track"],
+      (_request, response) =>
+        response.sendFile("index.html", { root: websiteDirectory }),
     );
   }
   app.use((request, response) => {

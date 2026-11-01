@@ -7,6 +7,8 @@ export default function Header({
   onPreview,
   onSchedulePage = false,
   onDoctorsPage = false,
+  onRequestPage = false,
+  homePage,
 }) {
   const [mobile, setMobile] = useState(
     () => window.matchMedia(mobileQuery).matches,
@@ -16,7 +18,8 @@ export default function Header({
   const header = useRef(null);
   const menuButton = useRef(null);
   const centerButton = useRef(null);
-  const onHomePage = !onSchedulePage && !onDoctorsPage;
+  const onHomePage =
+    homePage ?? (!onSchedulePage && !onDoctorsPage && !onRequestPage);
   const homeLink = onHomePage ? "#main" : "/";
   const homeSectionLink = (id) => (onHomePage ? `#${id}` : `/#${id}`);
 
@@ -193,13 +196,13 @@ export default function Header({
           >
             <span>Services</span>
           </a>
-          <button
+          <a
             className="nav-pill"
-            type="button"
-            onClick={() => preview("Laboratory")}
+            href="/services/laboratory"
+            onClick={() => goTo()}
           >
             <span>Laboratory</span>
-          </button>
+          </a>
           <a
             className="nav-pill"
             href="/schedule"

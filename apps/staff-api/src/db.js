@@ -3,6 +3,7 @@ import { loadConfig, validateTarget } from "./config.js";
 import { STAFF_ROLE_POLICY } from "../../../shared/staff-roles.mjs";
 import { ensureBookingIndexes } from "./bookings.js";
 import { ensurePatientIndexes } from "./patients.js";
+import { ensureOperationalSummaryIndexes } from "./operational-summary.js";
 
 export async function assertRoleStoragePolicy(db) {
   const state = await db
@@ -53,6 +54,7 @@ export async function connectStaffDatabase({
 }
 
 export async function ensureIndexes(db) {
+  await ensureOperationalSummaryIndexes(db);
   await ensurePatientIndexes(db);
   await ensureBookingIndexes(db);
   await db

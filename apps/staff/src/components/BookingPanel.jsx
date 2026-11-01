@@ -1,11 +1,19 @@
 import { useEffect, useId, useRef, useState } from "react";
 import OperationalDialog from "./OperationalDialog.jsx";
 import BookingRecords from "./BookingRecords.jsx";
+import PatientRegistry from "./PatientRegistry.jsx";
+import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
+import { BookingNoticeButton } from "./RequestNoticeDialog.jsx";
 import { centerToday } from "../lib/operations.js";
 import { isAccessError } from "../lib/staffManagement.js";
 import "./bookings.css";
 
-export default function BookingPanel({ api, onError, onPendingChange }) {
+export default function BookingPanel({
+  api,
+  onError,
+  onPendingChange,
+  onResolved,
+}) {
   const id = useId(),
     generation = useRef(0),
     pending = useRef(false),
@@ -30,7 +38,10 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
     [receipt, setReceipt] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [refresh, setRefresh] = useState(0);
+    [refresh, setRefresh] = useState(0),
+    [noticeLanguage, setNoticeLanguage] = useState("en"),
+    [choosingPatient, setChoosingPatient] = useState(false),
+    [patientEditing, setPatientEditing] = useState(false);
   useEffect(
     () => () => {
       generation.current++;
@@ -120,13 +131,16 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
       });
   }
   async function confirm() {
-    const value = await run(() => api.confirmBooking(review.request));
+    const value = await run(() =>
+      api.confirmBooking({ ...review.request, noticeLanguage }),
+    );
     // On uncertain transport outcomes the SAME review/key remains available.
     if (value) {
       setReceipt(value.booking);
       setReview(null);
       setRefresh((n) => n + 1);
       setAvailability(null);
+      onResolved?.();
     }
   }
   const professionals = [
@@ -137,6 +151,33 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
       ]),
     ).entries(),
   ];
+  if (choosingPatient)
+    return (
+      <div className="booking-panel">
+        <button
+          type="button"
+          className="staff-button"
+          disabled={patientEditing}
+          onClick={() => setChoosingPatient(false)}
+        >
+          Back to booking
+        </button>
+        <PatientRegistry
+          api={api}
+          onError={onError}
+          onPendingChange={(value) => {
+            setPatientEditing(value);
+            onPendingChange?.(value);
+          }}
+          onSelect={(p) => {
+            setPatient(p);
+            setReceipt(null);
+            setChoosingPatient(false);
+            onPendingChange?.(false);
+          }}
+        />
+      </div>
+    );
   return (
     <div className="booking-panel">
       <p className="staff-eyebrow">CLINIC BOOKINGS</p>
@@ -145,6 +186,7 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
         A booking reserves a place in the full session window, not an exact
         appointment time. Actual check-in determines consultation order.
       </p>
+      {busy && <LoadingStatus label="Loading booking details…" />}
       {error && !review && (
         <p role="alert" className="staff-error">
           {error}
@@ -168,6 +210,12 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
             Keep this immutable booking number. This does not assign a
             consultation time.
           </p>
+          <BookingNoticeButton
+            api={api}
+            bookingId={receipt.id}
+            onError={onError}
+            onChanged={onResolved}
+          />
         </div>
       )}
       <section className="staff-workspace-card">
@@ -200,6 +248,14 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
             Search patients
           </button>
         </form>
+        <button
+          type="button"
+          className="staff-button"
+          disabled={busy}
+          onClick={() => setChoosingPatient(true)}
+        >
+          Find/register patient
+        </button>
         {patients?.patients.length === 0 && (
           <p role="status">
             No matching patients. Register a patient in Patients first.
@@ -273,6 +329,10 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
           <>
             <div className="staff-field">
               <label htmlFor={`${id}-professional`}>Professional</label>
+              <p className="staff-help">
+                Showing sessions still running or upcoming on the selected date.
+                Ended sessions are excluded using server time in Asia/Beirut.
+              </p>
               <select
                 id={`${id}-professional`}
                 disabled={busy}
@@ -349,6 +409,7 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
           scopeId={scope}
           onError={onError}
           refresh={refresh}
+          onResolved={onResolved}
         />
       )}
       {review && (
@@ -400,6 +461,26 @@ export default function BookingPanel({ api, onError, onPendingChange }) {
               changing these details.
             </p>
           )}
+          <label className="staff-field">
+            Manual notification language
+            <select
+              value={noticeLanguage}
+              disabled={busy}
+              onChange={(e) => {
+                setNoticeLanguage(e.target.value);
+                setReview((r) => ({
+                  ...r,
+                  request: {
+                    ...r.request,
+                    idempotencyKey: crypto.randomUUID(),
+                  },
+                }));
+              }}
+            >
+              <option value="en">English</option>
+              <option value="ar">العربية</option>
+            </select>
+          </label>
           <div className="staff-actions">
             <button
               className="staff-button staff-button-primary"

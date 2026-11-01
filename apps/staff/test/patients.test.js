@@ -10,7 +10,11 @@ import { createBroker } from "../electron/transport.js";
 const root = new URL("../src/", import.meta.url).href;
 const hook = registerHooks({
   load(url, context, next) {
-    if (!url.startsWith(root)) return next(url, context);
+    if (
+      !url.startsWith(root) &&
+      !url.startsWith(new URL("../../../shared/ui/", import.meta.url).href)
+    )
+      return next(url, context);
     if (url.endsWith(".css"))
       return { format: "module", source: "", shortCircuit: true };
     if (!url.endsWith(".jsx")) return next(url, context);
@@ -98,7 +102,7 @@ test("registry and edit dialog keep separate names, required maternal helper, ac
   assert.ok(editor.includes("patient-contact-grid"));
   assert.equal(editor.includes("Delete patient"), false);
 });
-test("all four current roles see Patients without operational grants; unknown roles do not", async () => {
+test("workspace waits for current server capabilities before showing private patient navigation, for every role", async () => {
   const { default: Workspace } =
     await import("../src/components/Workspace.jsx");
   for (const roles of [
@@ -117,10 +121,8 @@ test("all four current roles see Patients without operational grants; unknown ro
         timing: {},
       }),
     );
-    assert.equal(
-      html.includes(">Patients</button>"),
-      !roles.includes("Unknown"),
-    );
+    assert.equal(html.includes(">Patients</button>"), false);
+    assert.match(html, /Loading today/);
   }
 });
 

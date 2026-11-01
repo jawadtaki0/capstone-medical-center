@@ -52,8 +52,13 @@ test("delivery configuration requires app-password shape and allowance but no re
   assert.throws(() =>
     validateDeliveryConfig({ ...enabledConfig(), deliveryScope: "other" }),
   );
-  assert.throws(() =>
-    validateDeliveryConfig({ ...enabledConfig(), allowance: 21 }),
+  assert.equal(
+    validateDeliveryConfig({ ...enabledConfig(), allowance: 21 }).allowance,
+    21,
+  );
+  assert.equal(
+    validateDeliveryConfig({ ...enabledConfig(), allowance: 0 }).enabled,
+    true,
   );
   assert.throws(() =>
     validateDeliveryConfig({

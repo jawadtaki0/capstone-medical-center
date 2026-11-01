@@ -4,6 +4,8 @@ import {
   saveBookingLimits,
 } from "./booking-model.js";
 import { randomUUID } from "node:crypto";
+import { composeCandidate, publicationChanges } from "./publication-review.js";
+import { invalidateAvailability } from "./session-availability.js";
 import {
   makePublicationIntent,
   PUBLICATION_OUTBOX,
@@ -14,6 +16,7 @@ import {
   identifier,
   dateOnly,
   validateOperationalRecord,
+  resolveProfessionalClinic,
   operationalAccess,
   assertNoOverlap,
 } from "./operational-model.js";
@@ -130,6 +133,7 @@ export function createOperationsService({
       );
   }
   async function changed(session, context, action, target, at) {
+    await invalidateAvailability(db, session);
     await collection("state").updateOne(
       { _id: "working" },
       { $inc: { revision: 1 }, $setOnInsert: { head: 0 } },
@@ -190,6 +194,94 @@ export function createOperationsService({
     assertNoOverlap(data.sessions, data.exceptions);
   }
   return {
+    review: (token, input) =>
+      run(token, false, async (session, context, data, at) => {
+        allowFields(input, [
+          "scopeIds",
+          "expectedRevision",
+          "expectedHead",
+          "effectiveFrom",
+        ]);
+        const scopeIds = listIds(input.scopeIds);
+        authorized(context, data, scopeIds, "publish");
+        if (
+          expectedRevision(input.expectedRevision) !== data.revision ||
+          expectedRevision(input.expectedHead) !== data.head
+        )
+          throw stale();
+        const effectiveFrom =
+          input.effectiveFrom === null ? null : dateOnly(input.effectiveFrom);
+        if (
+          effectiveFrom === null &&
+          (!admin(context) ||
+            data.head !== 0 ||
+            scopeIds.length !== data.scopes.length)
+        )
+          throw denied();
+        const events = await collection("publications")
+          .find({}, { session })
+          .toArray();
+        const candidate = {
+          ...composeCandidate(
+            data,
+            events,
+            scopeIds,
+            effectiveFrom,
+            admin(context),
+          ),
+          id: `publication:${data.head + 1}`,
+          sequence: data.head + 1,
+          scopeIds,
+          effectiveFrom,
+          publishesHours: admin(context),
+        };
+        const changes = publicationChanges(
+          composePublications(events, effectiveFrom),
+          candidate,
+        );
+        let conflict = null;
+        try {
+          references(candidate);
+          validatePublication(candidate);
+          for (const boundary of new Set(
+            events
+              .filter(
+                (event) =>
+                  event.effectiveFrom !== null &&
+                  (effectiveFrom === null ||
+                    event.effectiveFrom > effectiveFrom),
+              )
+              .map((event) => event.effectiveFrom),
+          )) {
+            const future = composePublications(
+              [...events, candidate],
+              boundary,
+            );
+            references(future);
+            validatePublication(future);
+          }
+          await assertBookingIntegrity(
+            db,
+            session,
+            {
+              ...(await loadBookingAuthority(db, session)),
+              events: [...events, candidate],
+            },
+            { publication: true },
+          );
+        } catch (failure) {
+          if (!(failure instanceof StaffError)) throw failure;
+          conflict = { code: failure.code, message: failure.message };
+        }
+        return {
+          ...changes,
+          conflict,
+          revision: data.revision,
+          head: data.head,
+          effectiveFrom,
+          deliveryConfigured: publicationDeliveryConfigured,
+        };
+      }),
     read: (token) =>
       run(token, false, async (_session, context, data) => {
         const scopes = data.scopes
@@ -277,7 +369,18 @@ export function createOperationsService({
     save: (token, input) =>
       run(token, true, async (session, context, data, at) => {
         allowFields(input, ["type", "record", "expectedRevision"]);
-        const value = validateOperationalRecord(input.type, input.record),
+        if (input.type === "professionals") {
+          const previous = data.professionals.find(
+            (record) => record.id === input.record?.id,
+          );
+          if (previous) authorized(context, data, previous.scopeIds);
+        }
+        const value = validateOperationalRecord(
+            input.type,
+            input.type === "professionals"
+              ? resolveProfessionalClinic(input.record, data.scopes)
+              : input.record,
+          ),
           revision = expectedRevision(input.expectedRevision);
         const old = data[input.type].find((v) => v.id === value.id);
         if ((old?.revision ?? 0) !== revision) throw stale();
@@ -303,6 +406,7 @@ export function createOperationsService({
             "A registry record cannot change kind.",
           );
         const next = { ...value, revision: revision + 1 };
+        const beforeData = { ...data };
         data[input.type] = [
           ...data[input.type].filter((v) => v.id !== value.id),
           next,
@@ -332,7 +436,16 @@ export function createOperationsService({
           await assertBookingIntegrity(db, session, authority);
         }
         await changed(session, context, `save_${input.type}`, value.id, at);
-        return { saved: true, revision: next.revision };
+        const publicDraftChanged =
+          publicationChanges(beforeData, data).total > 0;
+        return {
+          saved: true,
+          revision: next.revision,
+          patientLimitUpdated:
+            ["sessions", "exceptions"].includes(input.type) &&
+            !publicDraftChanged,
+          publicDraftChanged,
+        };
       }),
     grants: (token, input) =>
       run(token, true, async (session, context, data, at) => {
@@ -430,41 +543,6 @@ export function createOperationsService({
         const events = await collection("publications")
           .find({}, { session })
           .toArray();
-        const prior = composePublications(events, effectiveFrom);
-        const selected = new Set(scopeIds),
-          base = prior ?? {
-            scopes: [],
-            professionals: [],
-            sessions: [],
-            exceptions: [],
-            hours: [],
-          };
-        const replaceScoped = (key) => [
-          ...base[key].filter(
-            (r) => !selected.has(key === "scopes" ? r.id : r.scopeId),
-          ),
-          ...data[key].filter((r) =>
-            selected.has(key === "scopes" ? r.id : r.scopeId),
-          ),
-        ];
-        const professionals = [...base.professionals];
-        for (const p of data.professionals.filter((p) =>
-          p.scopeIds.some((id) => selected.has(id)),
-        )) {
-          const old = professionals.find((r) => r.id === p.id);
-          if (!p.scopeIds.every((id) => selected.has(id))) {
-            if (!old || old.revision !== p.revision)
-              throw new StaffError(
-                "publication_conflict",
-                "Publish every linked clinic together when changing a shared professional profile.",
-                409,
-              );
-          } else {
-            const index = professionals.findIndex((r) => r.id === p.id);
-            if (index < 0) professionals.push(p);
-            else professionals[index] = p;
-          }
-        }
         const next = {
           id: `publication:${data.head + 1}`,
           sequence: data.head + 1,
@@ -472,11 +550,13 @@ export function createOperationsService({
           publishedAt: at.toISOString(),
           scopeIds,
           publishesHours: admin(context),
-          scopes: replaceScoped("scopes"),
-          professionals,
-          sessions: replaceScoped("sessions"),
-          exceptions: replaceScoped("exceptions"),
-          hours: admin(context) ? data.hours : base.hours,
+          ...composeCandidate(
+            data,
+            events,
+            scopeIds,
+            effectiveFrom,
+            admin(context),
+          ),
         };
         references(next);
         validatePublication(next);

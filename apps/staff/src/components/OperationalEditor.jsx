@@ -6,6 +6,7 @@ import {
   centerToday,
   newSession,
   operationalScopeError,
+  limitOnlyEdit,
   WEEKDAYS,
 } from "../lib/operations.js";
 
@@ -104,13 +105,15 @@ export default function OperationalEditor({
     hours: "Center opening hours draft",
   };
   const dayNumber = (date) => new Date(`${date}T12:00:00Z`).getUTCDay();
+  const onlyLimit = limitOnlyEdit(type, initial, value);
   return (
     <OperationalDialog titleId={`${id}-title`} busy={busy} onClose={onClose}>
       <h2 id={`${id}-title`}>{titles[type]}</h2>
       <p className="staff-help">
-        Saved as a staff-only draft. Website information changes only after
-        authorized publication, receiver acceptance and operator source
-        activation.
+        Patient limits take effect immediately when saved; no website update is
+        required. Public profile and hours changes stay drafts until authorized
+        publication and receiver acceptance. A mixed save validates and saves
+        both effects together, or saves neither.
       </p>
       {error && (
         <p className="staff-error" role="alert">
@@ -137,7 +140,7 @@ export default function OperationalEditor({
               {active}
               <p className="staff-help">
                 A service name does not grant responsibility. Admin assigns it
-                explicitly to staff below.
+                explicitly in Staff Directory → Staff clinic/service access.
               </p>
             </>
           )}
@@ -165,33 +168,20 @@ export default function OperationalEditor({
                 ["male", "Male — confirmed"],
                 ["female", "Female — confirmed"],
               ])}
-              <fieldset>
-                <legend>Assigned clinics</legend>
-                {state.scopes
-                  .filter((s) => s.kind === "clinic" && s.access.edit)
-                  .map((s) => (
-                    <label className="staff-checkbox" key={s.id}>
-                      <input
-                        type="checkbox"
-                        checked={value.scopeIds.includes(s.id)}
-                        onChange={(e) =>
-                          set(
-                            "scopeIds",
-                            e.target.checked
-                              ? [...value.scopeIds, s.id]
-                              : value.scopeIds.filter((x) => x !== s.id),
-                          )
-                        }
-                      />
-                      {s.name}
-                    </label>
-                  ))}
-              </fieldset>
+              <p className="staff-help">
+                Clinic:{" "}
+                {state.scopes.find(
+                  (scope) => scope.kind === "clinic" && scope.active,
+                )?.name ?? "Not configured"}
+                . The server checks the single active clinic and your current
+                permission when saving.
+              </p>
               {active}
               <p className="staff-help">
                 Before publishing deactivation, explicitly cancel/revise active
-                sessions. Historical versions remain stored. Future appointment
-                review is not implemented.
+                sessions. Historical versions remain stored. Publication is
+                blocked while an active booking would be invalidated; cancel
+                affected bookings explicitly first.
               </p>
             </>
           )}
@@ -398,7 +388,7 @@ export default function OperationalEditor({
             type="submit"
             disabled={busy}
           >
-            Save draft
+            {onlyLimit ? "Save patient limit" : "Save draft"}
           </button>
           <button
             className="staff-button"
@@ -409,7 +399,11 @@ export default function OperationalEditor({
             Cancel
           </button>
         </div>
-        {busy && <p role="status">Saving draft…</p>}
+        {busy && (
+          <p role="status">
+            {onlyLimit ? "Saving patient limit…" : "Saving draft…"}
+          </p>
+        )}
       </form>
     </OperationalDialog>
   );
