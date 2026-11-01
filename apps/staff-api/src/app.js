@@ -308,6 +308,17 @@ export function createApp({
     "/contacts/status",
     route((service, request) => service.contacts.status(bearer(request))),
   );
+  for (const [path, method] of [
+    ["admin-status", "phoneAdminStatus"],
+    ["prepare", "phonePrepare"],
+    ["opened", "phoneOpened"],
+  ])
+    app.post(
+      `/contacts/phone/${path}`,
+      route((service, request) =>
+        service.contacts[method](bearer(request), request.body),
+      ),
+    );
   app.post(
     "/contacts/identity/start",
     route((service, request) =>

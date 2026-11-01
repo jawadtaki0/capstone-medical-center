@@ -95,6 +95,7 @@ function validatePayload(name, payload) {
     operationalSummary: [],
     viewOperationalActivity: ["eventId"],
     openRequestWhatsApp: ["noticeId"],
+    openStaffPhoneWhatsApp: ["accountId"],
     bookingSessions: ["date"],
     reviewBooking: [
       "patientId",

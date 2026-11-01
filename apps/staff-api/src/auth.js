@@ -800,6 +800,7 @@ export function createAuthService({
     );
   }
   const contacts = createContactService({
+    idleMs: AUTH_POLICY.idleMs,
     db,
     client,
     vault,

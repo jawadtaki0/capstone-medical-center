@@ -33,7 +33,12 @@ export async function configureHostedNormalCredential({
         readOnly: true,
       },
       { label: "Database scope", value: "medical-center-dev", readOnly: true },
-      { label: "Saved Atlas capstone password", value: "", private: true },
+      {
+        label: "Saved Atlas capstone password",
+        value: "",
+        private: true,
+        asteriskMask: true,
+      },
     ],
   });
   if (values === null) return { status: "cancelled" };

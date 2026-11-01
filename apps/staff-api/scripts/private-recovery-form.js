@@ -67,6 +67,10 @@ try {
     $box.Text = $field.value
     $box.ReadOnly = [bool]$field.readOnly
     $box.UseSystemPasswordChar = [bool]$field.private -and -not ($options.reviewDisplay -and $field.initialVisible)
+    if ($field.private -and $field.asteriskMask -and -not $field.readOnly) {
+      $box.UseSystemPasswordChar = $false
+      $box.PasswordChar = '*'
+    }
     $form.Controls.Add($box)
     $boxes += $box
     if ($field.readOnly -and (($field.private -and ($field.copyPassword -or $field.copySecret)) -or ($options.reviewDisplay -and $field.copyValue))) {

@@ -6,6 +6,11 @@ import {
   expectedRevision,
 } from "./management-validation.js";
 import { profileRevision } from "./management.js";
+import {
+  canonicalPhone,
+  PHONE_INPUT_MESSAGE,
+} from "../../staff/shared/contact-input.js";
+import { validRoles } from "../../../shared/staff-roles.mjs";
 import { contactStatus, reservesEmail } from "./contact-status.js";
 import {
   normalizeEmail,
@@ -28,7 +33,6 @@ export const CONTACT_POLICY = Object.freeze({
   maxResends: 2,
   hourly: 3,
   daily: 10,
-  monthly: 20,
 });
 const problem = (code, message, status = 409) =>
   new StaffError(`contact_${code}`, message, status);
@@ -58,9 +62,9 @@ const requestType = (input) => {
 };
 const destinationFor = (type, value) => {
   if (type === "email") return normalizeEmail(value);
-  if (typeof value !== "string" || !/^\+[1-9]\d{7,14}$/.test(value.trim()))
-    throw new StaffError("invalid_input", "Use an international phone number.");
-  return value.trim();
+  const phone = canonicalPhone(value, "LB");
+  if (!phone) throw new StaffError("invalid_input", PHONE_INPUT_MESSAGE);
+  return phone;
 };
 const secret = (value) =>
   typeof value === "string" && value.length <= 512 ? value : "";
@@ -89,6 +93,7 @@ export function createContactService({
   consumeFactor,
   requiresMfa,
   recentVerificationExpiry,
+  idleMs,
   delivery,
 }) {
   if (delivery) {
@@ -127,12 +132,16 @@ export function createContactService({
   const counters = () => db.collection("contact_counters");
   const budgets = () => db.collection("contact_delivery_budgets");
   const key = (context, type) => `${context.account._id}:${type}`;
+  const manualPhone = {
+    mode: db.databaseName === "capstone_staff_test" ? "test" : "live",
+    provider: "manual_whatsapp",
+    manual: true,
+    async configuration() {
+      return { approvalId: "manual-phone", allowance: 0 };
+    },
+  };
   function providerFor(type) {
-    if (type === "phone" && !delivery?.phone)
-      throw problem(
-        "change_not_ready",
-        "Phone changes are unavailable until real WhatsApp delivery is configured and successfully tested.",
-      );
+    if (type === "phone" && !delivery?.phone) return manualPhone;
     if (!providers[type])
       throw problem(
         "provider_not_ready",
@@ -288,22 +297,23 @@ export function createContactService({
       provider.mode === "test"
         ? `test-${provider.provider}`
         : provider.provider;
-    const ids = [
-      {
-        id: `month:${providerId}:${beirutMonth(at)}`,
-        max: CONTACT_POLICY.monthly,
-      },
-      {
-        id: `approval:${providerId}:${config.approvalId}`,
-        max: config.allowance,
-      },
-    ];
-    for (const { id, max } of ids) {
+    const ids =
+      type === "phone"
+        ? []
+        : [
+            {
+              id: `month:${providerId}:${beirutMonth(at)}`,
+            },
+            {
+              id: `approval:${providerId}:${config.approvalId}`,
+            },
+          ];
+    // Legacy budget IDs remain usage counters, not sending ceilings.
+    // Preserve identity and history across the removal of demo allowances.
+    for (const { id } of ids) {
       const record = await budgets().findOne({ _id: id }, { session });
       if (record && (!Number.isInteger(record.attempts) || record.attempts < 0))
         throw unavailable();
-      if ((record?.attempts ?? 0) >= max)
-        throw safeDeliveryError({ code: "contact_sending_limit" });
     }
     if (!notification) {
       const sendIds = [
@@ -356,6 +366,9 @@ export function createContactService({
       ).toISOString(),
       resendsRemaining: CONTACT_POLICY.maxResends - request.resends,
       testOnly: provider.mode === "test",
+      ...(provider.manual
+        ? { manualDelivery: true, generation: request.generation }
+        : {}),
     };
   }
   async function reserveCode(session, context, request, at, resend = false) {
@@ -418,13 +431,19 @@ export function createContactService({
       ),
     };
     delete next.challengeHash;
+    if (provider.manual) {
+      next.state = "pending";
+      next.codeCipher = await vault.encrypt(code);
+    }
     await requests().replaceOne({ _id: request._id }, next, { session });
     await event(
       session,
       context,
       resend ? "contact_resend_reserved" : "contact_delivery_reserved",
     );
-    return { job: { request: next, code, provider } };
+    return provider.manual
+      ? { sent: false, ...pendingPayload(next, provider) }
+      : { job: { request: next, code, provider } };
   }
   async function sendReserved(token, result) {
     if (!result.job) return result;
@@ -479,7 +498,134 @@ export function createContactService({
       };
     });
   }
+  async function phoneTarget(session, context, accountId, at) {
+    if (
+      !context.account.roles.includes("Admin") ||
+      accountId === context.account._id
+    )
+      throw new StaffError(
+        "permission_denied",
+        "Only another Admin may prepare phone verification.",
+        403,
+      );
+    if (!recentVerificationExpiry(context.record, context.account, at))
+      throw new StaffError(
+        "verification_required",
+        "Verify your password and MFA before preparing this message.",
+        403,
+      );
+    if (typeof accountId !== "string" || accountId.length > 160)
+      throw new StaffError("invalid_input", "Choose a staff account.");
+    const request = await requests().findOne(
+      { _id: `${accountId}:phone` },
+      { session },
+    );
+    const account = await db
+      .collection("accounts")
+      .findOne({ _id: accountId }, { session });
+    const profile = await db
+      .collection("staff_profiles")
+      .findOne({ accountId }, { session });
+    const record = request
+      ? await db
+          .collection("staff_sessions")
+          .findOne({ _id: request.sessionId }, { session })
+      : null;
+    const target = { account, profile, record };
+    if (
+      !request ||
+      !account ||
+      !profile ||
+      !record ||
+      account.status !== "active" ||
+      !validRoles(account.roles) ||
+      !account.passwordHash ||
+      record.revokedAt ||
+      record.version !== account.version ||
+      !instant(record.absoluteExpiresAt) ||
+      record.absoluteExpiresAt <= at ||
+      !instant(record.lastActivityAt) ||
+      !Number.isFinite(idleMs) ||
+      +record.lastActivityAt + idleMs <= +at ||
+      (requiresMfa(account.roles) && account.mfa?.enabled !== true) ||
+      !bound(request, target, "phone", at) ||
+      request.state !== "pending" ||
+      request.provider !== "manual_whatsapp" ||
+      !request.codeCipher ||
+      canonicalPhone(profile.phone, profile.phoneCountry ?? "LB") !==
+        request.destination
+    )
+      throw problem(
+        "request_expired",
+        "No current phone verification request is available. The employee must remain signed in.",
+      );
+    return { request, target };
+  }
   return {
+    async phoneAdminStatus(token, input) {
+      allowFields(input, ["accountId"]);
+      return run(token, async (session, context, at) => {
+        const { request } = await phoneTarget(
+          session,
+          context,
+          input.accountId,
+          at,
+        );
+        return { pending: pendingPayload(request, manualPhone) };
+      });
+    },
+    async phonePrepare(token, input) {
+      allowFields(input, ["accountId"]);
+      return run(token, async (session, context, at) => {
+        const { request } = await phoneTarget(
+          session,
+          context,
+          input.accountId,
+          at,
+        );
+        const code = await vault.decrypt(request.codeCipher);
+        if (!/^\d{8}$/.test(code)) throw unavailable();
+        await event(
+          session,
+          context,
+          "phone_verification_message_prepared",
+          "success",
+          undefined,
+          input.accountId,
+        );
+        return {
+          phone: request.destination,
+          message: `Cedar Medical Center CMC\nStaff phone verification code: ${code}\nEnter this code only in Cedar Staff. Expires at ${request.expiresAt.toISOString()}. Do not share it. Ignore this message if you did not request verification.`,
+          expiresAt: request.expiresAt.toISOString(),
+          generation: request.generation,
+        };
+      });
+    },
+    async phoneOpened(token, input) {
+      allowFields(input, ["accountId", "generation"]);
+      return run(token, async (session, context, at) => {
+        const { request } = await phoneTarget(
+          session,
+          context,
+          input.accountId,
+          at,
+        );
+        if (input.generation !== request.generation)
+          throw problem(
+            "request_expired",
+            "This phone message is no longer current.",
+          );
+        await event(
+          session,
+          context,
+          "phone_verification_link_opened",
+          "success",
+          undefined,
+          input.accountId,
+        );
+        return { opened: true };
+      });
+    },
     // Internal capability for recovery; never routed or returned to clients.
     deliverySupport: { providerFor, reserveBudget },
     async releaseEmail(token, id, input) {
@@ -620,9 +766,20 @@ export function createContactService({
           ["pending", "delivering", "delivery_failed"].includes(request.state)
             ? pendingPayload(request, providerFor("email"))
             : null;
+        const phoneRequest = await requests().findOne(
+          { _id: key(context, "phone") },
+          { session },
+        );
+        const phonePending =
+          phoneRequest &&
+          bound(phoneRequest, context, "phone", at) &&
+          phoneRequest.state === "pending"
+            ? pendingPayload(phoneRequest, providerFor("phone"))
+            : null;
         return {
           emailReady,
-          phoneReady: false,
+          phoneReady: true,
+          phonePending,
           pending,
           contactStatus: contactStatus(context.profile, vault),
           message: emailReady
@@ -630,7 +787,7 @@ export function createContactService({
             : deliveryIssue.message,
           deliveryStatus: emailReady ? "ready" : deliveryIssue.code,
           phoneMessage:
-            "Phone changes are unavailable. Live WhatsApp delivery has not been configured or tested.",
+            "Ask another Admin to manually send your verification code while you remain signed in. Phone replacement is unavailable.",
         };
       });
     },
@@ -645,6 +802,25 @@ export function createContactService({
         destination = destinationFor(type, input.destination),
         provider = providerFor(type);
       const result = await run(token, async (session, context, at) => {
+        if (type === "phone") {
+          const saved = canonicalPhone(
+            context.profile.phone,
+            context.profile.phoneCountry ?? "LB",
+          );
+          if (!saved)
+            throw new StaffError("invalid_input", PHONE_INPUT_MESSAGE);
+          if (destination !== saved)
+            throw new StaffError(
+              "permission_denied",
+              "Only your saved phone number can be verified.",
+              403,
+            );
+          if (contactStatus(context.profile, vault).phone === "verified")
+            throw problem(
+              "phone_already_verified",
+              "This phone number is already verified.",
+            );
+        }
         // A valid, value-bound live proof is authoritative. Reject this no-op
         // before touching challenges/counters/factors or consulting delivery.
         // Throwing aborts the guard transaction, preserving all existing state.
@@ -789,7 +965,12 @@ export function createContactService({
           { _id: key(context, type) },
           {
             $set: { state: "cancelled", cancelledAt: at },
-            $unset: { codeHash: "", challengeHash: "", destination: "" },
+            $unset: {
+              codeHash: "",
+              codeCipher: "",
+              challengeHash: "",
+              destination: "",
+            },
           },
           { session },
         );
@@ -848,7 +1029,7 @@ export function createContactService({
           },
           {
             $set: {
-              [type]: request.destination,
+              ...(type === "email" ? { [type]: request.destination } : {}),
               [`${type}Verification`]: proof,
               revision: revision + 1,
               updatedAt: at,
@@ -865,7 +1046,7 @@ export function createContactService({
           { _id: request._id, generation: request.generation },
           {
             $set: { state: "consumed", consumedAt: at },
-            $unset: { codeHash: "", destination: "" },
+            $unset: { codeHash: "", codeCipher: "", destination: "" },
           },
           { session },
         );

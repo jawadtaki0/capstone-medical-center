@@ -20,7 +20,7 @@ import {
 import { startIsolatedApiProcess } from "./helpers/isolated-api-process.js";
 
 test("contact policy and Beirut monthly boundaries are explicit", () => {
-  assert.equal(CONTACT_POLICY.monthly, 20);
+  assert.equal(Object.hasOwn(CONTACT_POLICY, "monthly"), false);
   assert.equal(CONTACT_POLICY.maxFailures, 5);
   assert.equal(CONTACT_POLICY.codeMs, 600000);
   assert.equal(CONTACT_POLICY.resendMs, 60000);
@@ -424,6 +424,12 @@ describe(
 
     test("TEST phone simulation is explicitly not verification and cannot enable a live provider", async () => {
       const account = await person();
+      await fixture.db
+        .collection("staff_profiles")
+        .updateOne(
+          { accountId: account.id },
+          { $set: { phone: "+96170000000" } },
+        );
       await begin(account, "phone", "+96170000000");
       const result = ok(await complete(account, messages.at(-1).code, "phone"));
       assert.equal(result.testOnly, true);
@@ -435,7 +441,7 @@ describe(
       assert.equal(
         ok(await fixture.request("/contacts/status", { token: account.token }))
           .phoneReady,
-        false,
+        true,
       );
     });
 
@@ -627,7 +633,7 @@ describe(
       assert.equal(messages.length, 10);
     });
 
-    test("20 attempts per provider/month includes delivery failures; mocks never reserve live budgets", async () => {
+    test("monthly usage above the former ceiling remains counted without blocking delivery", async () => {
       fail = true;
       for (let index = 0; index < 20; index++) {
         const account = await person();
@@ -650,10 +656,10 @@ describe(
           password: account.password,
           expectedRevision: 0,
         }),
-        "contact_sending_limit",
-        429,
+        "contact_delivery_failed",
+        502,
       );
-      assert.equal(messages.length, 20);
+      assert.equal(messages.length, 21);
       assert.equal(
         await fixture.db
           .collection("contact_delivery_budgets")
@@ -666,11 +672,11 @@ describe(
             _id: `month:test-gmail:${beirutMonth(fixture.clock())}`,
           })
         ).attempts,
-        20,
+        21,
       );
     });
 
-    test("smaller explicit allowance and failed configuration never overwrite saved contacts", async () => {
+    test("legacy allowance does not block retries; disabled configuration and delivery failures preserve contacts", async () => {
       const account = await person(),
         initial = await profile(account);
       enabled = false;
@@ -711,13 +717,13 @@ describe(
       fixture.advance(60000);
       denied(
         await post("/contacts/resend", account.token, { type: "email" }),
-        "contact_sending_limit",
-        429,
+        "contact_delivery_failed",
+        502,
       );
-      assert.equal(messages.length, 1);
+      assert.equal(messages.length, 2);
     });
 
-    test("concurrent unlisted destinations share the unchanged allowance with one reservation winner", async () => {
+    test("concurrent destinations preserve shared usage accounting without the former allowance gate", async () => {
       allowance = 1;
       const accounts = [await person(), await person()];
       const originals = await Promise.all(accounts.map(profile));
@@ -733,17 +739,14 @@ describe(
       );
       assert.deepEqual(
         results.map((result) => result.status).sort(),
-        [200, 429],
+        [200, 200],
       );
-      const loser = results.findIndex((result) => result.status === 429);
-      assert.equal(results[loser].body.error.code, "contact_sending_limit");
-      assert.match(results[loser].body.error.message, /allowance.*exhausted/);
-      assert.equal(messages.length, 1);
+      assert.equal(messages.length, 2);
       for (let index = 0; index < accounts.length; index++)
         assert.deepEqual(await profile(accounts[index]), originals[index]);
       assert.equal(
         await fixture.db.collection("contact_requests").countDocuments(),
-        1,
+        2,
       );
       assert.equal(
         (
@@ -751,11 +754,11 @@ describe(
             _id: "approval:test-gmail:11111111-1111-1111-1111-111111111111",
           })
         ).attempts,
-        1,
+        2,
       );
     });
 
-    test("scope activation cannot replenish an already used allowance or bypass its persisted budget", async () => {
+    test("scope activation retains old usage and identity while exhausted legacy allowance no longer blocks sends", async () => {
       const legacy = {
         version: 1,
         provider: "gmail",
@@ -775,22 +778,20 @@ describe(
       });
       const account = await person(),
         before = await profile(account);
-      denied(
+      ok(
         await post("/contacts/identity/start", account.token, {
           type: "email",
           destination: "unlisted-after-upgrade@example.invalid",
           password: account.password,
           expectedRevision: 0,
         }),
-        "contact_sending_limit",
-        429,
       );
       assert.equal(upgraded.approvalId, legacy.approvalId);
-      assert.equal(messages.length, 0);
+      assert.equal(messages.length, 1);
       assert.deepEqual(await profile(account), before);
       assert.equal(
         await fixture.db.collection("contact_requests").countDocuments(),
-        0,
+        1,
       );
       assert.equal(
         (
@@ -798,7 +799,7 @@ describe(
             _id: "approval:test-gmail:11111111-1111-1111-1111-111111111111",
           })
         ).attempts,
-        1,
+        2,
       );
     });
 

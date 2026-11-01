@@ -5,6 +5,7 @@ const names = [
   "viewOperationalActivity",
   "websiteRequests",
   "openRequestWhatsApp",
+  "openStaffPhoneWhatsApp",
   "bookingSessions",
   "reviewBooking",
   "confirmBooking",

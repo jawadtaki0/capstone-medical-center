@@ -404,6 +404,52 @@ export function createBroker({
         throw Error("Use the private main-process notification action.");
       return call(`/website-requests/${action}`, body, true);
     },
+    openStaffPhoneWhatsApp: async (payload) => {
+      if (
+        !payload ||
+        Object.keys(payload).some((k) => k !== "accountId") ||
+        typeof payload.accountId !== "string"
+      )
+        throw Error("Choose a staff account.");
+      const expectedEpoch = epoch;
+      let prepared = await call("/contacts/phone/prepare", payload, true);
+      try {
+        if (
+          epoch !== expectedEpoch ||
+          !token ||
+          !Number.isFinite(Date.parse(prepared.expiresAt)) ||
+          Date.now() >= Date.parse(prepared.expiresAt)
+        )
+          throw Error(
+            "Phone verification authorization expired. Reopen the staff record.",
+          );
+        if (!openWhatsApp)
+          throw Error("Manual WhatsApp opening is unavailable.");
+        await openWhatsApp(prepared.phone, prepared.message);
+        if (epoch !== expectedEpoch || !token)
+          return {
+            opened: true,
+            warning:
+              "WhatsApp opened, but sign-in changed before its history could be recorded. Nothing is marked sent.",
+          };
+        try {
+          await call(
+            "/contacts/phone/opened",
+            { accountId: payload.accountId, generation: prepared.generation },
+            true,
+          );
+          return { opened: true, expiresAt: prepared.expiresAt };
+        } catch {
+          return {
+            opened: true,
+            warning:
+              "WhatsApp opened, but its history could not be recorded. Check WhatsApp before trying again. Nothing is marked sent.",
+          };
+        }
+      } finally {
+        prepared = undefined;
+      }
+    },
     openRequestWhatsApp: async (payload) => {
       if (!payload || Object.keys(payload).some((k) => k !== "noticeId"))
         throw Error("Only a notification ID is accepted.");

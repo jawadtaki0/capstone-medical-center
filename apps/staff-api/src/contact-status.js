@@ -1,3 +1,4 @@
+import { canonicalPhone } from "../../staff/shared/contact-input.js";
 export function contactStatus(profile, vault) {
   const proof = profile?.emailVerification;
   const matches =
@@ -16,8 +17,24 @@ export function contactStatus(profile, vault) {
           : matches && proof.mode === "test"
             ? "test_only"
             : "unverified",
-    phone: "unverified",
+    phone: phoneStatus(profile, vault),
   };
+}
+function phoneStatus(profile, vault) {
+  const value = canonicalPhone(profile?.phone, profile?.phoneCountry ?? "LB"),
+    proof = profile?.phoneVerification;
+  return value &&
+    proof?.verifiedAt instanceof Date &&
+    Number.isFinite(+proof.verifiedAt) &&
+    proof.method === "phone_code" &&
+    proof.provider === "manual_whatsapp" &&
+    proof.valueDigest === vault.contactDigest(value)
+    ? proof.mode === "live"
+      ? "verified"
+      : proof.mode === "test"
+        ? "test_only"
+        : "unverified"
+    : "unverified";
 }
 
 export function reservesEmail(profile, vault, includeTest = false) {

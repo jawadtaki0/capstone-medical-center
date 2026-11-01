@@ -39,8 +39,15 @@ const environment = () => ({
   CEDAR_REVIEW_REQUEST_CREDENTIAL: "b".repeat(43),
   CEDAR_REVIEW_REQUEST_KEY: "c".repeat(43),
   CEDAR_REVIEW_CENTER_CONTACT: "SYNTHETIC REVIEW — no real patient submissions",
-  CEDAR_REVIEW_MONGODB_URI:
-    "mongodb+srv://dummy:dummy@synthetic.example.mongodb.net/capstone_public_review?tls=true",
+  CEDAR_REVIEW_MONGODB_URI: (() => {
+    // Deliberately fictitious credentials; no Atlas account is used.
+    const uri = new URL(
+      "mongodb+srv://synthetic.example.mongodb.net/capstone_public_review?tls=true",
+    );
+    uri.username = "fixture-user";
+    uri.password = "fixture-password";
+    return uri.href;
+  })(),
 });
 test("hosted authenticated availability reaches the current intake binding and rejects missing credentials or obsolete state", async () => {
   const c = loadHostedReviewEnvironment(environment()),

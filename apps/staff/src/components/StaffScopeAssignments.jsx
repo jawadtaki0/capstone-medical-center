@@ -6,6 +6,7 @@ export default function StaffScopeAssignments({
   api,
   onSensitiveAction,
   onError,
+  account,
 }) {
   const [state, setState] = useState(null),
     [error, setError] = useState("");
@@ -64,6 +65,7 @@ export default function StaffScopeAssignments({
           api={api}
           onAssign={assign}
           onError={onError}
+          targetAccount={account}
         />
       )}
     </details>

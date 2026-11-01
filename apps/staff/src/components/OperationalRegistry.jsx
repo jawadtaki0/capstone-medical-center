@@ -7,6 +7,7 @@ export default function OperationalRegistry({
   onAssign,
   onError,
   mode = "definitions",
+  targetAccount,
 }) {
   const id = useId(),
     live = useRef(true),
@@ -18,6 +19,14 @@ export default function OperationalRegistry({
     [selected, setSelected] = useState([]),
     [confirmed, setConfirmed] = useState(false),
     [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!targetAccount) return;
+    setAccountId(targetAccount.id);
+    setSelected(
+      state.grants.find((g) => g.id === targetAccount.id)?.scopeIds ?? [],
+    );
+    setConfirmed(false);
+  }, [targetAccount?.id, state.grants]);
   useEffect(() => {
     if (mode !== "access") return;
     live.current = true;
@@ -153,11 +162,15 @@ export default function OperationalRegistry({
                   <select
                     id={`${id}-account`}
                     value={accountId}
+                    disabled={Boolean(targetAccount)}
                     onChange={(e) => choose(e.target.value)}
                     required
                   >
                     <option value="">Choose enabled staff</option>
                     {staff
+                      .filter(
+                        (a) => !targetAccount || a.id === targetAccount.id,
+                      )
                       .filter(
                         (a) =>
                           a.status !== "disabled" && !a.roles.includes("Admin"),
