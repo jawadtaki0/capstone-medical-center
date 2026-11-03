@@ -9,6 +9,9 @@ import { OPERATIONAL_COLLECTIONS } from "../../src/operations.js";
 
 export const TEST_DATABASE = "capstone_staff_test";
 export const STAFF_COLLECTIONS = Object.freeze([
+  "queue_state",
+  "queue_changes",
+  "queue_receipts",
   "operational_feed_views",
   "website_request_inbox",
   "website_request_sync",
@@ -133,7 +136,7 @@ export async function createSecurityFixture({
   }
   let connection = await connectFixture();
   let vault = createVault(connection.config.key);
-  let server;
+  let server, app;
   let origin;
   let failAuditWrites = false;
   // Start each test at the current TOTP boundary. Advance only this fake clock
@@ -173,7 +176,7 @@ export async function createSecurityFixture({
           },
         }
       : connection.db;
-    server = createApp({
+    app = createApp({
       db: dbForApp,
       client: connection.client,
       vault,
@@ -182,7 +185,8 @@ export async function createSecurityFixture({
       contactDelivery,
       requestIntegration,
       publicationDeliveryConfigured,
-    }).listen(0, "127.0.0.1");
+    });
+    server = app.listen(0, "127.0.0.1");
     await once(server, "listening");
     origin = `http://127.0.0.1:${server.address().port}`;
   }
@@ -202,6 +206,7 @@ export async function createSecurityFixture({
       milliseconds += millisecondsToAdd;
     },
     stopServer: stopHttp,
+    reconcileQueue: () => app.locals.reconcileQueue(),
     async reset() {
       await stopHttp();
       assertIsolatedTestTarget(connection); // Rechecked immediately before cleanup.

@@ -17,6 +17,7 @@ export default function PatientEditor({
   onSaved,
   onOpen,
   onError,
+  registrationLabel = "Register patient",
 }) {
   const id = useId(),
     live = useRef(true),
@@ -352,7 +353,7 @@ export default function PatientEditor({
                 : review
                   ? patient.id
                     ? "Save changes"
-                    : "Register patient"
+                    : registrationLabel
                   : "Check duplicates"}
             </button>
             <button

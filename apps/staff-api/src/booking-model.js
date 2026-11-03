@@ -198,7 +198,9 @@ export async function assertBookingIntegrity(
           $group: {
             _id: "$datedSessionId",
             date: { $first: "$date" },
-            count: { $sum: 1 },
+            count: {
+              $sum: { $cond: [{ $eq: ["$admissionKind", "extra"] }, 0, 1] },
+            },
             signature: { $first: "$scheduleSignature" },
           },
         },

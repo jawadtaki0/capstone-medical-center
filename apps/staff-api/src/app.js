@@ -43,6 +43,7 @@ export function createApp({
         })
       : null;
   app.locals.websiteRequests = () => auth?.websiteRequests;
+  app.locals.reconcileQueue = () => auth?.queue.reconcile();
   app.disable("x-powered-by");
   app.set("trust proxy", false);
   app.use(helmet());
@@ -184,6 +185,14 @@ export function createApp({
       `/password/change/${path}`,
       route((service, request) =>
         service.passwordChange[action](bearer(request), request.body),
+      ),
+    );
+  }
+  for (const action of ["sessions", "list", "checkIn", "transition", "admit"]) {
+    app.post(
+      `/queue/${action}`,
+      route((service, request) =>
+        service.queue[action](bearer(request), request.body),
       ),
     );
   }

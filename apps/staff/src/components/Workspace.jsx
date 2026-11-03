@@ -1,6 +1,7 @@
 import WebsiteRequests from "./WebsiteRequests.jsx";
 import RequestScreenBoundary from "./RequestScreenBoundary.jsx";
 import BookingPanel from "./BookingPanel.jsx";
+import QueuePanel from "./QueuePanel.jsx";
 import { useEffect, useRef, useState } from "react";
 import StaffDirectory from "./StaffDirectory.jsx";
 import StaffProfile from "./StaffProfile.jsx";
@@ -172,6 +173,7 @@ export default function Workspace({
           ...(capabilities.requests ? [["requests", "Website requests"]] : []),
           ...(patientsAllowed ? [["patients", "Patients"]] : []),
           ...(bookingsAllowed ? [["bookings", "Bookings"]] : []),
+          ...(capabilities.queue ? [["queue", "Queue"]] : []),
           ...(directoryAllowed ? [["directory", "Staff Directory"]] : []),
           ...(operationsAllowed
             ? [
@@ -284,6 +286,12 @@ export default function Workspace({
               countsError={Boolean(summaryError)}
             />
           </RequestScreenBoundary>
+        ) : view === "queue" && capabilities.queue ? (
+          <QueuePanel
+            api={api}
+            onError={onError}
+            onPendingChange={onPendingChange}
+          />
         ) : view === "bookings" && bookingsAllowed ? (
           <BookingPanel
             api={api}

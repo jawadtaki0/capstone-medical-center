@@ -1,4 +1,4 @@
-import { access, mkdir, writeFile, readFile } from "node:fs/promises";
+import { access, mkdir, writeFile, readFile, realpath } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { runtimeDirectory } from "../src/local-security.js";
@@ -43,9 +43,12 @@ async function install() {
   const config = validateLauncherConfig({
     version: 1,
     demoMode: true,
-    runtimeDirectory: parameter("--runtime")
-      ? resolve(parameter("--runtime"))
-      : previous?.runtimeDirectory || runtimeDirectory,
+    // Save the physical path so desktop and packaged callers see the same files.
+    runtimeDirectory: await realpath(
+      parameter("--runtime")
+        ? resolve(parameter("--runtime"))
+        : previous?.runtimeDirectory || runtimeDirectory,
+    ),
     nodePath: process.execPath,
     appPath: resolve(target),
   });

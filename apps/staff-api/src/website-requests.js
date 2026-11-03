@@ -179,7 +179,8 @@ export function createWebsiteRequestService({
     now,
   });
   const patientService = (session) => createPatientService(inner(session));
-  const bookingService = (session) => createBookingService(inner(session));
+  const bookingService = (session) =>
+    createBookingService({ ...inner(session), source: "website" });
   const patientRecord = (request) =>
     Object.fromEntries(
       PATIENT_FIELDS.map((field) => [field, request.patient[field]]),

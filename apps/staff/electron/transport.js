@@ -508,6 +508,11 @@ export function createBroker({
       };
     },
     bookingSessions: (payload) => call("/bookings/sessions", payload, true),
+    queueTransition: (payload) => call("/queue/transition", payload, true),
+    queueSessions: (payload) => call("/queue/sessions", payload, true),
+    queueAdmit: (payload) => call("/queue/admit", payload, true),
+    queueList: (payload) => call("/queue/list", payload, true),
+    checkInPatient: (payload) => call("/queue/checkIn", payload, true),
     reviewBooking: (payload) => call("/bookings/review", payload, true),
     confirmBooking: (payload) => call("/bookings/confirm", payload, true),
     listBookings: (payload) => call("/bookings/list", payload, true),

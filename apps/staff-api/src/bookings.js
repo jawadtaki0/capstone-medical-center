@@ -63,6 +63,7 @@ const dto = (b) =>
       "startTime",
       "endTime",
       "status",
+      "admissionKind",
       "createdAt",
       "cancelledAt",
       "cancellationReason",
@@ -77,6 +78,8 @@ export function createBookingService({
   authenticated,
   now,
   afterWrite,
+  source = "phone",
+  extraAdmission = false,
 }) {
   const bookings = db.collection("bookings");
   const grants = (a, id) => a.grants.find((g) => g.id === id)?.scopeIds ?? [];
@@ -183,7 +186,11 @@ export function createBookingService({
   }
   async function availability(s, session) {
     const confirmed = await bookings.countDocuments(
-      { datedSessionId: s.id, status: "confirmed" },
+      {
+        datedSessionId: s.id,
+        status: "confirmed",
+        admissionKind: { $ne: "extra" },
+      },
       { session },
     );
     return {
@@ -401,7 +408,7 @@ export function createBookingService({
             "booking_duplicate",
             "This patient already has an active booking in this session.",
           );
-        if (!capacity.remaining)
+        if (!extraAdmission && !capacity.remaining)
           throw fail(
             "booking_full",
             "This session is full. No ordinary booking place remains.",
@@ -451,6 +458,10 @@ export function createBookingService({
           publicationSequence: s.publicationSequence,
           limitAtConfirmation: s.capacity,
           status: "confirmed",
+          source,
+          ...(source === "walk_in"
+            ? { admissionKind: extraAdmission ? "extra" : "walk_in" }
+            : {}),
           actorId: context.account._id,
           createdAt: at,
           idempotencyKey: input.idempotencyKey,
@@ -458,7 +469,7 @@ export function createBookingService({
         };
         b.id = b._id;
         await bookings.insertOne(b, { session });
-        await invalidateAvailability(db, session, b.date);
+        if (!extraAdmission) await invalidateAvailability(db, session, b.date);
         await audit(session, context, b, "confirmed", at);
         await afterWrite?.(session, context, b, "confirmed", at, input);
         return { booking: dto(b), overlaps: await overlaps(p, s, session) };
@@ -517,6 +528,20 @@ export function createBookingService({
           );
         if (b.status === "cancelled")
           return { booking: dto(b), replayed: true };
+        const clock = beirutClock(at);
+        if (
+          b.date < clock.date ||
+          (b.date === clock.date && b.endTime <= clock.time)
+        )
+          throw fail(
+            "booking_ended",
+            "The session has ended; this reserved place cannot be cancelled.",
+          );
+        if (b.queue)
+          throw fail(
+            "booking_checked_in",
+            "This booking has a recorded queue outcome; cancellation cannot release its reserved place.",
+          );
         b.status = "cancelled";
         b.cancelledAt = at;
         b.cancelledBy = context.account._id;

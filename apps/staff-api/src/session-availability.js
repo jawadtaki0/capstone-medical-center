@@ -41,12 +41,14 @@ export async function prepareAvailability(db, session, dates, at) {
       const count =
         s.capacity === null
           ? 0
-          : await db
-              .collection("bookings")
-              .countDocuments(
-                { datedSessionId: s.id, status: "confirmed" },
-                { session },
-              );
+          : await db.collection("bookings").countDocuments(
+              {
+                datedSessionId: s.id,
+                status: "confirmed",
+                admissionKind: { $ne: "extra" },
+              },
+              { session },
+            );
       states.push({
         signature: availabilitySignature(s),
         state:
