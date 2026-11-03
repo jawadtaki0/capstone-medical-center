@@ -1,0 +1,219 @@
+.queue-panel {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.queue-panel select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #abc5d7;
+  border-radius: 10px;
+  background: white;
+  color: var(--staff-ink);
+  font: inherit;
+}
+.queue-panel header p {
+  margin-top: 0.25rem;
+}
+.queue-panel h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.75rem;
+}
+.queue-session-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--staff-line);
+  border-radius: 10px;
+  background: white;
+}
+.queue-session-controls .staff-field {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.queue-session-controls select,
+.queue-session-controls input {
+  width: 100%;
+}
+.queue-state {
+  align-self: center;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  background: var(--staff-pale);
+  color: var(--staff-deep);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+.queue-state.is-open {
+  background: #e4f5eb;
+  color: #14613b;
+}
+.queue-actions {
+  flex-wrap: wrap;
+}
+.queue-check-in {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: end;
+}
+.queue-check-in h2,
+.queue-check-in > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.queue-check-in .staff-field {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.queue-refresh-note {
+  margin: 0;
+}
+.queue-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+.queue-panel .staff-workspace-card {
+  min-width: 0;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+.queue-table-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+.queue-table {
+  min-width: 520px;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  text-align: left;
+}
+.queue-history .queue-table {
+  min-width: 800px;
+}
+.queue-table th {
+  white-space: nowrap;
+}
+.queue-table th {
+  color: var(--staff-deep);
+  background: #edf4f8;
+  font-weight: 600;
+}
+.queue-table th,
+.queue-table td {
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid var(--staff-line);
+  overflow-wrap: anywhere;
+}
+.queue-table td strong {
+  color: var(--staff-deep);
+  font-size: 1.05rem;
+}
+.queue-waiting > .staff-actions {
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+.queue-active {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-color: #6db2ca !important;
+  background: #edf9fb;
+}
+.queue-active-space {
+  flex: 1;
+  min-height: 2rem;
+}
+.queue-active .staff-help {
+  border-top: 1px solid var(--staff-line);
+  padding-top: 1rem;
+}
+.queue-absent-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+.queue-history-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.queue-history-header h2 {
+  margin: 0;
+}
+.queue-history-header .staff-actions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.queue-history-header button {
+  min-height: 2.25rem;
+  padding: 0.35rem 1rem;
+}
+@media (max-width: 1050px) {
+  .queue-main-grid,
+  .queue-absent-row {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 500px) {
+  .queue-session-controls {
+    align-items: stretch;
+  }
+  .queue-session-controls > * {
+    flex-basis: 100%;
+  }
+  .queue-panel .staff-workspace-card {
+    padding: 0.75rem;
+  }
+  .queue-table th,
+  .queue-table td {
+    padding: 0.5rem;
+  }
+}
+
+.queue-patient-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.queue-patient-actions summary {
+  cursor: pointer;
+  color: var(--staff-blue);
+  padding: 0.5rem;
+  font-weight: 600;
+}
+.queue-row-menu {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border: 1px solid var(--staff-line);
+  border-radius: 8px;
+  background: white;
+  min-width: 10rem;
+}
+.queue-row-menu button {
+  text-align: left;
+  padding: 0.5rem;
+  color: var(--staff-deep);
+  background: white;
+  border: 1px solid var(--staff-line);
+  border-radius: 5px;
+  font: inherit;
+}
+.queue-admission {
+  display: grid;
+  gap: 1rem;
+}
+.queue-admission > p {
+  margin: 0;
+}

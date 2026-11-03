@@ -63,6 +63,19 @@ export function validateLauncherConfig(value) {
   });
 }
 
+// MSIX redirects LocalAppData for packaged callers. Existing Mongo may have
+// started with the unredirected spelling; protected files always use the saved
+// physical directory. An alias is only for process recognition, which still
+// requires authenticated installation/runtime identity before reuse.
+export function mongoRuntimeDirectories(runtimeDirectory) {
+  const physical = resolve(runtimeDirectory);
+  const match =
+    /^(.*\\AppData\\Local)\\Packages\\[^\\]+\\LocalCache\\Local\\(CapstoneStaffDev)$/i.exec(
+      physical,
+    );
+  return match ? [physical, join(match[1], match[2])] : [physical];
+}
+
 export async function readLauncherConfig(path = launcherConfigPath) {
   try {
     return validateLauncherConfig(JSON.parse(await readFile(path, "utf8")));
@@ -74,7 +87,10 @@ export async function readLauncherConfig(path = launcherConfigPath) {
   }
 }
 
-export async function checkLauncherFiles(config) {
+export async function checkLauncherFiles(
+  config,
+  { accessFile = access, resolvePath = realpath } = {},
+) {
   const requirements = [
     [
       config.nodePath,
@@ -107,12 +123,17 @@ export async function checkLauncherFiles(config) {
   ];
   for (const [path, message] of requirements) {
     try {
-      await access(path);
-    } catch {
-      throw new LauncherError(message);
+      await accessFile(path);
+    } catch (error) {
+      const code = /^[A-Z][A-Z0-9_]{0,39}$/.test(error.code ?? "")
+        ? error.code
+        : "UNKNOWN";
+      throw new LauncherError(
+        `${code === "ENOENT" ? message : "A required launcher file could not be accessed. Check its permissions or availability; nothing was reset."} Path: ${path}. Filesystem error: ${code}.`,
+      );
     }
   }
-  const actual = await realpath(config.appPath);
+  const actual = await resolvePath(config.appPath);
   if (
     !actual
       .toLowerCase()

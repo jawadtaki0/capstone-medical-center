@@ -135,6 +135,9 @@ export default function BookingRecords({
               {b.bookingNumber} ·{" "}
               {b.status === "confirmed" ? "Confirmed" : "Cancelled"}
             </h3>
+            {b.admissionKind === "extra" && (
+              <p>Extra today — professionally agreed admission.</p>
+            )}
             <p>
               {b.patientName} · {b.patientNumber}
             </p>

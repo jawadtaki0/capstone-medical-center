@@ -241,6 +241,14 @@ test("opening/reviewing an unmatched request creates nothing; confirmation atomi
     assert.equal(await f.db.collection("patients").countDocuments({}), 0);
     const result = await f.service.confirm("synthetic-token", input);
     assert.equal(result.request.status, "confirmed");
+    assert.equal(
+      (
+        await f.db
+          .collection("bookings")
+          .findOne({ _id: result.request.bookingId })
+      ).source,
+      "website",
+    );
     assert.equal(await f.db.collection("patients").countDocuments({}), 1);
     assert.equal(await f.db.collection("bookings").countDocuments({}), 1);
     assert.equal(
@@ -252,6 +260,48 @@ test("opening/reviewing an unmatched request creates nothing; confirmation atomi
     assert.equal(replay.request.bookingId, result.request.bookingId);
     assert.equal(await f.db.collection("patients").countDocuments({}), 1);
   }));
+test("linked website cancellation cannot release an arrived booking or publish a cancellation", async () =>
+  withFixture({}, async (f) => {
+    const { request } = await f.seedRequest();
+    const saved = (
+      await f.service.confirm("synthetic-token", await f.autoInput(request))
+    ).request;
+    await f.db.collection("bookings").updateOne(
+      { _id: saved.bookingId },
+      {
+        $set: {
+          queue: { status: "waiting", number: 1, position: 1, revision: 1 },
+        },
+      },
+    );
+    await assert.rejects(
+      f.service.cancel("synthetic-token", {
+        id: saved.id,
+        revision: saved.revision,
+        reason: "other",
+        privateReason: "Synthetic arrived cancellation refusal",
+      }),
+      { code: "booking_checked_in" },
+    );
+    assert.equal(
+      (await f.db.collection("bookings").findOne({ _id: saved.bookingId }))
+        .status,
+      "confirmed",
+    );
+    assert.equal(
+      (
+        await f.db
+          .collection("website_request_inbox")
+          .findOne({ _id: request._id })
+      ).status,
+      "confirmed",
+    );
+    assert.equal(
+      await f.db.collection("website_request_events").countDocuments({}),
+      1,
+    );
+  }));
+
 test("candidate appearing after review blocks automatic patient creation without partial booking", async () =>
   withFixture({}, async (f) => {
     const { request, record } = await f.seedRequest();

@@ -29,6 +29,7 @@ import { createRecoveryService } from "./recovery.js";
 import { createEmergencyRecovery } from "./emergency-recovery.js";
 import { createOperationsService } from "./operations.js";
 import { createBookingService } from "./bookings.js";
+import { createQueueService } from "./queue.js";
 import { createPatientService } from "./patients.js";
 
 export const AUTH_COLLECTIONS = Object.freeze({
@@ -727,7 +728,7 @@ export function createAuthService({
 
   // Health/setup validation must not touch unrelated registry collections.
   // Initialize private services only when their named authenticated route is used.
-  let bookings, patients, websiteRequests;
+  let bookings, patients, websiteRequests, queue;
   const operations = createOperationsService({
     db,
     transaction,
@@ -887,6 +888,15 @@ export function createAuthService({
         afterWrite: requestIntegration
           ? (...args) => this.websiteRequests.bookingNotice(...args)
           : undefined,
+      }));
+    },
+    get queue() {
+      return (queue ??= createQueueService({
+        db,
+        transaction,
+        guard,
+        authenticated,
+        now,
       }));
     },
     get patients() {

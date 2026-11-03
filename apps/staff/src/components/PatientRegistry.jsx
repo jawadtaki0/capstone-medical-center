@@ -19,6 +19,9 @@ export default function PatientRegistry({
   onError,
   onPendingChange,
   onSelect,
+  registrationLabel,
+  selectionLabel = "Select for booking",
+  embedded = false,
 }) {
   const id = useId(),
     live = useRef(true),
@@ -106,15 +109,19 @@ export default function PatientRegistry({
   }
   return (
     <section className="patient-registry" aria-labelledby={`${id}-heading`}>
-      <p className="staff-eyebrow">PRIVATE · SHARED STAFF REGISTRY</p>
-      <h1 id={`${id}-heading`} tabIndex={-1}>
-        Patients
-      </h1>
-      <p className="staff-intro">
-        Search before registering. Compare names and dates carefully; a shared
-        family phone does not identify a patient. These records are not portal
-        accounts.
-      </p>
+      {!embedded && (
+        <>
+          <p className="staff-eyebrow">PRIVATE · SHARED STAFF REGISTRY</p>
+          <h1 id={`${id}-heading`} tabIndex={-1}>
+            Patients
+          </h1>
+          <p className="staff-intro">
+            Search before registering. Compare names and dates carefully; a
+            shared family phone does not identify a patient. These records are
+            not portal accounts.
+          </p>
+        </>
+      )}
       <form
         className="staff-form patient-search"
         onSubmit={(event) => {
@@ -257,7 +264,7 @@ export default function PatientRegistry({
                     disabled={busy}
                     onClick={() => onSelect(p)}
                   >
-                    Select for booking {p.patientNumber}
+                    {selectionLabel} {p.patientNumber}
                   </button>
                 )}
               </li>
@@ -277,6 +284,7 @@ export default function PatientRegistry({
       )}
       {editor && (
         <PatientEditor
+          registrationLabel={registrationLabel}
           api={api}
           patient={editor}
           onError={onError}

@@ -53,12 +53,30 @@ export function createAuthorityLifecycle({
     }
   }
 
+  async function reconcileQueue(candidate) {
+    try {
+      const result = await candidate.app?.locals?.reconcileQueue?.();
+      if (result?.blocked && !candidate.queueWarning)
+        log(
+          "Some ended sessions need authority review before no-show reconciliation.",
+        );
+      candidate.queueWarning = Boolean(result?.blocked);
+    } catch {
+      if (!candidate.queueWarning)
+        log(
+          "Queue session-end reconciliation is unavailable; the server will retry.",
+        );
+      candidate.queueWarning = true;
+    }
+  }
+
   async function refreshOnce() {
     if (stopping) return;
     const captured = current;
     if (captured) {
       try {
         await captured.connection.db.command({ ping: 1 });
+        await reconcileQueue(captured);
         return;
       } catch {
         if (current === captured) current = undefined;
@@ -136,6 +154,7 @@ export function createAuthorityLifecycle({
         publicationDeliveryConfigured: Boolean(delivery),
         publicationDeliveryBlocked,
       });
+      await reconcileQueue(candidate);
       if (requestIntegration)
         candidate.requestWorker = (
           requestIntegration.mode === "normal-hosted"

@@ -2,6 +2,7 @@ import { StaffError } from "./errors.js";
 import { validRoles } from "./permissions.js";
 import { operationalAccess } from "./operational-model.js";
 import { bookingAccess, beirutClock } from "./booking-model.js";
+import { queueAccess } from "./queue.js";
 import { publicationChanges } from "./publication-review.js";
 
 export const SUMMARY_VIEWS = "operational_feed_views";
@@ -15,8 +16,6 @@ const unavailable = () =>
     503,
   );
 
-// Explicit initialization only. The normal runtime must approve the additive
-// indexes before enabling this service; reading a summary never creates indexes.
 export async function ensureOperationalSummaryIndexes(db) {
   for (const [name, keys] of [
     ["website_request_inbox", { scopeId: 1, createdAt: -1, _id: -1 }],
@@ -172,6 +171,7 @@ export function createOperationalSummaryService({
     const access = (s) => operationalAccess(roles, ids, s);
     return {
       admin: roles.includes("Admin"),
+      queue: scopes.some((s) => queueAccess(roles, ids, s)),
       requests: scopes
         .filter((s) => bookingAccess(roles, ids, s))
         .map((s) => s.id),
@@ -526,6 +526,7 @@ export function createOperationalSummaryService({
             patients: true,
             book: Boolean(a.requests.length),
             bookingView: Boolean(a.bookings.length),
+            queue: a.queue,
             requests: Boolean(a.requests.length),
             professionals: Boolean(a.clinicEdit.length),
             schedules: Boolean(a.editable.length),

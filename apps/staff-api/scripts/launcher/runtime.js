@@ -10,6 +10,7 @@ import {
   hostEntry,
   projectRoot,
   serverEntry,
+  mongoRuntimeDirectories,
 } from "./configuration.js";
 import {
   acquireLauncherLock,
@@ -144,16 +145,22 @@ export async function runConfiguredLauncher(config, options = {}) {
     name: "database",
     async probe() {
       const rows = await inspectListener(27018);
-      const recognized = expectedListener(rows, {
-        executable: mongoBinary,
-        entry: ["--dbpath"],
-        arguments: [
-          "--auth",
-          "--replSet",
-          "capstoneStaffDev",
-          `${config.runtimeDirectory}\\mongo-data`,
-        ],
-      });
+      const recognized =
+        mongoRuntimeDirectories(config.runtimeDirectory)
+          .map((directory) =>
+            expectedListener(rows, {
+              executable: mongoBinary,
+              entry: ["--dbpath"],
+              arguments: [
+                "--auth",
+                "--replSet",
+                "capstoneStaffDev",
+                `${directory}\\mongo-data`,
+                `${directory}\\replica.key`,
+              ],
+            }),
+          )
+          .find((state) => state !== "unexpected") ?? "unexpected";
       if (recognized === "absent" || recognized === "unexpected")
         return recognized;
       const root = rootClient(authority, { socketTimeoutMS: 3000 });
