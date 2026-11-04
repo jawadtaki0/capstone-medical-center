@@ -1,0 +1,62 @@
+// Imported only behind import.meta.env.DEV. Never delivered by the production build.
+// Canonical public schedule DTOs; fictional people, IDs and hours, no database seed.
+export const homepageDemoSchedule = {
+  date: "2026-11-04",
+  timeZone: "Asia/Beirut",
+  publicationStatus: "published",
+  centerClosed: false,
+  centerHours: { startTime: "08:00", endTime: "17:00" },
+  doctorSessions: [
+    {
+      id: "demo-home-session-1",
+      professionalId: "demo-home-professional-1",
+      date: "2026-11-04",
+      doctorName: "Dr. Mira Demo",
+      specialty: "Cardiology",
+      avatarVariant: "female",
+      startTime: "09:00",
+      endTime: "12:00",
+      status: "active",
+      appointmentRequired: true,
+    },
+    {
+      id: "demo-home-session-2",
+      professionalId: "demo-home-professional-2",
+      date: "2026-11-04",
+      doctorName: "Dr. Samir Example",
+      specialty: "General Surgery",
+      avatarVariant: "male",
+      startTime: "12:00",
+      endTime: "15:00",
+      status: "active",
+      appointmentRequired: true,
+    },
+    {
+      id: "demo-home-session-3",
+      professionalId: "demo-home-professional-3",
+      date: "2026-11-04",
+      doctorName: "Dr. Lina Sample",
+      specialty: "Pediatrics, Neonatology, and General Health",
+      avatarVariant: "neutral",
+      startTime: "15:00",
+      endTime: "17:00",
+      status: "active",
+      appointmentRequired: true,
+    },
+  ],
+  specialistSessions: [],
+  otherServices: [
+    {
+      id: "demo-home-laboratory",
+      name: "Laboratory",
+      startTime: "08:00",
+      endTime: "14:00",
+    },
+    {
+      id: "demo-home-audiometry",
+      name: "Audiometry",
+      startTime: "09:00",
+      endTime: "13:00",
+    },
+  ],
+};

@@ -5,6 +5,7 @@ export default function Reveal({
   className = "",
   direction = "up",
   delay = 0,
+  watchSkipped = false,
 }) {
   const element = useRef(null);
   const observer = useRef(null);
@@ -43,6 +44,18 @@ export default function Reveal({
       { rootMargin: "0px 0px -24px 0px", threshold: 0.01 },
     );
     observer.current.observe(node);
+    // Homepage sequences can be skipped entirely by an instant/large scroll.
+    // Opt in there; other callers keep their existing observer behavior.
+    let frame = null;
+    const onScroll = () => {
+      if (frame !== null || revealed.current) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (node.getBoundingClientRect().bottom < 0) show(true);
+      });
+    };
+    if (watchSkipped)
+      window.addEventListener("scroll", onScroll, { passive: true });
     const onMotionChange = () => {
       if (motion.matches) show();
     };
@@ -51,8 +64,10 @@ export default function Reveal({
       observer.current?.disconnect();
       observer.current = null;
       motion.removeEventListener("change", onMotionChange);
+      if (watchSkipped) window.removeEventListener("scroll", onScroll);
+      if (frame !== null) cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [watchSkipped]);
 
   return (
     <div

@@ -373,22 +373,40 @@ export function Contact() {
   );
 }
 
-export function Footer() {
+export function Footer({ homePage = false, publicDesign = false }) {
+  function backToTop() {
+    const main = document.getElementById("main");
+    main?.focus({ preventScroll: true });
+    main?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+  }
   return (
-    <footer className="site-footer">
+    <footer
+      className={`site-footer${homePage || publicDesign ? " home-footer" : ""}`}
+    >
       <div className="container">
         <div className="footer-top">
           <Brand />
           <p>Thoughtful care, closer to you.</p>
-          <a className="text-button" href="#main">
-            Back to top ↑
-          </a>
+          {publicDesign ? (
+            <button className="text-button" type="button" onClick={backToTop}>
+              Back to top ↑
+            </button>
+          ) : (
+            <a className="text-button" href="#main">
+              Back to top ↑
+            </a>
+          )}
         </div>
         <div className="footer-bottom">
           <p>© 2026 Cedar Medical Center · Prototype branding</p>
           <p>
-            Branding and contact details are provisional. Booking buttons are
-            prototypes; sign-in is not available yet.
+            {homePage || publicDesign
+              ? "Branding and contact details are provisional. Choosing a session does not reserve an appointment; requests require reception confirmation. Patient sign-in remains a prototype."
+              : "Branding and contact details are provisional. Booking buttons are prototypes; sign-in is not available yet."}
           </p>
         </div>
       </div>

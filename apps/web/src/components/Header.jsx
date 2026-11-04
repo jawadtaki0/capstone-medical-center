@@ -9,6 +9,8 @@ export default function Header({
   onDoctorsPage = false,
   onRequestPage = false,
   homePage,
+  publicDesign = false,
+  serviceSlug,
 }) {
   const [mobile, setMobile] = useState(
     () => window.matchMedia(mobileQuery).matches,
@@ -81,7 +83,18 @@ export default function Header({
     }
   }
 
-  function goTo(id) {
+  function goTo(id, event) {
+    if (id && !onHomePage) {
+      // Only an input modality marker crosses documents, never URL/token data.
+      try {
+        sessionStorage.setItem(
+          "cedar-home-section-input",
+          event?.detail === 0 ? "keyboard" : "pointer",
+        );
+      } catch {
+        // Navigation and keyboard controls still work when storage is disabled.
+      }
+    }
     closeNavigation();
     if (mobile && onHomePage && id)
       requestAnimationFrame(() =>
@@ -97,7 +110,11 @@ export default function Header({
   }
 
   return (
-    <header ref={header} onKeyDown={onHeaderKeyDown}>
+    <header
+      className={onHomePage || publicDesign ? "home-header" : undefined}
+      ref={header}
+      onKeyDown={onHeaderKeyDown}
+    >
       <div className="contact-strip">
         <div className="container contact-strip-inner">
           <span>
@@ -177,7 +194,10 @@ export default function Header({
               className="dropdown"
               hidden={!mobile && !centerOpen}
             >
-              <a href={homeSectionLink("about")} onClick={() => goTo("about")}>
+              <a
+                href={homeSectionLink("about")}
+                onClick={(event) => goTo("about", event)}
+              >
                 About Us
               </a>
               <a
@@ -192,13 +212,17 @@ export default function Header({
           <a
             className="nav-pill"
             href={homeSectionLink("services")}
-            onClick={() => goTo("services")}
+            data-active={
+              serviceSlug && serviceSlug !== "laboratory" ? true : undefined
+            }
+            onClick={(event) => goTo("services", event)}
           >
             <span>Services</span>
           </a>
           <a
             className="nav-pill"
             href="/services/laboratory"
+            aria-current={serviceSlug === "laboratory" ? "page" : undefined}
             onClick={() => goTo()}
           >
             <span>Laboratory</span>
@@ -214,7 +238,7 @@ export default function Header({
           <a
             className="nav-pill"
             href={homeSectionLink("contact")}
-            onClick={() => goTo("contact")}
+            onClick={(event) => goTo("contact", event)}
           >
             <span>Contact</span>
           </a>
@@ -230,7 +254,10 @@ export default function Header({
             type="button"
             onClick={() => preview("Book an appointment")}
           >
-            Book an appointment <Icon name="arrow" />
+            {onHomePage || publicDesign
+              ? "Request a session"
+              : "Book an appointment"}{" "}
+            <Icon name="arrow" />
           </button>
         </nav>
       </div>

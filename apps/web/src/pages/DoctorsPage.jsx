@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import DirectorySearch from "../components/DirectorySearch.jsx";
 import ProfessionalCard from "../components/ProfessionalCard.jsx";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
-import GrainientPage from "../components/GrainientPage.jsx";
+import PublicPage from "../components/PublicPage.jsx";
 import useProfessionals from "../hooks/useProfessionals.js";
 import { filterProfessionals } from "../lib/directory.js";
 import "../components/doctorDirectory.css";
@@ -88,7 +88,7 @@ export default function DoctorsPage() {
     };
   }, []);
   return (
-    <GrainientPage className="doctors-page">
+    <PublicPage className="doctors-page">
       <div className="container directory-shell">
         <div className="directory-intro">
           <p className="eyebrow">OUR CARE TEAM</p>
@@ -97,6 +97,6 @@ export default function DoctorsPage() {
         </div>
         <DirectoryContent result={result} onRetry={retry} />
       </div>
-    </GrainientPage>
+    </PublicPage>
   );
 }

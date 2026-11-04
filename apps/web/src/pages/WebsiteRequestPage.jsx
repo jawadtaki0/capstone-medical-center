@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import GrainientPage from "../components/GrainientPage.jsx";
+import PublicPage from "../components/PublicPage.jsx";
 import RequestForm from "../request-preview/RequestForm.jsx";
 import TrackingView from "../request-preview/TrackingView.jsx";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
@@ -107,7 +107,7 @@ export default function WebsiteRequestPage({ tracking = false }) {
     return () => clearTimeout(t);
   }, [toast]);
   return (
-    <GrainientPage>
+    <PublicPage>
       <div className="container request-shell">
         <div className="request-alert" role="note">
           {capstone
@@ -217,6 +217,6 @@ export default function WebsiteRequestPage({ tracking = false }) {
           </div>
         )}
       </div>
-    </GrainientPage>
+    </PublicPage>
   );
 }
