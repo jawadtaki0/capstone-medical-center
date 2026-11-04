@@ -1,6 +1,11 @@
 import { useState } from "react";
 import PublicPage from "../components/PublicPage.jsx";
 import Icon from "../components/Icon.jsx";
+import PublicSessionRow from "../components/PublicSessionRow.jsx";
+import SmoothDisclosure from "../components/SmoothDisclosure.jsx";
+import LabAudioInformation, {
+  LabAudioIntro,
+} from "../components/LabAudioInformation.jsx";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import useSchedule from "../hooks/useSchedule.js";
 import { services } from "../data/homeContent.js";
@@ -77,35 +82,49 @@ export function ServiceInformation({ service, result, onRetry }) {
             </p>
           ) : (
             <div className="schedule-card-list">
-              {sessions.map((session, index) => (
-                <article
-                  className="schedule-card"
-                  key={`${session.id}-${index}`}
-                >
-                  <div className="schedule-card-details">
-                    <h3>
-                      {clinic
-                        ? (session.doctorName ?? session.name)
-                        : service.title}
-                    </h3>
-                    {clinic && session.specialty && (
-                      <p className="schedule-specialty">{session.specialty}</p>
-                    )}
-                    {session.appointmentRequired && (
-                      <p className="schedule-appointment-note">
-                        Appointment required
+              {sessions.map((session, index) =>
+                clinic ? (
+                  <PublicSessionRow
+                    session={session}
+                    label={
+                      session.kind === "specialist"
+                        ? "Specialist session"
+                        : "Clinic session"
+                    }
+                    key={`${session.id}-${index}`}
+                  />
+                ) : (
+                  <article
+                    className="schedule-card"
+                    key={`${session.id}-${index}`}
+                  >
+                    <div className="schedule-card-details">
+                      <h3>
+                        {clinic
+                          ? (session.doctorName ?? session.name)
+                          : service.title}
+                      </h3>
+                      {clinic && session.specialty && (
+                        <p className="schedule-specialty">
+                          {session.specialty}
+                        </p>
+                      )}
+                      {session.appointmentRequired && (
+                        <p className="schedule-appointment-note">
+                          Appointment required
+                        </p>
+                      )}
+                      <p className="schedule-card-meta">
+                        <Icon name="clock" />{" "}
+                        {timeRange(session.startTime, session.endTime)}
                       </p>
-                    )}
-                    <p className="schedule-card-meta">
-                      <Icon name="clock" />{" "}
-                      {timeRange(session.startTime, session.endTime)}
-                    </p>
-                    {session.status === "cancelled" && (
-                      <p className="schedule-cancelled">Cancelled</p>
-                    )}
-                  </div>
-                </article>
-              ))}
+                      {session.status === "cancelled" && (
+                        <p className="schedule-cancelled">Cancelled</p>
+                      )}
+                    </div>
+                  </article>
+                ),
+              )}
             </div>
           )}
         </>
@@ -140,13 +159,55 @@ export default function ServicePage({ slug }) {
   const { result, retry } = useSchedule(date);
   if (!service) return null; // App only routes the explicit public categories.
   return (
-    <PublicPage className="schedule-page">
+    <PublicPage
+      className={
+        slug === "clinic" ? "clinic-page" : "schedule-page lab-audio-page"
+      }
+    >
       <div className="container schedule-shell service-information">
-        <div className="schedule-intro">
-          <p className="eyebrow">CENTER SERVICES</p>
-          <h1>{service.title}</h1>
-          <p>{service.description}</p>
-        </div>
+        {slug === "clinic" ? (
+          <div className="clinic-intro">
+            <div>
+              <span className="clinic-service-icon">
+                <Icon name={service.icon} />
+              </span>
+              <h1>Clinic consultations</h1>
+              <p>
+                {service.description} Choose a published attendance window and
+                send your request for reception to review.
+              </p>
+              <a className="button button-primary" href="/doctors">
+                Find a doctor
+              </a>
+              <a className="text-button" href="/schedule">
+                View schedule
+              </a>
+            </div>
+            <div
+              className="clinic-illustration"
+              role="img"
+              aria-label="Illustration of planning a clinic visit"
+            >
+              <div className="clinic-illustration-calendar">
+                <Icon name="calendar" />
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="clinic-illustration-window">
+                <Icon name="clock" />
+                <span>
+                  Choose a session.
+                  <br />
+                  Plan your visit.
+                </span>
+              </div>
+              <p>Session-planning illustration</p>
+            </div>
+          </div>
+        ) : (
+          <LabAudioIntro laboratory={slug === "laboratory"} />
+        )}
         <section
           className="schedule-picker"
           aria-labelledby="service-date-title"
@@ -182,6 +243,44 @@ export default function ServicePage({ slug }) {
           </div>
         </section>
         <ServiceInformation service={service} result={result} onRetry={retry} />
+        {slug !== "clinic" && (
+          <LabAudioInformation laboratory={slug === "laboratory"} />
+        )}
+        {slug === "clinic" && (
+          <section
+            className="clinic-request-guide"
+            aria-labelledby="clinic-request-title"
+          >
+            <div>
+              <h2 id="clinic-request-title">From session to confirmation.</h2>
+              <p>
+                Choose your session, send your request, then follow reception’s
+                decision through your saved private tracking link.
+              </p>
+            </div>
+            <div className="clinic-faq">
+              <h3>Before you request</h3>
+              {[
+                [
+                  "Does sending a request reserve a place?",
+                  "No. Your request needs reception confirmation before an appointment is reserved.",
+                ],
+                [
+                  "Is the attendance window an exact consultation time?",
+                  "No. It is your attendance window; consultation order follows check-in.",
+                ],
+                [
+                  "How do I follow my request?",
+                  "Save your complete private tracking link after sending your request. Use it to view synchronized status updates.",
+                ],
+              ].map(([question, answer]) => (
+                <SmoothDisclosure key={question} title={question}>
+                  <p>{answer}</p>
+                </SmoothDisclosure>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </PublicPage>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { readPublicJson } from "../lib/readPublicJson.js";
 
 // Used by both pages. Home omits the date so the API determines today in Beirut.
 export default function useSchedule(date) {
@@ -15,10 +16,8 @@ export default function useSchedule(date) {
     const url = date
       ? `/api/schedule?date=${encodeURIComponent(date)}`
       : "/api/schedule";
-    fetch(url, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Schedule request failed");
-        const schedule = await response.json();
+    readPublicJson(url, { signal: controller.signal })
+      .then((schedule) => {
         if (
           schedule.timeZone !== "Asia/Beirut" ||
           typeof schedule.date !== "string" ||

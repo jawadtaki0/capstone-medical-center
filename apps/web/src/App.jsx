@@ -1,3 +1,4 @@
+import "./pages/publicInteriors.css";
 import WebsiteRequestPage from "./pages/WebsiteRequestPage.jsx";
 import { useEffect, useRef, useState } from "react";
 import PublicPage from "./components/PublicPage.jsx";
@@ -102,7 +103,7 @@ export default function App() {
         ) : onHomePage ? (
           <HomePage onPreview={showPreview} />
         ) : (
-          <PublicPage>
+          <PublicPage className="public-not-found">
             <section className="container">
               <h1>Page not found</h1>
               <p>
@@ -112,8 +113,8 @@ export default function App() {
               <a className="button button-primary" href="/">
                 Return home
               </a>
-              <a className="button" href="/request">
-                Request a clinic session
+              <a className="button button-secondary" href="/schedule">
+                View schedule
               </a>
             </section>
           </PublicPage>

@@ -7,10 +7,30 @@ const STATUSES = {
   cancelled: { en: "Cancelled", ar: "ملغى" },
 };
 
+export const STATUS_EXPLANATIONS = {
+  awaiting: {
+    en: "Reception is reviewing your request. No appointment is reserved until it is confirmed.",
+    ar: "يراجع موظفو الاستقبال طلبك. لا يُحجز موعد حتى يتم تأكيد الطلب.",
+  },
+  confirmed: {
+    en: "Reception has confirmed your request. Your attendance window and details are below.",
+    ar: "أكد موظفو الاستقبال طلبك. تظهر فترة الحضور والتفاصيل أدناه.",
+  },
+  rejected: {
+    en: "Reception could not confirm this request. Any supplied reason appears below.",
+    ar: "لم يتمكن موظفو الاستقبال من تأكيد هذا الطلب. يظهر السبب أدناه إذا كان متاحًا.",
+  },
+  cancelled: {
+    en: "This request has been cancelled. It does not reserve an appointment.",
+    ar: "أُلغي هذا الطلب. لا يحجز الطلب الملغى موعدًا.",
+  },
+};
+
 export default function TrackingView({
   request,
   data: projection,
   onLanguage,
+  requestHref = "#request",
 }) {
   const [language, setLanguage] = useState(
       projection?.language ?? request?.patient.preferredLanguage ?? "en",
@@ -42,7 +62,7 @@ export default function TrackingView({
             ? "تواصل مع موظفي المركز لطلب استبدال الرابط. لا يُرسل البديل إلا إلى رقم الهاتف المُقدَّم أصلًا مع هذا الطلب. معرفة الاسم أو رقم المرجع لا تتيح الوصول ولا تثبت الهوية."
             : "Contact the center's staff about a replacement. It can be delivered only to the phone originally submitted with this request. Knowing a name or reference does not provide access or establish identity."}
         </p>
-        <a href="#request" className="button button-secondary">
+        <a href={requestHref} className="button button-secondary">
           {ar ? "طلب جديد" : "New request"}
         </a>
       </section>
@@ -53,16 +73,19 @@ export default function TrackingView({
       dir={ar ? "rtl" : "ltr"}
       lang={language}
     >
-      <div className="request-intro">
-        <p className="eyebrow">
-          {ar
-            ? "متابعة خاصة · دون حساب"
-            : "PRIVATE REQUEST TRACKING · NO ACCOUNT"}
-        </p>
-        <h1 ref={title} tabIndex={-1}>
+      <div className="request-intro tracking-status-intro">
+        <p className="tracking-context">
           {ar ? "متابعة طلبك" : "Track your request"}
+        </p>
+        <h1
+          ref={title}
+          tabIndex={-1}
+          className={`tracking-status-heading status-heading-${data.status}`}
+        >
+          {STATUSES[data.status][language]}
         </h1>
-        <p>
+        <p>{STATUS_EXPLANATIONS[data.status][language]}</p>
+        <p className="tracking-sync-note">
           {ar
             ? "المعروض أدناه هو آخر تحديث تمت مزامنته لهذه الصفحة."
             : "This page shows the last successfully synchronized update for this request."}
@@ -70,9 +93,7 @@ export default function TrackingView({
       </div>
       <div className="request-card">
         <div className="request-tracking-top">
-          <span className={`request-status status-${data.status}`}>
-            {STATUSES[data.status][language]}
-          </span>
+          <h2>{ar ? "تفاصيل الطلب" : "Request details"}</h2>
           <label className="request-language">
             {ar ? "اللغة" : "Language"}
             <select
@@ -134,9 +155,13 @@ export default function TrackingView({
               ? ar
                 ? "هذه فترة الحضور وليست موعدًا دقيقًا للاستشارة. ترتيب الاستشارات حسب تسجيل الحضور."
                 : "This is your attendance window, not an exact consultation time. Consultation order follows check-in."
-              : ar
-                ? "يراجع الموظف طلبك. إرسال الطلب لا يحجز مكانًا، ورسائل واتساب تُرسل يدويًا. تابع هذه الصفحة لمعرفة المستجدات."
-                : "Staff reviews your request. Submission reserves no place, and WhatsApp messages are sent manually. Check this page for updates."}
+              : data.status === "awaiting"
+                ? ar
+                  ? "يراجع الموظف طلبك. إرسال الطلب لا يحجز مكانًا، ورسائل واتساب تُرسل يدويًا. تابع هذه الصفحة لمعرفة المستجدات."
+                  : "Staff reviews your request. Submission reserves no place, and WhatsApp messages are sent manually. Check this page for updates."
+                : ar
+                  ? "احتفظ بهذا الرابط الخاص لعرض التحديثات التي تمت مزامنتها. تُرسل رسائل واتساب يدويًا."
+                  : "Keep this private link to view synchronized updates. WhatsApp messages are sent manually."}
           </p>
         </div>
       </div>

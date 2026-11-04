@@ -1,0 +1,262 @@
+.lab-audio-page .schedule-shell {
+  padding-top: 48px;
+  padding-bottom: 64px;
+}
+.lab-audio-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.75fr);
+  align-items: center;
+  gap: 48px;
+  margin-bottom: 36px;
+}
+.lab-audio-intro h1 {
+  font-size: clamp(2.6rem, 5vw, 4rem);
+  letter-spacing: -0.035em;
+  color: var(--deep-blue);
+  line-height: 1.05;
+  margin-bottom: 20px;
+}
+.lab-audio-intro p,
+.service-content-heading p,
+.lab-audio-faq > div > p {
+  max-width: 70ch;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.lab-audio-intro p + p {
+  margin-top: 12px;
+}
+.lab-audio-intro .text-button {
+  margin-top: 20px;
+  display: inline-flex;
+}
+.lab-audio-illustration {
+  padding: 28px 32px;
+  border-left: 2px solid var(--blue);
+  color: var(--blue-hover);
+}
+.lab-audio-illustration .service-sample-icon {
+  width: 104px;
+  height: 104px;
+  margin-bottom: 16px;
+}
+.lab-audio-illustration span {
+  display: block;
+  white-space: pre-line;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.service-sample-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+}
+.lab-audio-page .schedule-picker {
+  padding: 22px 24px;
+}
+.lab-audio-page .schedule-results {
+  padding-top: 28px;
+}
+.lab-audio-page .schedule-card {
+  padding: 20px 24px;
+  box-shadow: none;
+}
+.lab-audio-page .schedule-card-meta {
+  color: var(--ink);
+}
+.lab-audio-page .service-information-actions p {
+  color: var(--ink);
+}
+.lab-catalogue,
+.audio-assessments {
+  margin-top: 48px;
+  scroll-margin-top: 32px;
+}
+.service-content-heading {
+  margin-bottom: 24px;
+}
+.service-content-heading h2,
+.lab-audio-faq h2 {
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  margin-bottom: 16px;
+  color: var(--deep-blue);
+}
+.service-content-heading p + p {
+  margin-top: 12px;
+}
+.lab-catalogue-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.lab-catalogue-filters label {
+  flex: 1 1 240px;
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+}
+.lab-catalogue-filters input,
+.lab-catalogue-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px;
+  background: white;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 400;
+}
+.lab-catalogue-count {
+  margin: 18px 0;
+  color: var(--ink);
+}
+.lab-catalogue-grid,
+.audio-assessment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+.lab-test-card,
+.audio-assessment-grid article,
+.lab-catalogue-empty {
+  min-width: 0;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.lab-test-sample {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--blue-hover);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.lab-test-card h3,
+.audio-assessment-grid h3 {
+  color: var(--deep-blue);
+  font-size: 1.35rem;
+  line-height: 1.25;
+  margin-bottom: 12px;
+}
+.lab-test-card p,
+.audio-assessment-grid p {
+  color: var(--ink);
+  line-height: 1.65;
+}
+.lab-test-card > .smooth-disclosure {
+  margin-top: 20px;
+}
+.lab-test-card h4 {
+  margin: 16px 0 8px;
+  color: var(--deep-blue);
+  font-size: 1rem;
+}
+.lab-test-card h4:first-child {
+  margin-top: 0;
+}
+.service-content-sources {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.service-content-sources a {
+  color: var(--blue-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.service-content-sources p + p {
+  margin-top: 8px;
+}
+.audio-assessment-grid article > .service-sample-icon {
+  color: var(--blue);
+  margin-bottom: 20px;
+}
+.lab-audio-faq {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 48px;
+  align-items: start;
+  margin-top: 48px;
+}
+.lab-audio-faq .text-button {
+  display: inline-flex;
+  margin-top: 20px;
+}
+.lab-audio-faq-panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 24px 20px;
+  min-width: 0;
+}
+.lab-audio-faq-panel > .smooth-disclosure:first-child {
+  border-top: 0;
+}
+@media (max-width: 1100px) {
+  .lab-catalogue-grid,
+  .audio-assessment-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .lab-audio-page .schedule-shell {
+    padding-top: 32px;
+    padding-bottom: 40px;
+  }
+  .lab-audio-intro {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    margin-bottom: 28px;
+  }
+  .lab-audio-illustration {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 20px;
+  }
+  .lab-audio-illustration .service-sample-icon {
+    width: 64px;
+    height: 64px;
+    flex-basis: 64px;
+    margin: 0;
+  }
+  .lab-audio-illustration span {
+    font-size: 1rem;
+  }
+  .lab-catalogue-grid,
+  .audio-assessment-grid,
+  .lab-audio-faq {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lab-catalogue-filters,
+  .lab-test-card,
+  .audio-assessment-grid article {
+    padding: 20px;
+  }
+  .lab-audio-faq {
+    gap: 24px;
+  }
+  .lab-catalogue,
+  .audio-assessments,
+  .lab-audio-faq {
+    margin-top: 32px;
+  }
+}

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { parseDirectoryResponse } from "../lib/directory.js";
+import { readPublicJson } from "../lib/readPublicJson.js";
 
 export async function loadProfessionals(signal, request = fetch) {
-  const response = await request("/api/professionals", { signal });
-  if (!response.ok) throw new Error("Directory request failed");
-  return parseDirectoryResponse(await response.json());
+  return parseDirectoryResponse(
+    await readPublicJson("/api/professionals", { signal, request }),
+  );
 }
 
 export default function useProfessionals() {

@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
-import Icon from "../components/Icon.jsx";
-import SpecialtyIcon from "../components/SpecialtyIcon.jsx";
+import PublicSessionRow from "../components/PublicSessionRow.jsx";
 import PublicPage from "../components/PublicPage.jsx";
-import { specialtyLabel } from "../data/specialties.js";
-import { professionalName } from "../data/professionalNames.js";
 import useSchedule from "../hooks/useSchedule.js";
 import {
   beirutToday,
@@ -16,46 +13,6 @@ import {
   timeRange,
 } from "../lib/scheduleDate.js";
 import "./schedule.css";
-
-function SessionCard({ session, label, onPreview }) {
-  return (
-    <article className="schedule-card">
-      <div className="schedule-card-details">
-        <p className="schedule-card-kicker">{label}</p>
-        <h3>{professionalName(session.doctorName ?? session.name)}</h3>
-        <p className="schedule-specialty specialty-line">
-          <SpecialtyIcon specialty={session.specialty} />
-          <span className="specialty-label">
-            {specialtyLabel(session.specialty)}
-          </span>
-        </p>
-        {session.appointmentRequired && (
-          <p className="schedule-appointment-note">Appointment required</p>
-        )}
-        <div className="schedule-card-meta">
-          <span>
-            <Icon name="calendar" /> {longDate(session.date)}
-          </span>
-          <span>
-            <Icon name="clock" />{" "}
-            {timeRange(session.startTime, session.endTime)}
-          </span>
-        </div>
-      </div>
-      {session.status === "cancelled" ? (
-        <span className="schedule-cancelled">Cancelled</span>
-      ) : (
-        <button
-          className="button schedule-outline-button schedule-book-button"
-          type="button"
-          onClick={() => onPreview("Book an appointment", session)}
-        >
-          Book an appointment
-        </button>
-      )}
-    </article>
-  );
-}
 
 export default function SchedulePage({ onPreview }) {
   const [selectedDate, setSelectedDate] = useState(beirutToday);
@@ -80,10 +37,9 @@ export default function SchedulePage({ onPreview }) {
   const published = schedule?.publicationStatus === "published";
 
   return (
-    <PublicPage className="schedule-page">
+    <PublicPage className="schedule-page public-schedule">
       <div className="container schedule-shell">
         <div className="schedule-intro">
-          <p className="eyebrow">PUBLIC SCHEDULE</p>
           <h1>Find a day that works for you.</h1>
           <p>
             Choose a day to see its doctor sessions and other scheduled
@@ -207,9 +163,9 @@ export default function SchedulePage({ onPreview }) {
               {doctorSessions.length > 0 ? (
                 <div className="schedule-card-list">
                   {doctorSessions.map((session) => (
-                    <SessionCard
+                    <PublicSessionRow
                       session={session}
-                      label="DOCTOR SESSION"
+                      label="Doctor session"
                       onPreview={onPreview}
                       key={`${selectedDate}-${session.id}`}
                     />
@@ -229,9 +185,9 @@ export default function SchedulePage({ onPreview }) {
                   <h3 id="specialists-title">Specialist sessions</h3>
                   <div className="schedule-card-list">
                     {specialistSessions.map((session) => (
-                      <SessionCard
+                      <PublicSessionRow
                         session={session}
-                        label="SPECIALIST SESSION"
+                        label="Specialist session"
                         onPreview={onPreview}
                         key={`${selectedDate}-${session.id}`}
                       />

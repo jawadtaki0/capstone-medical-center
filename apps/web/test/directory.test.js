@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   filterProfessionals,
+  directorySpecialties,
   parseDirectoryResponse,
 } from "../src/lib/directory.js";
 
@@ -234,5 +235,29 @@ test("duplicate stable profile IDs are rejected rather than rendered twice", () 
         ],
       }),
     /duplicate/,
+  );
+});
+
+test("published specialty options preserve compound labels and are independent of search", () => {
+  const source = [...professionals, { ...professionals[0], id: "another-ent" }];
+  const options = directorySpecialties(source);
+  assert.equal(options.length, professionals.length);
+  assert.ok(options.includes("Speech, Language, and Swallowing Therapist"));
+  assert.deepEqual(directorySpecialties([]), []);
+  assert.deepEqual(filterProfessionals(source, "jordan", "Cardiology"), [
+    professionals[1],
+  ]);
+  assert.deepEqual(filterProfessionals(source, "jordan", "Dietitian"), []);
+  assert.deepEqual(filterProfessionals(source, "", "Dietitian"), [
+    professionals[2],
+  ]);
+  assert.equal(directorySpecialties(source).length, options.length);
+  assert.deepEqual(
+    filterProfessionals(
+      source,
+      "otolaryngology",
+      directorySpecialties([professionals[0]])[0],
+    ),
+    [professionals[0], source.at(-1)],
   );
 });

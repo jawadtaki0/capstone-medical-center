@@ -15,7 +15,8 @@ test("directory loading requests the public endpoint once and validates its resp
   const result = await loadProfessionals(signal, async (url, options) => {
     calls += 1;
     assert.equal(url, "/api/professionals");
-    assert.equal(options.signal, signal);
+    assert.ok(options.signal instanceof AbortSignal);
+    assert.equal(options.signal.aborted, false);
     return { ok: true, json: async () => ({ professionals: [profile] }) };
   });
   assert.deepEqual(result, [profile]);
