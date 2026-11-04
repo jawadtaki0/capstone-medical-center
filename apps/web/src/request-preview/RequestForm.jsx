@@ -499,13 +499,15 @@ export default function RequestForm({
         <span className="request-success-symbol" aria-hidden="true">
           ✓
         </span>
-        <p className="eyebrow">{t.awaiting}</p>
+        <p className="request-receipt-status">{t.awaiting}</p>
         <h1 ref={heading} tabIndex={-1}>
           {t.receipt}
         </h1>
         <p>
           {language === "ar" ? "مرجع الطلب" : "Request reference"}:{" "}
-          <strong dir="ltr">{receipt.reference}</strong>
+          <strong className="request-reference" dir="ltr">
+            {receipt.reference}
+          </strong>
         </p>
         <SessionSummary
           session={receipt.session}
@@ -560,7 +562,7 @@ export default function RequestForm({
         <p className="eyebrow">
           {language === "ar"
             ? "العيادة · دون حساب"
-            : "ONE CLINIC · NO ACCOUNT NEEDED"}
+            : "Clinic requests · no account needed"}
         </p>
         <h1>{t.title}</h1>
         <p>{t.intro}</p>
@@ -590,7 +592,54 @@ export default function RequestForm({
         ))}
       </ol>
       <div className="request-layout">
-        <section className="request-card">
+        <aside className="request-card request-aside">
+          <p className="eyebrow">
+            {language === "ar" ? "معلومات الطلب" : "YOUR REQUEST"}
+          </p>
+          <h2>{t.attendance}</h2>
+          {session ? (
+            <SessionSummary
+              session={session}
+              language={language}
+              professional={professionalFor(session)}
+            />
+          ) : (
+            <div className="request-empty-selection">
+              <SpecialtyIcon
+                specialty={
+                  PROFESSIONALS.find((p) => p.id === professional)?.specialty ??
+                  ""
+                }
+              />
+              <p>{t.pick}</p>
+            </div>
+          )}
+          {session && scenario !== "ready" && (
+            <p className="request-muted" role="status">
+              {language === "ar"
+                ? "هذا آخر اختيار لك. الجلسات المنشورة غير متاحة حاليًا."
+                : "This is your last selected session. Published sessions are currently unavailable."}
+            </p>
+          )}
+          {session && step > 0 && (
+            <button
+              className="text-button request-change-selection"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setStep(0);
+                setMessage("");
+              }}
+            >
+              {language === "ar" ? "تغيير الاختيار" : "Change selection"}
+            </button>
+          )}
+          <hr />
+          <strong>{t.pending}</strong>
+          <p>{t.warning}</p>
+          <p className="request-muted">{t.manual}</p>
+        </aside>
+        <section className="request-card request-form-panel">
           <h2 ref={heading} tabIndex={-1} className="request-step-heading">
             {step === 0 ? t.choose : step === 1 ? t.details : t.review}
           </h2>
@@ -1056,33 +1105,6 @@ export default function RequestForm({
             </div>
           </form>
         </section>
-        <aside className="request-card request-aside">
-          <p className="eyebrow">
-            {language === "ar" ? "معلومات الطلب" : "YOUR REQUEST"}
-          </p>
-          <h2>{t.attendance}</h2>
-          {session ? (
-            <SessionSummary
-              session={session}
-              language={language}
-              professional={professionalFor(session)}
-            />
-          ) : (
-            <div className="request-empty-selection">
-              <SpecialtyIcon
-                specialty={
-                  PROFESSIONALS.find((p) => p.id === professional)?.specialty ??
-                  ""
-                }
-              />
-              <p>{t.pick}</p>
-            </div>
-          )}
-          <hr />
-          <strong>{t.pending}</strong>
-          <p>{t.warning}</p>
-          <p className="request-muted">{t.manual}</p>
-        </aside>
       </div>
     </>
   );

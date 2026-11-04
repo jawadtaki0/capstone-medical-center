@@ -107,7 +107,9 @@ export default function WebsiteRequestPage({ tracking = false }) {
     return () => clearTimeout(t);
   }, [toast]);
   return (
-    <PublicPage>
+    <PublicPage
+      className={tracking ? "public-tracking-page" : "public-request-page"}
+    >
       <div className="container request-shell">
         <div className="request-alert" role="note">
           {capstone
@@ -149,7 +151,11 @@ export default function WebsiteRequestPage({ tracking = false }) {
                 wakeHint
               />
             ) : (
-              <TrackingView data={data} onLanguage={setLanguage} />
+              <TrackingView
+                data={data}
+                onLanguage={setLanguage}
+                requestHref="/request"
+              />
             )}{" "}
             {data?.windowEnded && (
               <p className="request-alert">
@@ -161,9 +167,13 @@ export default function WebsiteRequestPage({ tracking = false }) {
           </>
         ) : (
           <>
-            <label className="request-field">
-              Language
+            <label
+              className="request-field"
+              dir={language === "ar" ? "rtl" : "ltr"}
+            >
+              {language === "ar" ? "لغة الصفحة" : "Page language"}
               <select
+                aria-label={language === "ar" ? "لغة الصفحة" : "Page language"}
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
               >

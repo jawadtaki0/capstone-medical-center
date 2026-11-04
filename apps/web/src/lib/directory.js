@@ -49,18 +49,35 @@ function normalizeSearch(value) {
     : "";
 }
 
-export function filterProfessionals(professionals, query = "") {
-  const normalizedQuery = normalizeSearch(query);
-  if (!normalizedQuery) return professionals;
+// Preserve compound published specialties; use the same labels as the cards.
+export function directorySpecialties(professionals) {
+  const options = new Map();
+  for (const professional of professionals) {
+    const label = specialtyLabel(professional.specialty).trim();
+    if (!options.has(normalizeSearch(label)))
+      options.set(normalizeSearch(label), label);
+  }
+  return [...options.values()].sort((a, b) => a.localeCompare(b));
+}
 
-  return professionals.filter((professional) =>
-    [
-      professional.name,
-      professionalName(professional.name),
-      professional.specialty,
-      specialtyLabel(professional.specialty),
-      // Include known wording variants even if a profile stores the short label.
-      ...(getSpecialtyIcon(professional.specialty).aliases ?? []),
-    ].some((value) => normalizeSearch(value).includes(normalizedQuery)),
+export function filterProfessionals(professionals, query = "", specialty = "") {
+  const normalizedQuery = normalizeSearch(query);
+  const selectedSpecialty = normalizeSearch(specialty);
+  if (!normalizedQuery && !selectedSpecialty) return professionals;
+
+  return professionals.filter(
+    (professional) =>
+      (!selectedSpecialty ||
+        normalizeSearch(specialtyLabel(professional.specialty)) ===
+          selectedSpecialty) &&
+      (!normalizedQuery ||
+        [
+          professional.name,
+          professionalName(professional.name),
+          professional.specialty,
+          specialtyLabel(professional.specialty),
+          // Include known wording variants even if a profile stores the short label.
+          ...(getSpecialtyIcon(professional.specialty).aliases ?? []),
+        ].some((value) => normalizeSearch(value).includes(normalizedQuery))),
   );
 }

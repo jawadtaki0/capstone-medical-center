@@ -4,21 +4,45 @@ import ProfessionalCard from "../components/ProfessionalCard.jsx";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import PublicPage from "../components/PublicPage.jsx";
 import useProfessionals from "../hooks/useProfessionals.js";
-import { filterProfessionals } from "../lib/directory.js";
+import { directorySpecialties, filterProfessionals } from "../lib/directory.js";
 import "../components/doctorDirectory.css";
 
 export function DirectoryContent({ result, onRetry }) {
   const [query, setQuery] = useState("");
-  const professionals = filterProfessionals(result.professionals, query);
+  const [specialty, setSpecialty] = useState("");
+  const options = directorySpecialties(result.professionals);
+  const professionals = filterProfessionals(
+    result.professionals,
+    query,
+    specialty,
+  );
   const loaded = result.status === "success";
   const directoryEmpty = loaded && result.professionals.length === 0;
   return (
     <>
-      <DirectorySearch
-        query={query}
-        onQueryChange={setQuery}
-        resultsId="directory-results"
-      />
+      <div className="directory-filters">
+        <DirectorySearch
+          query={query}
+          onQueryChange={setQuery}
+          resultsId="directory-results"
+        />
+        <label className="directory-specialty-filter">
+          Specialty
+          <select
+            value={specialty}
+            onChange={(event) => setSpecialty(event.target.value)}
+            disabled={result.status !== "success"}
+            aria-controls="directory-results"
+          >
+            <option value="">All specialties</option>
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <p
         className="directory-status"
         role="status"
@@ -60,7 +84,17 @@ export function DirectoryContent({ result, onRetry }) {
         {loaded && !directoryEmpty && professionals.length === 0 && (
           <div className="directory-state">
             <h2>No matching professionals.</h2>
-            <p>Try another name or specialty, or clear the search.</p>
+            <p>Try another name or specialty, or reset both filters.</p>
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setSpecialty("");
+              }}
+            >
+              Reset filters
+            </button>
           </div>
         )}
         {loaded && professionals.length > 0 && (
@@ -91,8 +125,7 @@ export default function DoctorsPage() {
     <PublicPage className="doctors-page">
       <div className="container directory-shell">
         <div className="directory-intro">
-          <p className="eyebrow">OUR CARE TEAM</p>
-          <h1>Doctors &amp; specialists</h1>
+          <h1>Doctors and specialists</h1>
           <p>Find a professional by name or specialty.</p>
         </div>
         <DirectoryContent result={result} onRetry={retry} />

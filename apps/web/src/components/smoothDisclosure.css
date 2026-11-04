@@ -1,0 +1,57 @@
+.smooth-disclosure {
+  border-top: 1px solid var(--line);
+}
+.smooth-disclosure-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 52px;
+  padding: 16px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 650;
+  text-align: start;
+  cursor: pointer;
+}
+.smooth-disclosure-trigger:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.smooth-disclosure-trigger .icon {
+  flex: 0 0 20px;
+  transition: transform 380ms cubic-bezier(0.22, 0.7, 0.3, 1);
+}
+.smooth-disclosure[data-open="true"] .smooth-disclosure-trigger .icon {
+  transform: rotate(180deg);
+}
+.smooth-disclosure-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 380ms cubic-bezier(0.22, 0.7, 0.3, 1);
+}
+.smooth-disclosure[data-open="true"] > .smooth-disclosure-panel {
+  grid-template-rows: 1fr;
+}
+.smooth-disclosure-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+.smooth-disclosure-answer {
+  padding-bottom: 20px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.smooth-disclosure-answer p + p {
+  margin-top: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .smooth-disclosure-panel,
+  .smooth-disclosure-trigger .icon {
+    transition: none;
+  }
+}

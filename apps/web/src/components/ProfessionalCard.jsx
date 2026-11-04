@@ -21,11 +21,12 @@ export default function ProfessionalCard({ professional }) {
                 {specialtyLabel(professional.specialty)}
               </p>
             </div>
-            {(import.meta.env.VITE_HOSTED_REVIEW === "1" ||
+            {(import.meta.env.DEV ||
+              import.meta.env.VITE_HOSTED_REVIEW === "1" ||
               import.meta.env.VITE_HOSTED_CAPSTONE === "1" ||
               import.meta.env.VITE_WEBSITE_REQUESTS === "1") && (
               <a
-                className="text-button"
+                className="text-button professional-card__request"
                 href={requestSelectionUrl(professional)}
               >
                 Request a clinic session
