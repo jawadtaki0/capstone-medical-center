@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import Icon from "../components/Icon.jsx";
 import SpecialtyIcon from "../components/SpecialtyIcon.jsx";
-import GrainientPage from "../components/GrainientPage.jsx";
+import PublicPage from "../components/PublicPage.jsx";
 import { specialtyLabel } from "../data/specialties.js";
 import { professionalName } from "../data/professionalNames.js";
 import useSchedule from "../hooks/useSchedule.js";
@@ -80,7 +80,7 @@ export default function SchedulePage({ onPreview }) {
   const published = schedule?.publicationStatus === "published";
 
   return (
-    <GrainientPage className="schedule-page">
+    <PublicPage className="schedule-page">
       <div className="container schedule-shell">
         <div className="schedule-intro">
           <p className="eyebrow">PUBLIC SCHEDULE</p>
@@ -262,6 +262,6 @@ export default function SchedulePage({ onPreview }) {
           )}
         </section>
       </div>
-    </GrainientPage>
+    </PublicPage>
   );
 }

@@ -1,60 +1,43 @@
-import { useState } from "react";
-import Icon from "./Icon.jsx";
-import SpecularButton from "./SpecularButton.jsx";
-export default function Hero({ onPreview }) {
-  const [photoFailed, setPhotoFailed] = useState(false);
-  const photoEnabled =
-    import.meta.env.DEV &&
-    new URLSearchParams(window.location.search).get("photo") !== "off";
-  const showPhoto = photoEnabled && !photoFailed;
+import HomeSchedule from "./HomeSchedule.jsx";
+
+export default function Hero({ onPreview, result, onRetry }) {
   return (
-    <section
-      className={`hero ${showPhoto ? "hero-with-photo" : "hero-fallback"}`}
-      aria-labelledby="welcome-heading"
-    >
-      {showPhoto && (
-        <img
-          className="hero-photo"
-          src="/__prototype/hero.png"
-          alt="A clinician with a stethoscope beside a bright clinic waiting area"
-          fetchPriority="high"
-          onError={() => setPhotoFailed(true)}
-        />
-      )}
-      <div className="hero-overlay" />
-      {!showPhoto && (
-        <div className="fallback-art" aria-hidden="true">
-          <span>+</span>
-          <div className="fallback-ring" />
-        </div>
-      )}
-      <div className="container hero-inner">
-        <div className="hero-copy">
-          <p className="eyebrow">
-            <span className="small-line" /> WELCOME TO CEDAR MEDICAL CENTER
-          </p>
+    <section className="home-opening" aria-labelledby="welcome-heading">
+      <div className="container home-opening-grid">
+        <div className="home-introduction">
           <h1 id="welcome-heading">
-            Care that feels
-            <br />a little closer.
+            Your visit
+            <br />
+            starts here.
           </h1>
-          <p className="hero-intro">
-            A welcoming place for your health. Find your doctor, explore our
-            services, and take your next step with confidence.
+          <p className="home-lead">
+            Find your doctor. Check the session.
+            <br />
+            Take the next step with Cedar.
           </p>
-          <div className="action-row">
-            <SpecularButton onClick={() => onPreview("Book an appointment")}>
-              Book an appointment <Icon name="arrow" />
-            </SpecularButton>
-            <a className="button button-secondary" href="#doctors">
-              Today’s schedule <Icon name="calendar" />
+          <div className="home-actions">
+            <button
+              className="home-button"
+              type="button"
+              onClick={() => onPreview("Book an appointment")}
+            >
+              Request a clinic session
+            </button>
+            <a className="home-link" href="/doctors">
+              Find a doctor
             </a>
           </div>
-          <p className="hero-footnote">
-            <Icon name="heart" /> Thoughtful care. Familiar faces. One place.
+          <p className="home-request-note">
+            Requests are reviewed by reception.
+            <br />
+            Choosing a session does not reserve an appointment.
           </p>
         </div>
+        <HomeSchedule result={result} onRetry={onRetry} onPreview={onPreview} />
       </div>
-      <span className="prototype-label">DESIGN PREVIEW · FICTIONAL CENTER</span>
+      <div className="container home-opening-note">
+        <span>Provisional Cedar Medical Center website</span>
+      </div>
     </section>
   );
 }

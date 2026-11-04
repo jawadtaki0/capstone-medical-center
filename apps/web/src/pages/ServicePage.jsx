@@ -1,5 +1,5 @@
 import { useState } from "react";
-import GrainientPage from "../components/GrainientPage.jsx";
+import PublicPage from "../components/PublicPage.jsx";
 import Icon from "../components/Icon.jsx";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import useSchedule from "../hooks/useSchedule.js";
@@ -140,7 +140,7 @@ export default function ServicePage({ slug }) {
   const { result, retry } = useSchedule(date);
   if (!service) return null; // App only routes the explicit public categories.
   return (
-    <GrainientPage className="schedule-page">
+    <PublicPage className="schedule-page">
       <div className="container schedule-shell service-information">
         <div className="schedule-intro">
           <p className="eyebrow">CENTER SERVICES</p>
@@ -183,6 +183,6 @@ export default function ServicePage({ slug }) {
         </section>
         <ServiceInformation service={service} result={result} onRetry={retry} />
       </div>
-    </GrainientPage>
+    </PublicPage>
   );
 }

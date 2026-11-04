@@ -1,0 +1,181 @@
+@font-face {
+  font-family: "Cedar Source Sans";
+  src: url("../assets/fonts/SourceSans3VF-Upright.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+}
+.cedar-home,
+.home-header,
+.home-footer {
+  font-family: "Cedar Source Sans", "Segoe UI", sans-serif;
+}
+
+.public-canvas .home-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: clip;
+  contain: paint;
+}
+.public-canvas .home-background svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.public-canvas .home-background-surface {
+  fill: var(--white);
+}
+.public-canvas .home-background-ribbon {
+  fill: none;
+  stroke: color-mix(in srgb, var(--blue) 32%, var(--pale));
+  stroke-width: 170;
+}
+.public-canvas .home-background-fold {
+  fill: none;
+  stroke: color-mix(in srgb, var(--blue) 16%, var(--pale));
+  stroke-width: 145;
+}
+
+/* Separate nested transform owners: ambient wandering never replaces scroll depth. */
+.public-canvas .home-background-scroll,
+.public-canvas .home-background-ambient {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+.public-canvas
+  .home-background[data-motion="running"]
+  .home-background-ambient {
+  will-change: transform;
+}
+
+/* Shared approved public chrome; route-specific layouts remain in their pages. */
+.public-site {
+  font-family: "Cedar Source Sans", "Segoe UI", sans-serif;
+  color: var(--ink);
+}
+.public-site :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+.public-canvas {
+  position: relative;
+  isolation: isolate;
+  min-height: 65vh;
+  background: color-mix(in srgb, var(--blue) 18%, var(--pale));
+}
+.public-page-content {
+  position: relative;
+  z-index: 1;
+}
+.public-canvas .home-background svg {
+  min-height: 900px;
+}
+.public-site .public-page {
+  background: transparent;
+  min-height: 65vh;
+  padding-block: 32px;
+}
+.public-page__content {
+  width: min(1280px, calc(100% - 112px));
+  margin-inline: auto;
+}
+.public-site .public-page__content > .container {
+  width: auto;
+  margin-inline: 0;
+  padding-inline: 24px;
+}
+.public-site .public-page__content > section.container {
+  padding-block: 40px;
+}
+.public-site .button {
+  border-radius: 7px;
+  transition:
+    background-color var(--fast) var(--ease),
+    color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
+}
+.public-site .button:is(:hover, :active) {
+  transform: none;
+  box-shadow: none;
+}
+.public-site :is(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid var(--deep-blue);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 4px var(--white);
+}
+.public-site .home-header .header-inner {
+  min-height: 80px;
+}
+.public-site .home-header .header-cta {
+  border-radius: 7px;
+}
+.public-site .home-header .nav-pill::before {
+  display: none;
+}
+.public-site .home-header .nav-pill:hover {
+  color: var(--blue);
+  background: var(--wash);
+}
+.public-site .home-footer .footer-bottom {
+  align-items: start;
+}
+.public-site .home-footer .footer-top > p {
+  font-size: 1.1rem;
+}
+@media (min-width: 1180px) {
+  .public-site .home-header .main-nav {
+    background: none;
+    border: 0;
+    box-shadow: none;
+  }
+}
+@media (max-width: 1100px) {
+  .public-page__content {
+    width: calc(100% - 64px);
+  }
+}
+@media (max-width: 760px) {
+  .public-site .public-page {
+    padding-block: 20px;
+  }
+  .public-page__content {
+    width: calc(100% - 24px);
+  }
+  .public-site .public-page__content > .container {
+    padding-inline: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .public-site *,
+  .public-site *::before,
+  .public-site *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Text belongs to the connected background; only interactive/data regions are solid. */
+.public-site
+  :is(
+    .directory-intro > p:last-child,
+    .schedule-intro > p:last-child,
+    .request-intro p,
+    .service-information-actions p,
+    .directory-status,
+    .schedule-center-hours
+  ) {
+  color: var(--ink);
+}
+.public-site .public-page .eyebrow {
+  color: var(--deep-blue);
+}
+.public-site
+  :is(.schedule-picker, .request-card, .request-stepper, .request-alert) {
+  background: var(--white);
+}
+
+.public-site .public-page .text-button {
+  color: var(--deep-blue);
+}

@@ -1,9 +1,9 @@
 import WebsiteRequestPage from "./pages/WebsiteRequestPage.jsx";
 import { useEffect, useRef, useState } from "react";
-import GrainientPage from "./components/GrainientPage.jsx";
+import PublicPage from "./components/PublicPage.jsx";
+import PublicShell from "./components/PublicShell.jsx";
 import { requestSelectionUrl } from "./request-selection.js";
-import Header from "./components/Header.jsx";
-import { Footer } from "./components/HomeSections.jsx";
+import { isHomepageDemo, isHomepageDemoSession } from "./homepage-preview.js";
 import PrototypeDialog from "./components/PrototypeDialog.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import SchedulePage from "./pages/SchedulePage.jsx";
@@ -59,6 +59,14 @@ export default function App() {
   }, [pathname, service]);
   function showPreview(action, session) {
     if (
+      isHomepageDemo(import.meta.env.DEV, pathname, window.location.search) ||
+      isHomepageDemoSession(session)
+    ) {
+      setPreviewAction("Design demo — nothing submitted");
+      dialog.current?.showModal();
+      return;
+    }
+    if (
       ["Book an appointment", "Book appointment (prototype)"].includes(
         action,
       ) &&
@@ -74,17 +82,15 @@ export default function App() {
   }
   return (
     <>
-      <a className="skip-link" href="#main">
-        Skip to content
-      </a>
-      <Header
+      <PublicShell
         homePage={onHomePage}
         onPreview={showPreview}
         onRequestPage={onRequestPage}
         onSchedulePage={onSchedulePage}
         onDoctorsPage={onDoctorsPage}
-      />
-      <main id="main" tabIndex={-1}>
+        serviceSlug={service?.slug}
+        overlay={<PrototypeDialog dialogRef={dialog} action={previewAction} />}
+      >
         {onRequestPage ? (
           <WebsiteRequestPage tracking={pathname === "/track"} />
         ) : onDoctorsPage ? (
@@ -96,7 +102,7 @@ export default function App() {
         ) : onHomePage ? (
           <HomePage onPreview={showPreview} />
         ) : (
-          <GrainientPage>
+          <PublicPage>
             <section className="container">
               <h1>Page not found</h1>
               <p>
@@ -110,11 +116,9 @@ export default function App() {
                 Request a clinic session
               </a>
             </section>
-          </GrainientPage>
+          </PublicPage>
         )}
-      </main>
-      <Footer />
-      <PrototypeDialog dialogRef={dialog} action={previewAction} />
+      </PublicShell>
     </>
   );
 }
