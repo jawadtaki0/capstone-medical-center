@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import DirectorySearch from "../components/DirectorySearch.jsx";
 import ProfessionalCard from "../components/ProfessionalCard.jsx";
-import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
+import LoadingStatus from "../components/PublicLoadingStatus.jsx";
 import PublicPage from "../components/PublicPage.jsx";
 import useProfessionals from "../hooks/useProfessionals.js";
 import { directorySpecialties, filterProfessionals } from "../lib/directory.js";

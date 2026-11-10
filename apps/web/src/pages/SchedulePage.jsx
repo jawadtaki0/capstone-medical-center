@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
+import LoadingStatus from "../components/PublicLoadingStatus.jsx";
 import PublicSessionRow from "../components/PublicSessionRow.jsx";
 import PublicPage from "../components/PublicPage.jsx";
 import useSchedule from "../hooks/useSchedule.js";

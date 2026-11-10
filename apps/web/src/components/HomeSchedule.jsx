@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Icon from "./Icon.jsx";
-import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
+import LoadingStatus from "./PublicLoadingStatus.jsx";
 import { longDate, timeRange } from "../lib/scheduleDate.js";
 import { specialtyLabel } from "../data/specialties.js";
 import { professionalName } from "../data/professionalNames.js";

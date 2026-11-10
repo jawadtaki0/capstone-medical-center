@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import PublicPage from "../components/PublicPage.jsx";
 import RequestForm from "../request-preview/RequestForm.jsx";
 import TrackingView from "../request-preview/TrackingView.jsx";
-import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
+import LoadingStatus from "../components/PublicLoadingStatus.jsx";
 import { createRequestClient } from "../website-request-client.js";
 import {
   createCatalogueLoader,
@@ -111,22 +111,11 @@ export default function WebsiteRequestPage({ tracking = false }) {
       className={tracking ? "public-tracking-page" : "public-request-page"}
     >
       <div className="container request-shell">
-        <div className="request-alert" role="note">
-          {capstone
-            ? language === "ar"
-              ? "عرض لمشروع التخرج — استخدم بيانات مرضى وهمية. لا يرتب هذا العرض رعاية طبية فعلية."
-              : "Capstone demonstration — use fictional patient identity details. This does not arrange actual medical care."
-            : hostedReview
-              ? language === "ar"
-                ? "عرض تجريبي فقط — استخدم بيانات مرضى وهمية. لا ترسل بيانات مرضى حقيقيين."
-                : "Synthetic review only — use fictional patient details. Do not submit real patient information."
-              : "Local review only. Links pointing to localhost work on this computer, not on another device."}
-        </div>
         {hostedReview && scenario === "loading" && (
           <p className="request-alert" role="status">
             {language === "ar"
-              ? "قد يحتاج خادم العرض المجاني إلى نحو دقيقة لبدء التشغيل. يرجى الانتظار؛ لا حاجة لإرسال طلب جديد."
-              : "The free review server may take about a minute to wake. Please wait; there is no need to submit a new request."}
+              ? "قد يكون الخادم قيد التشغيل أو غير متاح مؤقتًا. يرجى الانتظار؛ لا حاجة لإرسال طلب جديد."
+              : "The server may be waking or temporarily unavailable. Please wait; there is no need to submit a new request."}
           </p>
         )}
         {error && (

@@ -1,3 +1,4 @@
+import { longDate, timeRange } from "../lib/scheduleDate.js";
 import Icon from "./Icon.jsx";
 import ProfessionalAvatar from "./ProfessionalAvatar.jsx";
 import Reveal from "./Reveal.jsx";
@@ -122,14 +123,6 @@ export default function HomeContent({ result }) {
             Plan your visit with published clinic sessions and service hours in
             one place.
           </p>
-          <p className="home-about-story">
-            We imagine a center where finding care feels simple. A friendly
-            welcome, clear information, and a team that helps you find your way.
-          </p>
-          <p className="home-small-note">
-            Provisional center story. Branding and center details remain subject
-            to confirmation.
-          </p>
         </div>
         <Reveal className="home-request-group" watchSkipped>
           <div className="home-request-explanation">
@@ -163,43 +156,103 @@ export default function HomeContent({ result }) {
       >
         <div className="container home-contact-grid">
           <div>
-            <h2 id="home-contact-title">Before you visit.</h2>
-            <p>Contact reception for service details and directions.</p>
-            <p className="home-small-note">
-              The details below are fictional placeholders, not contact
-              information for a real center.
+            <h2 id="home-contact-title">Visit Cedar Medical Center</h2>
+            <p>
+              Find us in Bourj El Brajneh, near Noureddine Bookshop. Contact
+              reception for service details.
             </p>
             <div className="home-contact-details">
               <div>
-                <Icon name="phone" />
+                <Icon name="pin" />
                 <div>
-                  <h3>+961 (0) 00 000 000</h3>
-                  <p>Synthetic phone placeholder</p>
+                  <h3>Address</h3>
+                  <p>
+                    Bourj El Brajneh, near Noureddine Bookshop
+                    <br />
+                    Beirut
+                  </p>
                 </div>
               </div>
               <div>
-                <Icon name="pin" />
+                <Icon name="phone" />
                 <div>
-                  <h3>Cedar Avenue, Example District</h3>
-                  <p>Fictional address. Location to be confirmed.</p>
+                  <h3>Phone</h3>
+                  <p>
+                    <bdi dir="ltr">+961 81 814 554</bdi>
+                  </p>
                 </div>
               </div>
+              <div>
+                <Icon name="clock" />
+                <div>
+                  <h3>Center opening hours</h3>
+                  {schedule ? (
+                    <>
+                      <p>
+                        {longDate(schedule.date)}
+                        <br />
+                        {schedule.centerClosed
+                          ? "The center is closed on this day."
+                          : schedule.centerHours
+                            ? timeRange(
+                                schedule.centerHours.startTime,
+                                schedule.centerHours.endTime,
+                              )
+                            : "Center opening hours are not listed."}
+                      </p>
+                    </>
+                  ) : (
+                    <p>
+                      {result.status === "loading"
+                        ? "Loading published center hours…"
+                        : result.status === "error"
+                          ? "Center hours couldn’t be loaded. Please check the full schedule again."
+                          : "Center hours are not published yet."}
+                    </p>
+                  )}
+                  <a className="home-map-link" href="/schedule">
+                    View full schedule
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div className="home-actions">
+              <a className="home-button" href="tel:+96181814554">
+                Call
+              </a>
+              <a
+                className="home-button"
+                href="https://wa.me/96181814554"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="WhatsApp reception (opens in a new tab)"
+              >
+                WhatsApp
+              </a>
             </div>
           </div>
           <Reveal className="home-map-group" watchSkipped>
             <div className="location-card">
-              <div className="location-pattern" aria-hidden="true">
-                <div className="map-pin">
-                  <Icon name="pin" />
-                </div>
-              </div>
+              <iframe
+                className="home-location-map"
+                width="600"
+                height="380"
+                title="Cedar Medical Center location on OpenStreetMap"
+                src="https://www.openstreetmap.org/export/embed.html?bbox=35.5043517%2C33.8374762%2C35.5091517%2C33.8404762&layer=mapnik&marker=33.8389762%2C35.5067517"
+                loading="lazy"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
               <div className="location-caption">
-                <h3>Location preview</h3>
-                <p>
-                  Schematic illustration only, not a live map. The address is
-                  fictional; a real map will follow once the center details are
-                  confirmed.
-                </p>
+                <a
+                  className="home-map-link"
+                  href="https://maps.app.goo.gl/vnkpWvwB95EadX7L8"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Get directions on Google Maps (opens in a new tab)"
+                >
+                  Get directions <span aria-hidden="true">↗</span>
+                </a>
               </div>
             </div>
           </Reveal>

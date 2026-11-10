@@ -7,6 +7,7 @@ export default function LoadingStatus({
   label = "Loading…",
   wakeHint = false,
   language = "en",
+  wakeMessage,
 }) {
   const [longWait, setLongWait] = useState(false);
   useEffect(() => {
@@ -25,9 +26,10 @@ export default function LoadingStatus({
       />
       {longWait && (
         <p role="status">
-          {language === "ar"
-            ? "قد يكون خادم المراجعة قيد التشغيل. أبقِ هذه الصفحة مفتوحة؛ بياناتك المدخلة محفوظة."
-            : "The review server may be waking. Keep this page open; your entered details are retained."}
+          {wakeMessage ??
+            (language === "ar"
+              ? "قد يكون خادم المراجعة قيد التشغيل. أبقِ هذه الصفحة مفتوحة؛ بياناتك المدخلة محفوظة."
+              : "The review server may be waking. Keep this page open; your entered details are retained.")}
         </p>
       )}
     </div>

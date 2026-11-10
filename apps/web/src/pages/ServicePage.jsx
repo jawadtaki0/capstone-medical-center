@@ -6,7 +6,7 @@ import SmoothDisclosure from "../components/SmoothDisclosure.jsx";
 import LabAudioInformation, {
   LabAudioIntro,
 } from "../components/LabAudioInformation.jsx";
-import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
+import LoadingStatus from "../components/PublicLoadingStatus.jsx";
 import useSchedule from "../hooks/useSchedule.js";
 import { services } from "../data/homeContent.js";
 import {

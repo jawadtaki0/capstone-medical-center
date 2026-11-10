@@ -65,7 +65,7 @@ export function LabAudioIntro({ laboratory }) {
         </p>
         <p>
           {laboratory
-            ? "Explore the illustrative catalogue, then confirm your test and instructions with the laboratory."
+            ? "Explore the test catalogue, then confirm your test and instructions with the laboratory."
             : "Learn about three hearing assessments performed by healthcare professionals. Contact reception for visit details."}
         </p>
         <a
@@ -103,9 +103,8 @@ export default function LabAudioInformation({ laboratory }) {
           <div className="service-content-heading">
             <h2 id="test-catalogue-title">Test catalogue</h2>
             <p>
-              Illustrative capstone catalogue. Confirm test availability and
-              preparation with the laboratory. Follow the instructions given for
-              your own tests.
+              Confirm test availability and preparation with the laboratory.
+              Follow the instructions given for your own tests.
             </p>
             <p>{preparationNote}</p>
           </div>
@@ -197,8 +196,8 @@ export default function LabAudioInformation({ laboratory }) {
               Understanding the assessments
             </h2>
             <p>
-              Informational capstone presentation. Confirm actual service
-              availability and visit instructions with reception.
+              Confirm service availability and visit instructions with
+              reception.
             </p>
           </div>
           <div className="audio-assessment-grid">

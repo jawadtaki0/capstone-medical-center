@@ -35,9 +35,6 @@ export default function Hero({ onPreview, result, onRetry }) {
         </div>
         <HomeSchedule result={result} onRetry={onRetry} onPreview={onPreview} />
       </div>
-      <div className="container home-opening-note">
-        <span>Provisional Cedar Medical Center website</span>
-      </div>
     </section>
   );
 }
