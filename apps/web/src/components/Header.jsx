@@ -103,7 +103,6 @@ export default function Header({
   }
 
   function preview(action) {
-    // The mobile action becomes inert as its panel closes; keep focus return stable.
     if (mobile) menuButton.current?.focus();
     closeNavigation();
     onPreview(action);
@@ -117,15 +116,20 @@ export default function Header({
     >
       <div className="contact-strip">
         <div className="container contact-strip-inner">
-          <span>
-            <Icon name="phone" /> +961 (0) 00 000 000{" "}
-            <small>· Sample number</small>
-          </span>
-          <span>
-            <Icon name="pin" /> Cedar Avenue, Example District{" "}
-            <small>· Fictional location</small>
-          </span>
-          <span className="strip-note">Here for you, every step.</span>
+          <a href="tel:+96181814554">
+            <Icon name="phone" />
+            <bdi dir="ltr">+961 81 814 554</bdi>
+          </a>
+          <a
+            href="https://maps.app.goo.gl/vnkpWvwB95EadX7L8"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Beirut, Bourj El Brajneh, near Noureddine Bookshop on Google Maps (opens in a new tab)"
+          >
+            <Icon name="pin" />
+            Beirut, Bourj El Brajneh, near Noureddine Bookshop{" "}
+            <span aria-hidden="true">↗</span>
+          </a>
         </div>
       </div>
       <div className="container header-inner">

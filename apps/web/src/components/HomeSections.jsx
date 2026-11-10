@@ -402,11 +402,11 @@ export function Footer({ homePage = false, publicDesign = false }) {
           )}
         </div>
         <div className="footer-bottom">
-          <p>© 2026 Cedar Medical Center · Prototype branding</p>
+          <p>© 2026 Cedar Medical Center</p>
           <p>
             {homePage || publicDesign
-              ? "Branding and contact details are provisional. Choosing a session does not reserve an appointment; requests require reception confirmation. Patient sign-in remains a prototype."
-              : "Branding and contact details are provisional. Booking buttons are prototypes; sign-in is not available yet."}
+              ? "Choosing a session does not reserve an appointment; requests require reception confirmation. Patient sign-in is not available yet."
+              : "Patient sign-in is not available yet."}
           </p>
         </div>
       </div>

@@ -11,7 +11,7 @@ import {
   validatedPreselection,
   validatedProfessionalPreselection,
 } from "../request-selection.js";
-import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
+import LoadingStatus from "../components/PublicLoadingStatus.jsx";
 function makeSubmissionKey() {
   return btoa(
     String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))),
@@ -697,6 +697,7 @@ export default function RequestForm({
                       {discoveryStatus === "loading" && (
                         <LoadingStatus
                           wakeHint
+                          language={language}
                           label={
                             language === "ar"
                               ? "جارٍ تحميل المواعيد المنشورة…"
@@ -827,6 +828,7 @@ export default function RequestForm({
                   {scenario === "loading" ? (
                     <LoadingStatus
                       wakeHint
+                      language={language}
                       label={
                         language === "ar"
                           ? "جارٍ تحميل الجلسات…"

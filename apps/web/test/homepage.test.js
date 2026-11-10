@@ -132,11 +132,16 @@ test("homepage preview omits unpublished people and retains only supported servi
   assert.doesNotMatch(html, /Dr\. Synthetic/);
   for (const slug of ["clinic", "laboratory", "audiometry"])
     assert.match(html, new RegExp(`href="/services/${slug}"`));
-  assert.match(html, /Provisional center story/);
-  assert.match(html, /Synthetic phone placeholder/);
+  assert.match(html, /href="tel:\+96181814554"/);
+  assert.match(html, /href="https:\/\/maps\.app\.goo\.gl\/vnkpWvwB95EadX7L8"/);
+  assert.match(html, /opens in a new tab/);
+  assert.doesNotMatch(
+    html,
+    /Provisional center story|Synthetic phone placeholder|Cedar Avenue|000 000/,
+  );
 });
 
-test("homepage corrections retain one directory action and an explicitly schematic location preview", async () => {
+test("homepage corrections retain one directory action and the exact OpenStreetMap marker", async () => {
   const { default: HomeContent } =
     await import("../src/components/HomeContent.jsx");
   for (const result of [
@@ -147,10 +152,15 @@ test("homepage corrections retain one directory action and an explicitly schemat
     assert.equal((html.match(/href="\/doctors"/g) || []).length, 1);
     assert.match(html, /class="home-button" href="\/doctors"/);
     assert.match(html, /Browse all doctors/);
-    assert.match(html, /location-pattern/);
-    assert.match(html, /Schematic illustration only, not a live map/);
-    assert.match(html, /address is fictional/);
-    assert.doesNotMatch(html, /<iframe|reveal-pending/);
+    assert.match(html, /www\.openstreetmap\.org\/export\/embed\.html\?bbox=/);
+    assert.match(html, /marker=33\.8389762%2C35\.5067517/);
+    assert.match(html, /href="https:\/\/wa\.me\/96181814554"/);
+    assert.match(html, /near Noureddine Bookshop/);
+    assert.doesNotMatch(html, /address is fictional|Cedar Avenue|000 000/);
+    assert.doesNotMatch(
+      html,
+      /location-pattern|Location illustration|reveal-pending/,
+    );
     assert.match(html, /Choose a clinic session/);
     assert.match(html, /Send your request/);
     assert.match(html, /Reception reviews it/);
@@ -190,4 +200,45 @@ test("demo preserves the canonical published DTO and all three avatars and speci
   assert.doesNotMatch(html, /Looking for a particular doctor/);
   assert.equal((html.match(/id="services"/g) || []).length, 1);
   assert.ok(html.indexOf('id="services"') < html.indexOf('id="doctors"'));
+});
+
+test("visit hours use only the published center result and retain contact actions in every state", async () => {
+  const { default: HomeContent } =
+    await import("../src/components/HomeContent.jsx");
+  for (const [result, expected] of [
+    [
+      { status: "success", schedule: day },
+      /Wednesday, November 4, 2026<br\/>8:00 AM–5:00 PM/,
+    ],
+    [
+      { status: "success", schedule: { ...day, centerClosed: true } },
+      /closed on this day/,
+    ],
+    [
+      { status: "success", schedule: { ...day, centerHours: null } },
+      /opening hours are not listed/,
+    ],
+    [
+      {
+        status: "success",
+        schedule: { ...day, publicationStatus: "unpublished" },
+      },
+      /hours are not published/,
+    ],
+    [{ status: "error", schedule: day }, /hours couldn’t be loaded/],
+    [{ status: "loading", schedule: day }, /Loading published center hours/],
+  ]) {
+    const html = renderToStaticMarkup(createElement(HomeContent, { result }));
+    const visit = html.slice(html.indexOf('id="contact"'));
+    assert.match(visit, expected);
+    assert.match(visit, /href="tel:\+96181814554"/);
+    assert.match(visit, /href="https:\/\/wa\.me\/96181814554"/);
+    assert.match(visit, /View full schedule/);
+    if (
+      result.status !== "success" ||
+      result.schedule.centerClosed ||
+      result.schedule.publicationStatus !== "published"
+    )
+      assert.doesNotMatch(visit, /8:00 AM–5:00 PM/);
+  }
 });

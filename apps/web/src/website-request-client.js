@@ -1,6 +1,6 @@
 const unavailable = {
-  en: "The review server may be waking or temporarily unavailable. Please try again shortly.",
-  ar: "قد يكون خادم العرض قيد التشغيل أو غير متاح مؤقتًا. يرجى المحاولة مجددًا بعد قليل.",
+  en: "The server may be waking or temporarily unavailable. Please try again shortly.",
+  ar: "قد يكون الخادم قيد التشغيل أو غير متاح مؤقتًا. يرجى المحاولة مجددًا بعد قليل.",
 };
 const uncertainSubmission = {
   en: "Your request may already have been received. Keep this page open and retry without changing the details to recover the same receipt. No place is reserved until staff confirms.",

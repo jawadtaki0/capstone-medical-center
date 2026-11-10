@@ -88,7 +88,7 @@ test("cold-start HTML, malformed JSON and provider errors are controlled and nev
         assert.match(error.message, /waking|unavailable/);
         assert.match(error.message, /same receipt/);
         assert.equal(error.message.includes("Provider"), false);
-        assert.match(error.forLanguage("ar"), /خادم العرض/);
+        assert.match(error.forLanguage("ar"), /الخادم/);
         return true;
       },
     );

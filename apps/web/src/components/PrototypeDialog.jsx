@@ -7,11 +7,11 @@ export default function PrototypeDialog({ dialogRef, action }) {
       aria-labelledby="preview-title"
       aria-describedby="preview-description"
     >
-      <p className="eyebrow">PUBLIC SITE PROTOTYPE</p>
       <h2 id="preview-title">{action}</h2>
       <p id="preview-description">
-        This action is a visual placeholder. No booking, sign-in, or request has
-        been created.
+        {action === "Patient login"
+          ? "Patient sign-in is not available yet."
+          : "This action is not available yet. No booking, sign-in or request has been created."}
       </p>
       <form method="dialog">
         <button className="button button-primary" autoFocus>

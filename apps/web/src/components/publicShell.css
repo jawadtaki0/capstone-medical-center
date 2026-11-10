@@ -11,6 +11,30 @@
   font-family: "Cedar Source Sans", "Segoe UI", sans-serif;
 }
 
+.public-site .contact-strip-inner {
+  flex-wrap: wrap;
+  gap: 0 24px;
+  padding-block: 0;
+}
+.public-site .contact-strip-inner > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  color: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.public-site .contact-strip-inner > a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.public-site .contact-strip-inner > a:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: -1px;
+  border-radius: 4px;
+}
+
 .public-canvas .home-background {
   position: absolute;
   inset: 0;
@@ -178,4 +202,13 @@
 
 .public-site .public-page .text-button {
   color: var(--deep-blue);
+}
+
+.public-site .contact-strip-inner > a:last-child {
+  white-space: normal;
+  min-width: 0;
+  padding-block: 7px;
+}
+.public-site .contact-strip-inner > a .icon {
+  flex-shrink: 0;
 }
