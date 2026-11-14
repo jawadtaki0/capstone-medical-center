@@ -636,6 +636,40 @@ export function createWebsiteRequestService({
     }
   }
   return {
+    async phoneVerification(token, input) {
+      const authorized = await run(token, false, (_session, ctx, authority) => {
+        if (
+          !authority.scopes.some(
+            (scope) =>
+              scope.kind === "clinic" && allowed(ctx, authority, scope.id),
+          )
+        )
+          throw fail(
+            "request_forbidden",
+            "Phone verification is available to clinic reception.",
+            403,
+          );
+        exact(input, ["action", "id"], ["action"]);
+        if (!["list", "prepare", "opened", "sent"].includes(input.action))
+          throw fail(
+            "request_input",
+            "Choose a phone verification action.",
+            400,
+          );
+      });
+      if (authorized?.failure) return authorized;
+      try {
+        return await config.transport.phone(input);
+      } catch (error) {
+        if (error.status === 404 && input.action === "list")
+          return { count: 0, rows: [] };
+        throw fail(
+          "phone_verification_unavailable",
+          "Phone verification is unavailable. Refresh and try again.",
+          error.status === 409 ? 409 : 503,
+        );
+      }
+    },
     subscribePendingWork(notify) {
       pendingListeners.add(notify);
       return () => pendingListeners.delete(notify);

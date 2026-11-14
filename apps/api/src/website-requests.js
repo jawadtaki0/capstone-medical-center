@@ -41,6 +41,12 @@ export async function ensureIntakeIndexes(db) {
   await r.createIndex({ ordinal: 1 }, { unique: true });
   await r.createIndex({ phoneKey: 1, createdAt: 1 });
   await r.createIndex({ cleanupAt: 1 });
+  await r.createIndex(
+    { "owner.accountId": 1, "owner.profileId": 1, createdAt: -1 },
+    {
+      partialFilterExpression: { "owner.accountId": { $exists: true } },
+    },
+  );
   await db
     .collection("website_request_counters")
     .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
@@ -165,7 +171,7 @@ export function createPublicIntake({
       calendarDate(date);
       return professionalReader(date);
     },
-    async submit(input, source) {
+    async submit(input, source, owner) {
       await count(source, "submission-minute", policy.submitMinute);
       await count(source, "submission-hour", policy.submitHour, 3600000);
       const today = new Intl.DateTimeFormat("en-CA", {
@@ -177,7 +183,11 @@ export function createPublicIntake({
       const v = intakeInput(input, today),
         id = digest(v.submissionKey),
         payloadDigest = crypto.source(
-          digest({ selection: v.selection, patient: v.patient }),
+          digest({
+            selection: v.selection,
+            patient: v.patient,
+            ...(owner ? { owner } : {}),
+          }),
         );
       return tx(async (session) => {
         const prior = await requests.findOne({ _id: id }, { session });
@@ -258,6 +268,7 @@ export function createPublicIntake({
           );
         const r = {
           _id: id,
+          ...(owner ? { owner } : {}),
           ordinal: state.value,
           reference: `WR-${randomUUID().replaceAll("-", "").slice(0, 16).toUpperCase()}`,
           payloadVersion: 1,
@@ -296,6 +307,35 @@ export function createPublicIntake({
         await requests.insertOne(r, { session });
         return envelope(r);
       });
+    },
+    async profileRequests(owner) {
+      const rows = await requests
+        .find(
+          {
+            "owner.accountId": owner.accountId,
+            "owner.profileId": owner.profileId,
+            purgedAt: { $exists: false },
+            expiresAt: { $gt: clock() },
+          },
+          {
+            projection: {
+              reference: 1,
+              status: 1,
+              selection: 1,
+              bookingReference: 1,
+              reason: 1,
+              language: 1,
+              endsAt: 1,
+              events: 1,
+            },
+          },
+        )
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray();
+      return rows.map((row) =>
+        publicRequest(row, clock(), { localReviewOnly }),
+      );
     },
     async track(token, source) {
       await count(source, "tracking-source", policy.trackingSource);

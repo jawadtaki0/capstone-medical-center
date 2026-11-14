@@ -4,6 +4,7 @@ const names = [
   "operationalSummary",
   "viewOperationalActivity",
   "websiteRequests",
+  "openPatientPhoneWhatsApp",
   "openRequestWhatsApp",
   "openStaffPhoneWhatsApp",
   "bookingSessions",

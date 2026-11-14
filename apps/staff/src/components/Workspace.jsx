@@ -39,6 +39,8 @@ export default function Workspace({
   const [summary, setSummary] = useState(null);
   const [summaryError, setSummaryError] = useState("");
   const [intakeError, setIntakeError] = useState("");
+  const [phoneQueue, setPhoneQueue] = useState(null);
+  const phoneRefresh = useRef(0);
   const summaryPoll = useRef(null),
     summaryGeneration = useRef(0),
     live = useRef(false);
@@ -51,6 +53,36 @@ export default function Workspace({
   const patientsAllowed = capabilities.patients === true;
   const bookingsAllowed = capabilities.bookingView === true;
   const operationsAllowed = capabilities.operations === true;
+  async function refreshPhoneQueue() {
+    const version = ++phoneRefresh.current;
+    try {
+      const queue = await api.websiteRequests({
+        action: "phoneVerification",
+        phoneAction: "list",
+      });
+      if (
+        live.current &&
+        !callbacks.current.expired &&
+        version === phoneRefresh.current
+      )
+        setPhoneQueue(queue);
+    } catch {
+      if (live.current && version === phoneRefresh.current) setPhoneQueue(null);
+    }
+  }
+  useEffect(() => {
+    if (capabilities.requests && !timing.expired) {
+      void refreshPhoneQueue();
+      const timer = setInterval(() => {
+        if (!document.hidden) void refreshPhoneQueue();
+      }, 30000);
+      return () => {
+        clearInterval(timer);
+        phoneRefresh.current++;
+      };
+    }
+    setPhoneQueue(null);
+  }, [api, user.id, capabilities.requests, timing.expired]);
   useEffect(() => {
     live.current = true;
     const version = ++summaryGeneration.current;
@@ -200,7 +232,7 @@ export default function Workspace({
             key={key}
             disabled={busy}
             aria-current={view === key ? "page" : undefined}
-            className={`staff-sidebar-link ${key === "requests" && (summary?.counts.requestsAwaitingDecision > 0 || summary?.counts.messagesToSend > 0) ? "needs-action" : ""}`}
+            className={`staff-sidebar-link ${key === "requests" && (summary?.counts.requestsAwaitingDecision > 0 || summary?.counts.messagesToSend > 0 || phoneQueue?.count > 0) ? "needs-action" : ""}`}
             onClick={() => navigate({ view: key })}
           >
             <span>{label}</span>
@@ -222,6 +254,15 @@ export default function Workspace({
                     stale={Boolean(summaryError)}
                   />
                 </span>
+                {phoneQueue && (
+                  <span className="staff-request-count-row">
+                    <span>Phone codes to send</span>
+                    <RequestActionCount
+                      value={phoneQueue.count}
+                      label="phone codes to send"
+                    />
+                  </span>
+                )}
               </span>
             )}
           </button>
@@ -283,6 +324,8 @@ export default function Workspace({
               initialNoticeId={target.noticeId}
               onResolved={() => summaryPoll.current?.refresh()}
               actionCounts={summary?.counts}
+              phoneQueue={phoneQueue}
+              refreshPhoneQueue={refreshPhoneQueue}
               countsError={Boolean(summaryError)}
             />
           </RequestScreenBoundary>

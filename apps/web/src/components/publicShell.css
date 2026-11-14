@@ -1,3 +1,7 @@
+:root {
+  --cedar-public-font: "Cedar Source Sans", "Segoe UI", sans-serif;
+}
+
 @font-face {
   font-family: "Cedar Source Sans";
   src: url("../assets/fonts/SourceSans3VF-Upright.woff2") format("woff2");
@@ -8,7 +12,7 @@
 .cedar-home,
 .home-header,
 .home-footer {
-  font-family: "Cedar Source Sans", "Segoe UI", sans-serif;
+  font-family: var(--cedar-public-font);
 }
 
 .public-site .contact-strip-inner {
@@ -76,11 +80,14 @@
 
 /* Shared approved public chrome; route-specific layouts remain in their pages. */
 .public-site {
-  font-family: "Cedar Source Sans", "Segoe UI", sans-serif;
+  font-family: var(--cedar-public-font);
   color: var(--ink);
 }
 .public-site :is(button, input, select, textarea) {
   font-family: inherit;
+}
+.public-site label:not(:is(.Mui-error, .Mui-disabled)) {
+  color: var(--blue);
 }
 .public-canvas {
   position: relative;
@@ -91,6 +98,33 @@
 .public-page-content {
   position: relative;
   z-index: 1;
+}
+.public-site .home-phone-notice {
+  display: flex;
+  justify-content: flex-end;
+  padding-block-start: 0.75rem;
+}
+.public-site .phone-verification-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.85rem;
+  flex-wrap: wrap;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--blue) 22%, var(--pale));
+  border-radius: 0.625rem;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 0.9375rem;
+}
+.public-site .phone-verification-notice .button {
+  padding: 0.45rem 0.75rem;
+  min-height: 2.5rem;
+}
+@media (max-width: 600px) {
+  .public-site .home-phone-notice .phone-verification-notice {
+    width: 100%;
+  }
 }
 .public-canvas .home-background svg {
   min-height: 900px;

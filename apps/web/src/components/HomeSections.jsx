@@ -373,7 +373,11 @@ export function Contact() {
   );
 }
 
-export function Footer({ homePage = false, publicDesign = false }) {
+export function Footer({
+  homePage = false,
+  publicDesign = false,
+  patientAccounts = false,
+}) {
   function backToTop() {
     const main = document.getElementById("main");
     main?.focus({ preventScroll: true });
@@ -405,8 +409,9 @@ export function Footer({ homePage = false, publicDesign = false }) {
           <p>© 2026 Cedar Medical Center</p>
           <p>
             {homePage || publicDesign
-              ? "Choosing a session does not reserve an appointment; requests require reception confirmation. Patient sign-in is not available yet."
-              : "Patient sign-in is not available yet."}
+              ? "Choosing a session does not reserve an appointment; requests require reception confirmation."
+              : ""}
+            {!patientAccounts && " Patient sign-in is not available yet."}
           </p>
         </div>
       </div>

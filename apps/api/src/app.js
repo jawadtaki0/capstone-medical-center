@@ -25,21 +25,26 @@ export function createApp({
   publicAuthority = null,
   websiteDirectory = null,
   websiteRequests = null,
+  patientAccounts = null,
   clientOrigin = config.clientOrigin,
 } = {}) {
   const app = express();
 
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use("/track", (_request, response, next) => {
-    response.set({
-      "Cache-Control": "private, no-store",
-      "Referrer-Policy": "no-referrer",
-      "X-Robots-Tag": "noindex, nofollow",
-    });
-    next();
-  });
+  app.use(
+    patientAccounts ? ["/track", "/account", "/request"] : "/track",
+    (_request, response, next) => {
+      response.set({
+        "Cache-Control": "private, no-store",
+        "Referrer-Policy": "no-referrer",
+        "X-Robots-Tag": "noindex, nofollow",
+      });
+      next();
+    },
+  );
   app.use(cors({ origin: clientOrigin }));
+  if (patientAccounts) app.use("/api/patient-account", patientAccounts);
   if (publicationReceiver) {
     const legacySchedule = scheduleReader,
       legacyProfessionals = professionalsReader;
@@ -94,7 +99,13 @@ export function createApp({
     );
   }
   if (websiteRequests)
-    app.use("/api/requests", websiteRequestRouter(websiteRequests));
+    app.use(
+      "/api/requests",
+      websiteRequestRouter({
+        ...websiteRequests,
+        phoneVerification: patientAccounts?.phoneVerification,
+      }),
+    );
   app.use(express.json({ limit: "100kb", inflate: false }));
   app.use((error, _request, response, next) => {
     if (
@@ -170,7 +181,14 @@ export function createApp({
   if (websiteDirectory) {
     app.use(express.static(websiteDirectory));
     app.get(
-      ["/", "/doctors", "/schedule", "/request", "/track"],
+      [
+        "/",
+        "/doctors",
+        "/schedule",
+        "/request",
+        "/track",
+        ...(patientAccounts ? ["/account"] : []),
+      ],
       (_request, response) =>
         response.sendFile("index.html", { root: websiteDirectory }),
     );

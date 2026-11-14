@@ -11,6 +11,7 @@ export default function Header({
   homePage,
   publicDesign = false,
   serviceSlug,
+  patientAccountLink,
 }) {
   const [mobile, setMobile] = useState(
     () => window.matchMedia(mobileQuery).matches,
@@ -246,13 +247,23 @@ export default function Header({
           >
             <span>Contact</span>
           </a>
-          <button
-            className="nav-pill login-link"
-            type="button"
-            onClick={() => preview("Patient login")}
-          >
-            <span>Patient login</span>
-          </button>
+          {patientAccountLink ? (
+            <a
+              className="nav-pill login-link"
+              href="/account"
+              onClick={() => goTo()}
+            >
+              <span>{patientAccountLink}</span>
+            </a>
+          ) : (
+            <button
+              className="nav-pill login-link"
+              type="button"
+              onClick={() => preview("Patient login")}
+            >
+              <span>Patient login</span>
+            </button>
+          )}
           <button
             className="button button-primary header-cta"
             type="button"

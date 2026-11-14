@@ -53,6 +53,7 @@ function validatePayload(name, payload) {
       list: ["status", "date", "cursor", "query"],
       notices: ["cursor", "state"],
       bookingNoticeLookup: ["bookingId"],
+      phoneVerification: ["phoneAction", "id"],
       refresh: [],
       detail: ["id"],
       link: [
@@ -96,6 +97,7 @@ function validatePayload(name, payload) {
     viewOperationalActivity: ["eventId"],
     openRequestWhatsApp: ["noticeId"],
     openStaffPhoneWhatsApp: ["accountId"],
+    openPatientPhoneWhatsApp: ["id"],
     bookingSessions: ["date"],
     queueTransition: [
       "date",

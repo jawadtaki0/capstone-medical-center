@@ -227,6 +227,7 @@ export function createApp({
     "rotate",
     "notification",
     "bookingNoticeLookup",
+    "phoneVerification",
   ]) {
     app.post(
       `/website-requests/${action}`,

@@ -1,9 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
-import {
-  DateField,
-  ProfessionalCombobox,
-  RequestPhone,
-} from "./FormControls.jsx";
+import { DateField, ProfessionalCombobox } from "./FormControls.jsx";
+import PatientDetailsFields, {
+  patientDetailsCopy,
+} from "./PatientDetailsFields.jsx";
 import { patientInput } from "../../../staff/shared/patient-input.js";
 import { createSubmissionAttempt } from "../website-request-client.js";
 import {
@@ -61,6 +60,7 @@ import ProfessionalAvatar from "../components/ProfessionalAvatar.jsx";
 
 const copy = {
   en: {
+    ...patientDetailsCopy.en,
     title: "Request a clinic session",
     intro:
       "Choose a full attendance window with a doctor or specialist. Our team reviews every request before confirming a place.",
@@ -76,16 +76,7 @@ const copy = {
     submit: "Submit request",
     details: "Patient details",
     review: "Review your request",
-    mother: "Mother’s maiden name",
-    first: "First name",
-    father: "Father’s name",
-    last: "Last name",
-    dob: "Date of birth",
-    gender: "Gender",
     language: "Preferred language",
-    empty: "Choose",
-    female: "Female",
-    male: "Male",
     privacy:
       "These details are for reception to review this request. This does not create an account or grant access to patient history or results.",
     receipt: "Request received",
@@ -106,6 +97,7 @@ const copy = {
       "Availability is checked by staff at confirmation. No place is reserved yet.",
   },
   ar: {
+    ...patientDetailsCopy.ar,
     title: "طلب جلسة في العيادة",
     intro:
       "اختر فترة حضور كاملة مع طبيب أو أخصائي. يراجع فريقنا كل طلب قبل تأكيد مكان.",
@@ -121,16 +113,7 @@ const copy = {
     submit: "إرسال الطلب",
     details: "بيانات المريض",
     review: "راجع طلبك",
-    mother: "اسم الأم قبل الزواج",
-    first: "الاسم الأول",
-    father: "اسم الأب",
-    last: "اسم العائلة",
-    dob: "تاريخ الولادة",
-    gender: "الجنس",
     language: "اللغة المفضلة",
-    empty: "اختر",
-    female: "أنثى",
-    male: "ذكر",
     privacy:
       "هذه البيانات لمراجعة الاستقبال لهذا الطلب. لا تُنشئ حسابًا ولا تتيح الاطلاع على التاريخ الصحي أو النتائج.",
     receipt: "تم استلام الطلب",
@@ -197,6 +180,7 @@ export default function RequestForm({
   preview = false,
   loadUpcoming,
   preselectionSearch = "",
+  bookingProfile,
 }) {
   const PROFESSIONALS = professionals,
     SESSIONS = sessions,
@@ -410,17 +394,19 @@ export default function RequestForm({
       setStep(1);
     } else if (step === 1) {
       const { preferredLanguage, ...record } = details;
-      const problems = patientInput(
-        record,
-        preview
-          ? "2026-10-28"
-          : new Intl.DateTimeFormat("en-CA", {
-              timeZone: "Asia/Beirut",
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-            }).format(new Date()),
-      ).errors;
+      const problems = bookingProfile
+        ? {}
+        : patientInput(
+            record,
+            preview
+              ? "2026-10-28"
+              : new Intl.DateTimeFormat("en-CA", {
+                  timeZone: "Asia/Beirut",
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                }).format(new Date()),
+          ).errors;
       setErrors(problems);
       if (Object.keys(problems).length) {
         setMessage(t.formError);
@@ -643,7 +629,15 @@ export default function RequestForm({
           <h2 ref={heading} tabIndex={-1} className="request-step-heading">
             {step === 0 ? t.choose : step === 1 ? t.details : t.review}
           </h2>
-          <p className="request-muted">{step === 0 ? t.noCount : t.privacy}</p>
+          <p className="request-muted">
+            {step === 0
+              ? t.noCount
+              : bookingProfile
+                ? language === "ar"
+                  ? "يراجع الاستقبال الطلب قبل تأكيد الحجز."
+                  : "Reception reviews the request before confirming a booking."
+                : t.privacy}
+          </p>
           {step === 0 &&
             professional &&
             [...matching, ...discovery.sessions].some(
@@ -928,70 +922,21 @@ export default function RequestForm({
                       {t.sample}
                     </button>
                   )}
-                  <div className="request-form-grid">
-                    {[
-                      ["firstName", t.first],
-                      ["fatherName", t.father],
-                      ["lastName", t.last],
-                      ["motherFirstName", t.mother],
-                    ].map(([key, label]) => (
-                      <div className="request-field" key={key}>
-                        <label htmlFor={`${id}-${key}`}>{label}</label>
-                        <input
-                          id={`${id}-${key}`}
-                          value={details[key]}
-                          maxLength={80}
-                          onChange={(e) => edit(key, e.target.value)}
-                          aria-invalid={Boolean(errors[key])}
-                          aria-describedby={
-                            errors[key] ? `${id}-${key}-error` : undefined
-                          }
-                          autoComplete="off"
-                        />
-                        {errors[key] && (
-                          <p
-                            id={`${id}-${key}-error`}
-                            className="request-error"
-                          >
-                            {errors[key]}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                    <DateField
-                      label={t.dob}
-                      value={details.dateOfBirth}
-                      onChange={(v) => edit("dateOfBirth", v)}
-                      dob
+                  {bookingProfile ? (
+                    <p>
+                      <bdi>
+                        {bookingProfile.firstName} {bookingProfile.lastName}
+                      </bdi>
+                    </p>
+                  ) : (
+                    <PatientDetailsFields
+                      details={details}
+                      edit={edit}
+                      errors={errors}
                       language={language}
-                      error={errors.dateOfBirth}
+                      phoneKey={phoneKey}
                     />
-                    <div className="request-field">
-                      <label htmlFor={`${id}-gender`}>{t.gender}</label>
-                      <select
-                        id={`${id}-gender`}
-                        value={details.gender}
-                        onChange={(e) => edit("gender", e.target.value)}
-                        aria-invalid={Boolean(errors.gender)}
-                      >
-                        <option value="" disabled>
-                          {t.empty}
-                        </option>
-                        <option value="female">{t.female}</option>
-                        <option value="male">{t.male}</option>
-                      </select>
-                      {errors.gender && (
-                        <p className="request-error">{errors.gender}</p>
-                      )}
-                    </div>
-                  </div>
-                  <RequestPhone
-                    key={phoneKey}
-                    value={details.phone}
-                    onChange={(v) => edit("phone", v)}
-                    language={language}
-                    error={errors.phone}
-                  />
+                  )}
                   <div className="request-field">
                     <label htmlFor={`${id}-language`}>{t.language}</label>
                     <select
@@ -1023,24 +968,39 @@ export default function RequestForm({
                     {t.change} {t.steps[0]}
                   </button>
                   <dl className="request-review-grid">
-                    {[
-                      [t.first, details.firstName],
-                      [t.father, details.fatherName],
-                      [t.last, details.lastName],
-                      [t.mother, details.motherFirstName],
-                      [t.dob, details.dateOfBirth],
-                      [language === "ar" ? "الهاتف" : "Phone", details.phone],
-                      [
-                        t.gender,
-                        details.gender === "female" ? t.female : t.male,
-                      ],
-                      [
-                        t.language,
-                        details.preferredLanguage === "ar"
-                          ? "العربية"
-                          : "English",
-                      ],
-                    ].map(([label, value]) => (
+                    {(bookingProfile
+                      ? [
+                          [
+                            t.details,
+                            `${bookingProfile.firstName} ${bookingProfile.lastName}`,
+                          ],
+                          [
+                            language === "ar" ? "الهاتف" : "Phone",
+                            bookingProfile.phone,
+                          ],
+                        ]
+                      : [
+                          [t.first, details.firstName],
+                          [t.father, details.fatherName],
+                          [t.last, details.lastName],
+                          [t.mother, details.motherFirstName],
+                          [t.dob, details.dateOfBirth],
+                          [
+                            language === "ar" ? "الهاتف" : "Phone",
+                            details.phone,
+                          ],
+                          [
+                            t.gender,
+                            details.gender === "female" ? t.female : t.male,
+                          ],
+                          [
+                            t.language,
+                            details.preferredLanguage === "ar"
+                              ? "العربية"
+                              : "English",
+                          ],
+                        ]
+                    ).map(([label, value]) => (
                       <div key={label}>
                         <dt>{label}</dt>
                         <dd>

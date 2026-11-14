@@ -72,6 +72,7 @@ export function DateField({
   dob = false,
   language = "en",
   error,
+  dateAllowed,
 }) {
   const id = useId(),
     [open, setOpen] = useState(false);
@@ -126,6 +127,7 @@ export function DateField({
         <Calendar
           value={value}
           dob={dob}
+          dateAllowed={dateAllowed}
           language={language}
           title={label}
           onClose={() => setOpen(false)}
@@ -138,17 +140,40 @@ export function DateField({
     </div>
   );
 }
-function Calendar({ value, dob, language, title, onChoose, onClose }) {
-  const start = /^\d{4}-\d{2}-\d{2}$/.test(value)
+function Calendar({
+  value,
+  dob,
+  dateAllowed,
+  language,
+  title,
+  onChoose,
+  onClose,
+}) {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Beirut",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const currentYear = Number(today.slice(0, 4));
+  const maximumYear = dob ? currentYear : 9999;
+  let minimumYear = 1900;
+  if (dateAllowed) {
+    minimumYear = currentYear - 18;
+    if (!dateAllowed(`${minimumYear}-12-31`, today)) minimumYear++;
+  }
+  const initial = /^\d{4}-\d{2}-\d{2}$/.test(value)
     ? value
-    : dob
+    : dob && !dateAllowed
       ? "2000-01-01"
-      : new Intl.DateTimeFormat("en-CA", {
-          timeZone: "Asia/Beirut",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }).format(new Date());
+      : today;
+  const initialYear = Number(initial.slice(0, 4));
+  const start =
+    dateAllowed && initialYear < minimumYear
+      ? `${minimumYear}-01-01`
+      : dateAllowed && initialYear > maximumYear
+        ? today
+        : initial;
   const [month, setMonth] = useState(Number(start.slice(5, 7)) - 1),
     [year, setYear] = useState(Number(start.slice(0, 4))),
     [yearDraft, setYearDraft] = useState(start.slice(0, 4)),
@@ -158,6 +183,7 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
     locale = language === "ar" ? "ar-LB" : "en-GB",
     pad = (n) => String(n).padStart(2, "0"),
     dateFor = (day) => `${year}-${pad(month + 1)}-${pad(day)}`;
+  const selectedDate = !dateAllowed || dateAllowed(value, today) ? value : null;
   const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate(),
     offset = new Date(Date.UTC(year, month, 1)).getUTCDay();
   const monthName = (m) =>
@@ -180,21 +206,19 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
           next: "Next month",
           cancel: "Cancel",
         };
+  function allowedYear(draft) {
+    const next = calendarYear(draft, maximumYear);
+    return next !== null && next >= minimumYear ? next : null;
+  }
   function shift(delta) {
-    const committed =
-      calendarYear(
-        yearDraft,
-        dob
-          ? Number(
-              new Intl.DateTimeFormat("en", {
-                year: "numeric",
-                timeZone: "Asia/Beirut",
-              }).format(new Date()),
-            )
-          : 9999,
-      ) ?? year;
+    const committed = allowedYear(yearDraft) ?? year;
     const d = new Date(Date.UTC(committed, month + delta, 1));
-    if (d.getUTCFullYear() < 1900 || d.getUTCFullYear() > 9999) return;
+    const targetYear = d.getUTCFullYear();
+    if (
+      targetYear < minimumYear ||
+      targetYear > (dateAllowed ? maximumYear : 9999)
+    )
+      return;
     setYear(d.getUTCFullYear());
     setYearDraft(String(d.getUTCFullYear()));
     setYearError(false);
@@ -202,17 +226,7 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
     setFocus(1);
   }
   function commitYear() {
-    const next = calendarYear(
-      yearDraft,
-      dob
-        ? Number(
-            new Intl.DateTimeFormat("en", {
-              year: "numeric",
-              timeZone: "Asia/Beirut",
-            }).format(new Date()),
-          )
-        : 9999,
-    );
+    const next = allowedYear(yearDraft);
     setYearError(next === null);
     if (next !== null) {
       setYear(next);
@@ -249,11 +263,18 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
   );
   return (
     <PreviewDialog title={title} onClose={onClose}>
-      <div className="request-calendar" dir={language === "ar" ? "rtl" : "ltr"}>
+      <div
+        className="request-calendar"
+        data-child-calendar={dateAllowed ? "" : undefined}
+        dir={language === "ar" ? "rtl" : "ltr"}
+      >
         <div className="request-calendar-nav">
           <button
             type="button"
             aria-label={label.previous}
+            disabled={Boolean(
+              dateAllowed && year === minimumYear && month === 0,
+            )}
             onClick={() => shift(-1)}
           >
             ‹
@@ -284,6 +305,7 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
               inputMode="numeric"
               enterKeyHint="done"
               maxLength={4}
+              list={dateAllowed ? `${id}-years` : undefined}
               value={yearDraft}
               aria-invalid={yearError}
               aria-describedby={yearError ? `${id}-year-error` : undefined}
@@ -300,10 +322,23 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
                 }
               }}
             />
+            {dateAllowed && (
+              <datalist id={`${id}-years`}>
+                {Array.from(
+                  { length: maximumYear - minimumYear + 1 },
+                  (_, index) => (
+                    <option key={index} value={maximumYear - index} />
+                  ),
+                )}
+              </datalist>
+            )}
           </label>
           <button
             type="button"
             aria-label={label.next}
+            disabled={Boolean(
+              dateAllowed && year === maximumYear && month === 11,
+            )}
             onClick={() => shift(1)}
           >
             ›
@@ -311,9 +346,13 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
         </div>
         {yearError && (
           <p role="alert" id={`${id}-year-error`} className="request-error">
-            {language === "ar"
-              ? "أدخل سنة صحيحة من أربعة أرقام (١٩٠٠ أو أحدث، دون سنة مستقبلية لتاريخ الولادة)."
-              : "Enter a valid four-digit year (1900 or later; birth year cannot be in the future)."}
+            {dateAllowed
+              ? language === "ar"
+                ? `أدخل سنة بين ${minimumYear} و${maximumYear}.`
+                : `Enter a year from ${minimumYear} to ${maximumYear}.`
+              : language === "ar"
+                ? "أدخل سنة صحيحة من أربعة أرقام (١٩٠٠ أو أحدث، دون سنة مستقبلية لتاريخ الولادة)."
+                : "Enter a valid four-digit year (1900 or later; birth year cannot be in the future)."}
           </p>
         )}
         <button
@@ -343,7 +382,7 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
                   <td
                     key={i}
                     role="gridcell"
-                    aria-selected={value === dateFor(d)}
+                    aria-selected={selectedDate === dateFor(d)}
                   >
                     {d > 0 && d <= days && (
                       <button
@@ -353,16 +392,12 @@ function Calendar({ value, dob, language, title, onChoose, onClose }) {
                         disabled={
                           yearDraft !== String(year) ||
                           yearError ||
-                          (dob &&
-                            dateFor(d) >
-                              new Intl.DateTimeFormat("en-CA", {
-                                timeZone: "Asia/Beirut",
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                              }).format(new Date()))
+                          (dob && dateFor(d) > today) ||
+                          (dateAllowed && !dateAllowed(dateFor(d), today))
                         }
-                        className={value === dateFor(d) ? "is-selected" : ""}
+                        className={
+                          selectedDate === dateFor(d) ? "is-selected" : ""
+                        }
                         aria-label={dateFor(d)}
                         onKeyDown={(e) => key(e, d)}
                         onClick={() => onChoose(dateFor(d))}
@@ -537,7 +572,13 @@ export function ProfessionalCombobox({
     </div>
   );
 }
-export function RequestPhone({ value, onChange, language = "en", error }) {
+export function RequestPhone({
+  value,
+  onChange,
+  language = "en",
+  error,
+  help,
+}) {
   const id = useId(),
     initial = phoneNumber(value || "", "LB"),
     [country, setCountry] = useState(initial?.country ?? "LB"),
@@ -598,8 +639,12 @@ export function RequestPhone({ value, onChange, language = "en", error }) {
             }}
           />
         </div>
-        <small id={`${id}-help`}>
+        <small
+          id={`${id}-help`}
+          className={error ? "request-error" : undefined}
+        >
           {error ||
+            help ||
             (language === "ar"
               ? "يمكن لأفراد العائلة استخدام الرقم نفسه. التنسيق ليس إثباتًا للملكية أو لتوفر واتساب."
               : "Family members may share a number. Formatting does not prove ownership or WhatsApp availability.")}

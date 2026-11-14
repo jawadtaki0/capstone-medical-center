@@ -65,6 +65,8 @@ export default function WebsiteRequests({
   initialNoticeId,
   onResolved,
   actionCounts,
+  phoneQueue,
+  refreshPhoneQueue,
   countsError = false,
 }) {
   const [storedRows, setRows] = useState([]),
@@ -95,6 +97,7 @@ export default function WebsiteRequests({
     [review, setReview] = useState(null),
     [decision, setDecision] = useState(""),
     [rotationKey, setRotationKey] = useState(null);
+  const [phoneTab, setPhoneTab] = useState(false);
   const generation = useRef(0),
     listLoader = useRef(null),
     pending = useRef(false),
@@ -281,6 +284,7 @@ export default function WebsiteRequests({
           onClick={async () => {
             const result = await run("refresh");
             if (result) {
+              refreshPhoneQueue?.();
               await load();
               onResolved?.();
               setFeedback(
@@ -297,724 +301,774 @@ export default function WebsiteRequests({
       <div className="staff-actions staff-request-tabs">
         <button
           className="staff-button"
-          aria-pressed={view === "requests"}
-          onClick={() => setView("requests")}
+          aria-pressed={!phoneTab}
+          onClick={() => setPhoneTab(false)}
         >
-          Requests
-          <RequestActionCount
-            value={actionCounts?.requestsAwaitingDecision}
-            label="requests awaiting decision"
-            stale={countsError}
-          />
+          Booking requests
         </button>
         <button
           className="staff-button"
-          aria-pressed={view === "messages"}
+          aria-pressed={phoneTab}
           onClick={() => {
-            setView("messages");
-            setNoticeState("");
+            setPhoneTab(true);
+            refreshPhoneQueue?.();
           }}
         >
-          Messages to send
+          Phone verification
           <RequestActionCount
-            value={actionCounts?.messagesToSend}
-            label="messages needing action"
-            stale={countsError}
+            value={phoneQueue?.count}
+            label="phone codes to send"
           />
-        </button>
-        <button
-          className="staff-button"
-          aria-pressed={view === "history"}
-          onClick={() => {
-            setView("history");
-            setNoticeState("all");
-          }}
-        >
-          History
         </button>
       </div>
-      {feedback && (
-        <p role="status" className="request-alert">
-          {feedback}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="request-error">
-          {error}
-        </p>
-      )}
-      {listError && (
-        <div role="alert" className="request-error">
-          {listError}{" "}
-          <button className="staff-button" onClick={() => void load()}>
-            Retry list
-          </button>
-        </div>
-      )}
-      {view === "requests" && (
-        <form
-          className="request-inbox-filters"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPage(0);
-            void load();
-          }}
-        >
-          <label className="request-field">
-            Search name or reference
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              maxLength={80}
-            />
-          </label>
-          <label className="request-field">
-            Status
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">All statuses</option>
-              {Object.entries(names).map(([v, n]) => (
-                <option key={v} value={v}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="request-field">
-            Session date
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </label>
-          <button className="staff-button" disabled={busy}>
-            Search
-          </button>
-        </form>
-      )}
-      {view !== "requests" && (
-        <label className="request-field">
-          Notification status
-          <select
-            value={noticeState}
-            onChange={(e) => setNoticeState(e.target.value)}
-          >
-            <option value="">Needs follow-up</option>
-            <option value="all">All history</option>
-            {Object.entries(noticeNames).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {!rows.length ? (
-        <div className="request-alert">
-          {listLoading || (rowsKey !== listKey && !listError) ? (
-            <LoadingStatus
-              label={
-                view === "requests" ? "Loading requests…" : "Loading messages…"
-              }
-              wakeHint
-            />
-          ) : listError || error ? (
-            "Requests unavailable. Try Refresh requests."
-          ) : view === "requests" ? (
-            "No requests found."
-          ) : (
-            "No matching messages on this page."
-          )}
-        </div>
-      ) : view === "requests" ? (
+      {phoneTab ? (
+        <PatientPhoneQueue
+          api={api}
+          queue={phoneQueue}
+          refresh={refreshPhoneQueue}
+          onError={onError}
+        />
+      ) : (
         <>
-          <div className="request-inbox-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Patient</th>
-                  <th>Session window</th>
-                  <th>Status / tracking</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="staff-actions staff-request-tabs">
+            <button
+              className="staff-button"
+              aria-pressed={view === "requests"}
+              onClick={() => setView("requests")}
+            >
+              Requests
+              <RequestActionCount
+                value={actionCounts?.requestsAwaitingDecision}
+                label="requests awaiting decision"
+                stale={countsError}
+              />
+            </button>
+            <button
+              className="staff-button"
+              aria-pressed={view === "messages"}
+              onClick={() => {
+                setView("messages");
+                setNoticeState("");
+              }}
+            >
+              Messages to send
+              <RequestActionCount
+                value={actionCounts?.messagesToSend}
+                label="messages needing action"
+                stale={countsError}
+              />
+            </button>
+            <button
+              className="staff-button"
+              aria-pressed={view === "history"}
+              onClick={() => {
+                setView("history");
+                setNoticeState("all");
+              }}
+            >
+              History
+            </button>
+          </div>
+          {feedback && (
+            <p role="status" className="request-alert">
+              {feedback}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="request-error">
+              {error}
+            </p>
+          )}
+          {listError && (
+            <div role="alert" className="request-error">
+              {listError}{" "}
+              <button className="staff-button" onClick={() => void load()}>
+                Retry list
+              </button>
+            </div>
+          )}
+          {view === "requests" && (
+            <form
+              className="request-inbox-filters"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setPage(0);
+                void load();
+              }}
+            >
+              <label className="request-field">
+                Search name or reference
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  maxLength={80}
+                />
+              </label>
+              <label className="request-field">
+                Status
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="">All statuses</option>
+                  {Object.entries(names).map(([v, n]) => (
+                    <option key={v} value={v}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="request-field">
+                Session date
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </label>
+              <button className="staff-button" disabled={busy}>
+                Search
+              </button>
+            </form>
+          )}
+          {view !== "requests" && (
+            <label className="request-field">
+              Notification status
+              <select
+                value={noticeState}
+                onChange={(e) => setNoticeState(e.target.value)}
+              >
+                <option value="">Needs follow-up</option>
+                <option value="all">All history</option>
+                {Object.entries(noticeNames).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {!rows.length ? (
+            <div className="request-alert">
+              {listLoading || (rowsKey !== listKey && !listError) ? (
+                <LoadingStatus
+                  label={
+                    view === "requests"
+                      ? "Loading requests…"
+                      : "Loading messages…"
+                  }
+                  wakeHint
+                />
+              ) : listError || error ? (
+                "Requests unavailable. Try Refresh requests."
+              ) : view === "requests" ? (
+                "No requests found."
+              ) : (
+                "No matching messages on this page."
+              )}
+            </div>
+          ) : view === "requests" ? (
+            <>
+              <div className="request-inbox-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Reference</th>
+                      <th>Patient</th>
+                      <th>Session window</th>
+                      <th>Status / tracking</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((x) => (
+                      <tr
+                        key={x.id}
+                        className={
+                          x.status === "awaiting" ? "request-needs-action" : ""
+                        }
+                      >
+                        <td>{x.reference}</td>
+                        <td>
+                          {fullName(x.patient)}
+                          {x.phoneReview && (
+                            <small>Shared-phone review flag</small>
+                          )}
+                        </td>
+                        <td>
+                          {x.selection.professionalName}
+                          <br />
+                          <bdi>
+                            {x.selection.date} · {x.selection.startTime}–
+                            {x.selection.endTime}
+                          </bdi>
+                        </td>
+                        <td>
+                          <span className={`request-status status-${x.status}`}>
+                            {names[x.status]}
+                          </span>
+                          <span className="request-status">
+                            {!x.trackingExpired &&
+                            x.syncedSequence === x.sequence
+                              ? "Tracking synchronized"
+                              : x.trackingExpired
+                                ? "Tracking expired"
+                                : "Tracking update pending"}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="staff-button"
+                            disabled={busy}
+                            onClick={() => open(x.id)}
+                          >
+                            Review {x.reference}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="request-inbox-mobile">
                 {rows.map((x) => (
-                  <tr
+                  <article
                     key={x.id}
                     className={
                       x.status === "awaiting" ? "request-needs-action" : ""
                     }
                   >
-                    <td>{x.reference}</td>
-                    <td>
+                    <strong>
+                      {x.reference} · {names[x.status]}
+                    </strong>
+                    <p>
                       {fullName(x.patient)}
-                      {x.phoneReview && <small>Shared-phone review flag</small>}
-                    </td>
-                    <td>
+                      <br />
                       {x.selection.professionalName}
                       <br />
                       <bdi>
                         {x.selection.date} · {x.selection.startTime}–
                         {x.selection.endTime}
                       </bdi>
-                    </td>
-                    <td>
-                      <span className={`request-status status-${x.status}`}>
-                        {names[x.status]}
-                      </span>
-                      <span className="request-status">
-                        {!x.trackingExpired && x.syncedSequence === x.sequence
-                          ? "Tracking synchronized"
-                          : x.trackingExpired
-                            ? "Tracking expired"
-                            : "Tracking update pending"}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        className="staff-button"
-                        disabled={busy}
-                        onClick={() => open(x.id)}
-                      >
-                        Review {x.reference}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="request-inbox-mobile">
-            {rows.map((x) => (
-              <article
-                key={x.id}
-                className={
-                  x.status === "awaiting" ? "request-needs-action" : ""
-                }
-              >
-                <strong>
-                  {x.reference} · {names[x.status]}
-                </strong>
-                <p>
-                  {fullName(x.patient)}
-                  <br />
-                  {x.selection.professionalName}
-                  <br />
-                  <bdi>
-                    {x.selection.date} · {x.selection.startTime}–
-                    {x.selection.endTime}
-                  </bdi>
-                </p>
-                <button className="staff-button" onClick={() => open(x.id)}>
-                  Review {x.reference}
-                </button>
-              </article>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="request-inbox-mobile-always">
-          {rows.map((n) => (
-            <article className="request-card" key={n.id}>
-              <strong>{noticeNames[n.state] ?? n.state}</strong>
-              <p>Created {new Date(n.createdAt).toLocaleString()}</p>
-              <button className="staff-button" onClick={() => openNotice(n.id)}>
-                Review notice
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
-      <div className="staff-actions">
-        <button
-          className="staff-button"
-          disabled={busy || page === 0}
-          onClick={() => {
-            setPage(0);
-            void load();
-          }}
-        >
-          First page
-        </button>
-        <span>Page {page + 1}</span>
-        <button
-          className="staff-button"
-          disabled={busy || listLoading || next === null}
-          onClick={() => {
-            setPage((p) => p + 1);
-            void load(next);
-          }}
-        >
-          Next page
-        </button>
-      </div>
-      {r && (
-        <PreviewDialog title={`Review ${r.reference}`} onClose={close}>
-          <fieldset className="request-fields" disabled={busy}>
-            <div className="request-alert">
-              <strong>{names[r.status]}</strong>
-              <p>
-                {!r.trackingExpired && r.syncedSequence === r.sequence
-                  ? "Tracking synchronized"
-                  : r.trackingExpired
-                    ? "Tracking link expired. The local booking remains intact; no further public update is promised."
-                    : "Tracking update pending — a local booking remains valid during public delivery failure."}
-              </p>
-            </div>
-            <h3>Submitted patient details — private</h3>
-            <dl className="request-review-grid">
-              {[
-                ["First name", r.patient.firstName],
-                ["Father’s name", r.patient.fatherName],
-                ["Last name", r.patient.lastName],
-                ["Mother’s maiden name", r.patient.motherFirstName],
-                ["Date of birth", r.patient.dateOfBirth],
-                ["Submitted phone", r.patient.phone],
-                ["Gender", r.patient.gender],
-                ["Language", r.language],
-              ].map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>
-                    <bdi>{v}</bdi>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <p>
-              {r.selection.professionalName} ·{" "}
-              <bdi>
-                {r.selection.date} · {r.selection.startTime}–
-                {r.selection.endTime}
-              </bdi>
-            </p>
-            {r.status === "awaiting" && !r.linkedPatientId && (
-              <section>
-                <h3>Patient matching</h3>
-                <p>
-                  Compare every name and date. Phone is supporting evidence
-                  only. No existing record is overwritten.
-                </p>
-                {detail.matches.candidates.map((c) => (
-                  <label className="request-match" key={c.id}>
-                    <input
-                      type="radio"
-                      name="request-patient"
-                      value={c.id}
-                      checked={selected === c.id}
-                      onChange={() => {
-                        setSelected(c.id);
-                        setAck(false);
-                      }}
-                    />
-                    <span>
-                      <strong>
-                        {c.classification}: {fullName(c)}
-                      </strong>
-                      <br />
-                      DOB: {c.dateOfBirth} · Submitted DOB:{" "}
-                      {r.patient.dateOfBirth}
-                      {c.dateOfBirth !== r.patient.dateOfBirth
-                        ? " — dates differ"
-                        : " — matches"}
-                      <br />
-                      Mother: {c.motherFirstName} · Phone: <bdi>{c.phone}</bdi>{" "}
-                      · Gender: {c.gender}
-                    </span>
-                  </label>
-                ))}
-                {detail.matches.candidates.length === 0 &&
-                  !detail.matches.hasMore && (
-                    <p className="request-note">
-                      No matching patients found. Confirming creates and links a
-                      patient only if the registry still has no candidates.
-                      Opening this request creates nothing.
                     </p>
-                  )}
-                {needsPatientReview && (
-                  <p className="request-alert">
-                    Review differences: {discrepancies.join(", ")}.
-                  </p>
-                )}
-                <label className="request-field">
-                  Private reason / discrepancy review (only required for
-                  differences or creating a separate patient)
-                  <textarea
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    maxLength={500}
-                  />
-                </label>
-                <label className="request-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={ack}
-                    onChange={(e) => setAck(e.target.checked)}
-                  />
-                  I reviewed these candidates and discrepancies.
-                </label>
-                <div className="staff-actions">
+                    <button className="staff-button" onClick={() => open(x.id)}>
+                      Review {x.reference}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="request-inbox-mobile-always">
+              {rows.map((n) => (
+                <article className="request-card" key={n.id}>
+                  <strong>{noticeNames[n.state] ?? n.state}</strong>
+                  <p>Created {new Date(n.createdAt).toLocaleString()}</p>
                   <button
                     className="staff-button"
-                    disabled={
-                      !selected ||
-                      (needsPatientReview && (!ack || !reason.trim()))
-                    }
-                    onClick={() => {
-                      const p = detail.matches.candidates.find(
-                        (p) => p.id === selected,
-                      );
-                      void change("link", {
-                        patientId: p.id,
-                        patientRevision: p.revision,
-                        ...(needsPatientReview
-                          ? { acknowledged: true, reason }
-                          : {}),
-                      });
-                    }}
+                    onClick={() => openNotice(n.id)}
                   >
-                    Link reviewed patient
+                    Review notice
                   </button>
-                  <button
-                    className="staff-button"
-                    disabled={
-                      !detail.matches.candidates.length ||
-                      !ack ||
-                      !reason.trim()
-                    }
-                    onClick={() =>
-                      change("createPatient", {
-                        reviewDigest: detail.matches.reviewDigest,
-                        duplicateOverride: { acknowledged: true, reason },
-                      })
-                    }
-                  >
-                    Create separate patient
-                  </button>
-                </div>
-              </section>
-            )}
-            {r.linkedPatientId && (
-              <p className="request-note">
-                Patient reviewed and linked. Registry details were not
-                overwritten.
-              </p>
-            )}
-            <label className="request-field">
-              Private staff notes
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                maxLength={2000}
-              />
-            </label>
+                </article>
+              ))}
+            </div>
+          )}
+          <div className="staff-actions">
             <button
               className="staff-button"
-              onClick={() => change("notes", { notes })}
-            >
-              Save private notes
-            </button>
-            {r.status === "awaiting" && (
-              <div className="staff-actions">
-                <button
-                  className="staff-button staff-button-primary"
-                  disabled={
-                    !r.linkedPatientId &&
-                    (detail.matches.candidates.length > 0 ||
-                      detail.matches.hasMore)
-                  }
-                  onClick={async () => {
-                    const v = await run("review", { id: r.id });
-                    if (v) {
-                      setReview({ ...v, key: crypto.randomUUID() });
-                      setDecision("confirm");
-                    }
-                  }}
-                >
-                  Confirm request
-                </button>
-                <button
-                  className="staff-button"
-                  onClick={() => {
-                    setDecision("reject");
-                    setReason("");
-                  }}
-                >
-                  Reject request
-                </button>
-                <button
-                  className="staff-button"
-                  disabled={!r.linkedPatientId}
-                  onClick={() => {
-                    setDecision("reconcile");
-                    setSelected("");
-                    setReason("");
-                    setAck(false);
-                  }}
-                >
-                  Reconcile existing booking
-                </button>
-              </div>
-            )}
-            {r.status === "confirmed" && (
-              <>
-                <p>
-                  Booking reference: <strong>{r.bookingReference}</strong>.
-                  Attendance window, not an exact consultation time; order
-                  follows check-in.
-                </p>
-                <button
-                  className="staff-button"
-                  onClick={() => {
-                    setDecision("cancel");
-                    setReason("");
-                    setNotes("");
-                  }}
-                >
-                  Cancel linked booking
-                </button>
-              </>
-            )}
-            {decision === "confirm" && review && (
-              <div className="request-note">
-                <h3>Review and confirm</h3>
-                <p>
-                  <bdi>
-                    {review.session.startTime}–{review.session.endTime}
-                  </bdi>{" "}
-                  ·{" "}
-                  {review.session.capacity === null
-                    ? "Not configured"
-                    : `${review.session.remaining} remaining`}
-                </p>
-                {review.overlaps.length > 0 && (
-                  <p className="request-alert">
-                    This patient has an overlapping booking. Review it before
-                    continuing.
-                  </p>
-                )}
-                <button
-                  className="staff-button staff-button-primary"
-                  disabled={
-                    review.session.capacity === null ||
-                    review.session.remaining === 0
-                  }
-                  onClick={() =>
-                    change("confirm", requestBookingInput(review, r))
-                  }
-                >
-                  Confirm booking
-                </button>
-              </div>
-            )}
-            {["reject", "cancel"].includes(decision) && (
-              <div className="request-note">
-                <label className="request-field">
-                  Patient-facing reason
-                  <select
-                    aria-label="Patient-facing reason"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Choose a fixed reason
-                    </option>
-                    {Object.entries(REQUEST_REASONS).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v.en}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {decision === "cancel" && (
-                  <label className="request-field">
-                    Private cancellation reason
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      maxLength={240}
-                    />
-                  </label>
-                )}
-                <button
-                  className="staff-button"
-                  disabled={!reason || (decision === "cancel" && !notes.trim())}
-                  onClick={() =>
-                    change(decision, {
-                      reason,
-                      ...(decision === "cancel"
-                        ? { privateReason: notes }
-                        : {}),
-                    })
-                  }
-                >
-                  Confirm {decision === "cancel" ? "cancellation" : "rejection"}
-                </button>
-              </div>
-            )}
-            {decision === "reconcile" && (
-              <div className="request-note">
-                <label className="request-field">
-                  Existing active booking
-                  <select
-                    aria-label="Existing active booking"
-                    value={selected}
-                    onChange={(e) => setSelected(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Choose the reviewed booking
-                    </option>
-                    {(detail.existingBookings ?? []).map((b) => (
-                      <option key={b._id} value={b._id}>
-                        {b.bookingNumber} · {b.professionalName} · {b.date} ·{" "}
-                        {b.startTime}–{b.endTime}
-                      </option>
-                    ))}
-                  </select>
-                  {!detail.existingBookings?.length && (
-                    <small>
-                      No active matching patient/session booking was found.
-                    </small>
-                  )}
-                </label>
-                <label className="request-field">
-                  Private reconciliation reason
-                  <input
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    maxLength={500}
-                  />
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={ack}
-                    onChange={(e) => setAck(e.target.checked)}
-                  />
-                  I checked the active booking belongs to this patient and
-                  session.
-                </label>
-                <button
-                  className="staff-button"
-                  disabled={!selected || !reason || !ack}
-                  onClick={() =>
-                    change("reconcileBooking", {
-                      bookingId: selected,
-                      reason,
-                      acknowledged: true,
-                    })
-                  }
-                >
-                  Link existing booking
-                </button>
-              </div>
-            )}
-            <h3>Notifications</h3>
-            {detail.notices.map((n) => (
-              <p key={n.id}>
-                {noticeNames[n.state]}{" "}
-                <button
-                  className="staff-button"
-                  onClick={() => openNotice(n.id)}
-                >
-                  {["sent", "superseded", "opened"].includes(n.state)
-                    ? "View notice history"
-                    : "Send via WhatsApp"}
-                </button>
-              </p>
-            ))}
-            <h3>Lost tracking link</h3>
-            {r.rotationPending && (
-              <p className="request-alert" role="status">
-                Link replacement is pending reconciliation with the public
-                service. Refresh requests to recover it; do not start another
-                replacement.
-              </p>
-            )}
-            <p>
-              Replacement goes only to the original unverified submitted phone.
-              This does not verify identity or authorize patient history access.
-            </p>
-            <button
-              className="staff-button"
+              disabled={busy || page === 0}
               onClick={() => {
-                setDecision("rotate");
-                setReason("");
-                setAck(false);
-                setRotationKey(key());
+                setPage(0);
+                void load();
               }}
             >
-              Replace tracking link
+              First page
             </button>
-            {decision === "rotate" && (
-              <div className="request-note">
+            <span>Page {page + 1}</span>
+            <button
+              className="staff-button"
+              disabled={busy || listLoading || next === null}
+              onClick={() => {
+                setPage((p) => p + 1);
+                void load(next);
+              }}
+            >
+              Next page
+            </button>
+          </div>
+          {r && (
+            <PreviewDialog title={`Review ${r.reference}`} onClose={close}>
+              <fieldset className="request-fields" disabled={busy}>
+                <div className="request-alert">
+                  <strong>{names[r.status]}</strong>
+                  <p>
+                    {!r.trackingExpired && r.syncedSequence === r.sequence
+                      ? "Tracking synchronized"
+                      : r.trackingExpired
+                        ? "Tracking link expired. The local booking remains intact; no further public update is promised."
+                        : "Tracking update pending — a local booking remains valid during public delivery failure."}
+                  </p>
+                </div>
+                <h3>Submitted patient details — private</h3>
+                <dl className="request-review-grid">
+                  {[
+                    ["First name", r.patient.firstName],
+                    ["Father’s name", r.patient.fatherName],
+                    ["Last name", r.patient.lastName],
+                    ["Mother’s maiden name", r.patient.motherFirstName],
+                    ["Date of birth", r.patient.dateOfBirth],
+                    ["Submitted phone", r.patient.phone],
+                    ["Gender", r.patient.gender],
+                    ["Language", r.language],
+                  ].map(([k, v]) => (
+                    <div key={k}>
+                      <dt>{k}</dt>
+                      <dd>
+                        <bdi>{v}</bdi>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <p>
+                  {r.selection.professionalName} ·{" "}
+                  <bdi>
+                    {r.selection.date} · {r.selection.startTime}–
+                    {r.selection.endTime}
+                  </bdi>
+                </p>
+                {r.status === "awaiting" && !r.linkedPatientId && (
+                  <section>
+                    <h3>Patient matching</h3>
+                    <p>
+                      Compare every name and date. Phone is supporting evidence
+                      only. No existing record is overwritten.
+                    </p>
+                    {detail.matches.candidates.map((c) => (
+                      <label className="request-match" key={c.id}>
+                        <input
+                          type="radio"
+                          name="request-patient"
+                          value={c.id}
+                          checked={selected === c.id}
+                          onChange={() => {
+                            setSelected(c.id);
+                            setAck(false);
+                          }}
+                        />
+                        <span>
+                          <strong>
+                            {c.classification}: {fullName(c)}
+                          </strong>
+                          <br />
+                          DOB: {c.dateOfBirth} · Submitted DOB:{" "}
+                          {r.patient.dateOfBirth}
+                          {c.dateOfBirth !== r.patient.dateOfBirth
+                            ? " — dates differ"
+                            : " — matches"}
+                          <br />
+                          Mother: {c.motherFirstName} · Phone:{" "}
+                          <bdi>{c.phone}</bdi> · Gender: {c.gender}
+                        </span>
+                      </label>
+                    ))}
+                    {detail.matches.candidates.length === 0 &&
+                      !detail.matches.hasMore && (
+                        <p className="request-note">
+                          No matching patients found. Confirming creates and
+                          links a patient only if the registry still has no
+                          candidates. Opening this request creates nothing.
+                        </p>
+                      )}
+                    {needsPatientReview && (
+                      <p className="request-alert">
+                        Review differences: {discrepancies.join(", ")}.
+                      </p>
+                    )}
+                    <label className="request-field">
+                      Private reason / discrepancy review (only required for
+                      differences or creating a separate patient)
+                      <textarea
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        maxLength={500}
+                      />
+                    </label>
+                    <label className="request-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={ack}
+                        onChange={(e) => setAck(e.target.checked)}
+                      />
+                      I reviewed these candidates and discrepancies.
+                    </label>
+                    <div className="staff-actions">
+                      <button
+                        className="staff-button"
+                        disabled={
+                          !selected ||
+                          (needsPatientReview && (!ack || !reason.trim()))
+                        }
+                        onClick={() => {
+                          const p = detail.matches.candidates.find(
+                            (p) => p.id === selected,
+                          );
+                          void change("link", {
+                            patientId: p.id,
+                            patientRevision: p.revision,
+                            ...(needsPatientReview
+                              ? { acknowledged: true, reason }
+                              : {}),
+                          });
+                        }}
+                      >
+                        Link reviewed patient
+                      </button>
+                      <button
+                        className="staff-button"
+                        disabled={
+                          !detail.matches.candidates.length ||
+                          !ack ||
+                          !reason.trim()
+                        }
+                        onClick={() =>
+                          change("createPatient", {
+                            reviewDigest: detail.matches.reviewDigest,
+                            duplicateOverride: { acknowledged: true, reason },
+                          })
+                        }
+                      >
+                        Create separate patient
+                      </button>
+                    </div>
+                  </section>
+                )}
+                {r.linkedPatientId && (
+                  <p className="request-note">
+                    Patient reviewed and linked. Registry details were not
+                    overwritten.
+                  </p>
+                )}
                 <label className="request-field">
-                  Reason
-                  <input
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    maxLength={240}
+                  Private staff notes
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    maxLength={2000}
                   />
-                </label>
-                <label className="request-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={ack}
-                    onChange={(e) => setAck(e.target.checked)}
-                  />
-                  Replace the old link and send only to the original unverified
-                  submitted phone.
                 </label>
                 <button
                   className="staff-button"
-                  disabled={!reason.trim() || !ack}
-                  onClick={() =>
-                    change("rotate", {
-                      key: rotationKey,
-                      reason,
-                      confirmed: true,
-                    })
-                  }
+                  onClick={() => change("notes", { notes })}
                 >
-                  Confirm link replacement
+                  Save private notes
                 </button>
+                {r.status === "awaiting" && (
+                  <div className="staff-actions">
+                    <button
+                      className="staff-button staff-button-primary"
+                      disabled={
+                        !r.linkedPatientId &&
+                        (detail.matches.candidates.length > 0 ||
+                          detail.matches.hasMore)
+                      }
+                      onClick={async () => {
+                        const v = await run("review", { id: r.id });
+                        if (v) {
+                          setReview({ ...v, key: crypto.randomUUID() });
+                          setDecision("confirm");
+                        }
+                      }}
+                    >
+                      Confirm request
+                    </button>
+                    <button
+                      className="staff-button"
+                      onClick={() => {
+                        setDecision("reject");
+                        setReason("");
+                      }}
+                    >
+                      Reject request
+                    </button>
+                    <button
+                      className="staff-button"
+                      disabled={!r.linkedPatientId}
+                      onClick={() => {
+                        setDecision("reconcile");
+                        setSelected("");
+                        setReason("");
+                        setAck(false);
+                      }}
+                    >
+                      Reconcile existing booking
+                    </button>
+                  </div>
+                )}
+                {r.status === "confirmed" && (
+                  <>
+                    <p>
+                      Booking reference: <strong>{r.bookingReference}</strong>.
+                      Attendance window, not an exact consultation time; order
+                      follows check-in.
+                    </p>
+                    <button
+                      className="staff-button"
+                      onClick={() => {
+                        setDecision("cancel");
+                        setReason("");
+                        setNotes("");
+                      }}
+                    >
+                      Cancel linked booking
+                    </button>
+                  </>
+                )}
+                {decision === "confirm" && review && (
+                  <div className="request-note">
+                    <h3>Review and confirm</h3>
+                    <p>
+                      <bdi>
+                        {review.session.startTime}–{review.session.endTime}
+                      </bdi>{" "}
+                      ·{" "}
+                      {review.session.capacity === null
+                        ? "Not configured"
+                        : `${review.session.remaining} remaining`}
+                    </p>
+                    {review.overlaps.length > 0 && (
+                      <p className="request-alert">
+                        This patient has an overlapping booking. Review it
+                        before continuing.
+                      </p>
+                    )}
+                    <button
+                      className="staff-button staff-button-primary"
+                      disabled={
+                        review.session.capacity === null ||
+                        review.session.remaining === 0
+                      }
+                      onClick={() =>
+                        change("confirm", requestBookingInput(review, r))
+                      }
+                    >
+                      Confirm booking
+                    </button>
+                  </div>
+                )}
+                {["reject", "cancel"].includes(decision) && (
+                  <div className="request-note">
+                    <label className="request-field">
+                      Patient-facing reason
+                      <select
+                        aria-label="Patient-facing reason"
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                      >
+                        <option value="" disabled>
+                          Choose a fixed reason
+                        </option>
+                        {Object.entries(REQUEST_REASONS).map(([k, v]) => (
+                          <option key={k} value={k}>
+                            {v.en}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {decision === "cancel" && (
+                      <label className="request-field">
+                        Private cancellation reason
+                        <textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          maxLength={240}
+                        />
+                      </label>
+                    )}
+                    <button
+                      className="staff-button"
+                      disabled={
+                        !reason || (decision === "cancel" && !notes.trim())
+                      }
+                      onClick={() =>
+                        change(decision, {
+                          reason,
+                          ...(decision === "cancel"
+                            ? { privateReason: notes }
+                            : {}),
+                        })
+                      }
+                    >
+                      Confirm{" "}
+                      {decision === "cancel" ? "cancellation" : "rejection"}
+                    </button>
+                  </div>
+                )}
+                {decision === "reconcile" && (
+                  <div className="request-note">
+                    <label className="request-field">
+                      Existing active booking
+                      <select
+                        aria-label="Existing active booking"
+                        value={selected}
+                        onChange={(e) => setSelected(e.target.value)}
+                      >
+                        <option value="" disabled>
+                          Choose the reviewed booking
+                        </option>
+                        {(detail.existingBookings ?? []).map((b) => (
+                          <option key={b._id} value={b._id}>
+                            {b.bookingNumber} · {b.professionalName} · {b.date}{" "}
+                            · {b.startTime}–{b.endTime}
+                          </option>
+                        ))}
+                      </select>
+                      {!detail.existingBookings?.length && (
+                        <small>
+                          No active matching patient/session booking was found.
+                        </small>
+                      )}
+                    </label>
+                    <label className="request-field">
+                      Private reconciliation reason
+                      <input
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        maxLength={500}
+                      />
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={ack}
+                        onChange={(e) => setAck(e.target.checked)}
+                      />
+                      I checked the active booking belongs to this patient and
+                      session.
+                    </label>
+                    <button
+                      className="staff-button"
+                      disabled={!selected || !reason || !ack}
+                      onClick={() =>
+                        change("reconcileBooking", {
+                          bookingId: selected,
+                          reason,
+                          acknowledged: true,
+                        })
+                      }
+                    >
+                      Link existing booking
+                    </button>
+                  </div>
+                )}
+                <h3>Notifications</h3>
+                {detail.notices.map((n) => (
+                  <p key={n.id}>
+                    {noticeNames[n.state]}{" "}
+                    <button
+                      className="staff-button"
+                      onClick={() => openNotice(n.id)}
+                    >
+                      {["sent", "superseded", "opened"].includes(n.state)
+                        ? "View notice history"
+                        : "Send via WhatsApp"}
+                    </button>
+                  </p>
+                ))}
+                <h3>Lost tracking link</h3>
+                {r.rotationPending && (
+                  <p className="request-alert" role="status">
+                    Link replacement is pending reconciliation with the public
+                    service. Refresh requests to recover it; do not start
+                    another replacement.
+                  </p>
+                )}
                 <p>
-                  One replacement per minute; three per day. A retry uses the
-                  same request key.
+                  Replacement goes only to the original unverified submitted
+                  phone. This does not verify identity or authorize patient
+                  history access.
                 </p>
-              </div>
-            )}
-            <h3>Private action history</h3>
-            <ul>
-              {detail.audit.map((x) => (
-                <li key={x._id}>
-                  {x.action} · {new Date(x.at).toLocaleString()}
-                </li>
-              ))}
-            </ul>
-            {error && (
-              <p role="alert" className="request-error">
-                {error}
-              </p>
-            )}
-          </fieldset>
-        </PreviewDialog>
-      )}
-      {noticeId && (
-        <RequestNoticeDialog
-          key={noticeId}
-          api={api}
-          noticeId={noticeId}
-          onError={onError}
-          onClose={() => setNoticeId(null)}
-          onChanged={() => {
-            void load(cursor);
-            onResolved?.();
-          }}
-        />
+                <button
+                  className="staff-button"
+                  onClick={() => {
+                    setDecision("rotate");
+                    setReason("");
+                    setAck(false);
+                    setRotationKey(key());
+                  }}
+                >
+                  Replace tracking link
+                </button>
+                {decision === "rotate" && (
+                  <div className="request-note">
+                    <label className="request-field">
+                      Reason
+                      <input
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        maxLength={240}
+                      />
+                    </label>
+                    <label className="request-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={ack}
+                        onChange={(e) => setAck(e.target.checked)}
+                      />
+                      Replace the old link and send only to the original
+                      unverified submitted phone.
+                    </label>
+                    <button
+                      className="staff-button"
+                      disabled={!reason.trim() || !ack}
+                      onClick={() =>
+                        change("rotate", {
+                          key: rotationKey,
+                          reason,
+                          confirmed: true,
+                        })
+                      }
+                    >
+                      Confirm link replacement
+                    </button>
+                    <p>
+                      One replacement per minute; three per day. A retry uses
+                      the same request key.
+                    </p>
+                  </div>
+                )}
+                <h3>Private action history</h3>
+                <ul>
+                  {detail.audit.map((x) => (
+                    <li key={x._id}>
+                      {x.action} · {new Date(x.at).toLocaleString()}
+                    </li>
+                  ))}
+                </ul>
+                {error && (
+                  <p role="alert" className="request-error">
+                    {error}
+                  </p>
+                )}
+              </fieldset>
+            </PreviewDialog>
+          )}
+          {noticeId && (
+            <RequestNoticeDialog
+              key={noticeId}
+              api={api}
+              noticeId={noticeId}
+              onError={onError}
+              onClose={() => setNoticeId(null)}
+              onChanged={() => {
+                void load(cursor);
+                onResolved?.();
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );
 }
+import PatientPhoneQueue from "./PatientPhoneQueue.jsx";
