@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
+import { patientLinkEmail } from "./patient-email-templates.js";
+
 const address = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z0-9-]+$/i;
-const subjects = {
-  activate: ["Activate your Cedar account", "فعّل حسابك في سيدر"],
-  reset: ["Reset your Cedar password", "أعد تعيين كلمة مرور سيدر"],
-  "verify-email": ["Verify your new Cedar email", "تحقق من بريد سيدر الجديد"],
-};
+const encodePart = (body) =>
+  Buffer.from(body)
+    .toString("base64")
+    .match(/.{1,76}/g)
+    .join("\r\n");
 
 export function loadHostedPatientAccounts(environment) {
   if (environment.CEDAR_PATIENT_ACCOUNTS !== "1") return {};
@@ -25,8 +28,12 @@ export function loadHostedPatientAccounts(environment) {
   return {
     phoneKey: Buffer.from(key, "base64url"),
     patientAccountDelivery: async ({ to, purpose, link, language }) => {
-      if (!address.test(to) || !Object.hasOwn(subjects, purpose))
-        throw Error("Patient mail input unavailable.");
+      if (!address.test(to)) throw Error("Patient mail input unavailable.");
+      const { subject, text, html } = patientLinkEmail({
+        purpose,
+        link,
+        language,
+      });
       const token = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         redirect: "error",
@@ -42,21 +49,27 @@ export function loadHostedPatientAccounts(environment) {
       const { access_token: accessToken } = await token.json();
       if (typeof accessToken !== "string")
         throw Error("Patient mail authorization unavailable.");
-      const subject = subjects[purpose][language === "ar" ? 1 : 0];
-      const body = Buffer.from(`${subject}\r\n\r\n${link}\r\n`)
-        .toString("base64")
-        .match(/.{1,76}/g)
-        .join("\r\n");
+      const boundary = `cedar-${randomUUID()}`;
       const raw = Buffer.from(
         [
           `From: Cedar Medical Center <${sender}>`,
           `To: <${to}>`,
           `Subject: =?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`,
           "MIME-Version: 1.0",
+          `Content-Type: multipart/alternative; boundary="${boundary}"`,
+          "",
+          `--${boundary}`,
           "Content-Type: text/plain; charset=UTF-8",
           "Content-Transfer-Encoding: base64",
           "",
-          body,
+          encodePart(text),
+          `--${boundary}`,
+          "Content-Type: text/html; charset=UTF-8",
+          "Content-Transfer-Encoding: base64",
+          "",
+          encodePart(html),
+          `--${boundary}--`,
+          "",
         ].join("\r\n"),
       ).toString("base64url");
       const result = await fetch(

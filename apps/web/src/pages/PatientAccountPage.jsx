@@ -35,7 +35,7 @@ const copy = {
   signin: ["Sign in", "تسجيل الدخول"],
   signup: ["Create account", "إنشاء حساب"],
   recover: ["Forgot password?", "هل نسيت كلمة المرور؟"],
-  phone: ["Phone number", "رقم الهاتف"],
+  recoverByEmail: ["Recover by email", "استعادة الحساب عبر البريد الإلكتروني"],
   "recover-phone": ["Recover by WhatsApp", "استعادة الحساب عبر واتساب"],
   "phone-reset": [
     "Reset password by WhatsApp",
@@ -348,6 +348,8 @@ export default function PatientAccountPage({ account, onAccount }) {
       : "en",
   );
   const [patient, setPatient] = useState(emptyPatient);
+  const [recoveryPhone, setRecoveryPhone] = useState("");
+  const [recoveryPhoneError, setRecoveryPhoneError] = useState(false);
   const [patientErrors, setPatientErrors] = useState({});
   const [relationship, setRelationship] = useState("self");
   const child = relationship === "child";
@@ -415,6 +417,8 @@ export default function PatientAccountPage({ account, onAccount }) {
   }, [activationToken, suggestionRefresh]);
 
   function show(next) {
+    if (!["recover-phone", "phone-reset"].includes(next)) setRecoveryPhone("");
+    setRecoveryPhoneError(false);
     setMode(next);
     setPatient(emptyPatient);
     setPatientErrors({});
@@ -450,6 +454,13 @@ export default function PatientAccountPage({ account, onAccount }) {
     const form = event.currentTarget;
     const fields =
       action === "signout" ? {} : Object.fromEntries(new FormData(form));
+    if (["recover-phone", "phone-reset"].includes(action)) {
+      if (!recoveryPhone) {
+        setRecoveryPhoneError(true);
+        return;
+      }
+      fields.phone = recoveryPhone;
+    }
     if (action === "signup") {
       const today = patientToday();
       const { errors } = patientInput(patient, today);
@@ -492,6 +503,7 @@ export default function PatientAccountPage({ account, onAccount }) {
         return;
       }
       form.reset();
+      if (action === "phone-reset") setRecoveryPhone("");
       if (["delete", "signout", "reset", "phone-reset"].includes(action))
         onAccount(null);
       if (action === "verify-email")
@@ -805,26 +817,25 @@ export default function PatientAccountPage({ account, onAccount }) {
                     </fieldset>
                   </>
                 )}
-                {view === "recover" && (
-                  <>
-                    <p>{t("recoverInfo")}</p>
-                    <Button onClick={() => show("recover-phone")}>
-                      {t("recover-phone")}
-                    </Button>
-                  </>
-                )}
+                {view === "recover" && <p>{t("recoverInfo")}</p>}
                 {["recover-phone", "phone-reset"].includes(view) && (
                   <>
                     {view === "recover-phone" && (
                       <ReceptionHoursNotice language={language} verification />
                     )}
-                    <Field
-                      label={t("phone")}
-                      name="phone"
-                      type="tel"
-                      dir="ltr"
-                      autoComplete="tel"
-                      maxLength={40}
+                    <RequestPhone
+                      value={recoveryPhone}
+                      language={language}
+                      onChange={(value) => {
+                        setRecoveryPhone(value);
+                        setRecoveryPhoneError(false);
+                      }}
+                      help={null}
+                      error={
+                        recoveryPhoneError
+                          ? t("invalid_account_phone")
+                          : undefined
+                      }
                     />
                     {view === "phone-reset" && (
                       <Field
@@ -834,11 +845,6 @@ export default function PatientAccountPage({ account, onAccount }) {
                         autoComplete="one-time-code"
                         maxLength={6}
                       />
-                    )}
-                    {view === "recover-phone" && (
-                      <Button onClick={() => show("phone-reset")}>
-                        {t("checkCode")}
-                      </Button>
                     )}
                   </>
                 )}
@@ -906,8 +912,44 @@ export default function PatientAccountPage({ account, onAccount }) {
                   <Button variant="contained" type="submit" disabled={busy}>
                     {t(busy ? "busy" : submitLabel)}
                   </Button>
+                  {view === "recover" && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => show("recover-phone")}
+                      disabled={busy}
+                    >
+                      {t("recover-phone")}
+                    </Button>
+                  )}
+                  {view === "recover-phone" && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => show("phone-reset")}
+                      disabled={busy}
+                    >
+                      {t("checkCode")}
+                    </Button>
+                  )}
+                  {view === "phone-reset" && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => show("recover")}
+                      disabled={busy}
+                    >
+                      {t("recoverByEmail")}
+                    </Button>
+                  )}
                   <Button
-                    variant="outlined"
+                    variant={
+                      [
+                        "recover",
+                        "recover-phone",
+                        "phone-reset",
+                        "reset",
+                      ].includes(view)
+                        ? "text"
+                        : "outlined"
+                    }
                     type="button"
                     disabled={busy}
                     onClick={() => show("")}

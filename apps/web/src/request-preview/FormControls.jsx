@@ -623,7 +623,7 @@ export function RequestPhone({
             placeholder={phoneExample(country)}
             maxLength={80}
             aria-invalid={Boolean(error)}
-            aria-describedby={`${id}-help`}
+            aria-describedby={error || help !== null ? `${id}-help` : undefined}
             onChange={(e) => {
               const raw = e.target.value,
                 p = phoneNumber(raw, country),
@@ -639,16 +639,18 @@ export function RequestPhone({
             }}
           />
         </div>
-        <small
-          id={`${id}-help`}
-          className={error ? "request-error" : undefined}
-        >
-          {error ||
-            help ||
-            (language === "ar"
-              ? "يمكن لأفراد العائلة استخدام الرقم نفسه. التنسيق ليس إثباتًا للملكية أو لتوفر واتساب."
-              : "Family members may share a number. Formatting does not prove ownership or WhatsApp availability.")}
-        </small>
+        {(error || help !== null) && (
+          <small
+            id={`${id}-help`}
+            className={error ? "request-error" : undefined}
+          >
+            {error ||
+              help ||
+              (language === "ar"
+                ? "يمكن لأفراد العائلة استخدام الرقم نفسه. التنسيق ليس إثباتًا للملكية أو لتوفر واتساب."
+                : "Family members may share a number. Formatting does not prove ownership or WhatsApp availability.")}
+          </small>
+        )}
       </div>
     </div>
   );

@@ -359,6 +359,10 @@ try {
     await call("recover", { email: first });
     assert.equal(mailbox.length, beforeUnknown);
     await call("recover", { email: next });
+    offset += 31 * 60_000;
+    await call("reset", { token: latestToken(), password: p2 }, 400);
+    offset -= 31 * 60_000;
+    await call("recover", { email: next });
     const reset = latestToken();
     await call("reset", { token: reset, password: p2 });
     await call("reset", { token: reset, password: p2 }, 400);
@@ -473,6 +477,7 @@ try {
       "PASS exact origin, unverified and shared phone refused as aliases, unique personal phone accepted, concurrent and expired activation guarded",
     );
 
+    offset = 0;
     const { chromium } = await import("playwright");
     const browser = await chromium.launch({ channel: "msedge" });
     try {
@@ -895,8 +900,39 @@ try {
       await page
         .getByRole("combobox", { name: "لغة الصفحة" })
         .selectOption("en");
-      await call("recover", { email: "browser@example.invalid" });
+      await page
+        .getByRole("button", { name: "Change email", exact: true })
+        .click();
+      await capture("change-email");
+      await page
+        .getByRole("combobox", { name: "Page language" })
+        .selectOption("ar");
+      await capture("change-email-ar");
+      await page
+        .getByRole("combobox", { name: "لغة الصفحة" })
+        .selectOption("en");
+      await page
+        .getByLabel(/^New email/)
+        .fill("browser-replaced@example.invalid");
+      await page.getByLabel(/^Re-enter your password/).fill(p1);
+      await page
+        .getByRole("button", { name: "Send email link", exact: true })
+        .click();
+      await page
+        .getByText("Check your new email for the verification link.")
+        .waitFor();
+      assert.equal(mailbox.at(-1).purpose, "verify-email");
       await page.goto(mailbox.at(-1).link);
+      await capture("verify-new-email");
+      await page
+        .getByRole("button", { name: "Verify new email", exact: true })
+        .click();
+      await page
+        .getByText("browser-replaced@example.invalid", { exact: true })
+        .waitFor();
+      await call("recover", { email: "browser-replaced@example.invalid" });
+      await page.goto(mailbox.at(-1).link);
+      await capture("email-reset");
       await page.getByLabel("New password", { exact: false }).fill(p2);
       await page
         .getByRole("button", { name: "Set a new password", exact: true })
@@ -1203,27 +1239,144 @@ try {
           },
           { status: 400 },
         );
-        await callAccount("phone-recover", recovery);
-        const fresh = (await staffCall({ action: "list" })).body.rows.find(
-          (row) => row.recovery && row.state === "queued",
-        );
-        const preparedAgain = (
-          await staffCall({ action: "prepare", id: fresh.id })
-        ).body;
-        const freshCode = preparedAgain.message.match(/\b\d{6}\b/)[0];
-        await staffCall({ action: "opened", id: fresh.id });
-        await staffCall({ action: "sent", id: fresh.id });
-        await callAccount("phone-reset", {
-          phone: recovery.phone,
-          code: freshCode,
-          password: reviewPassword,
-        });
+        const replacementPassword = "Cedar fictional WhatsApp replacement";
+        let freshCode;
+        const recoveryBrowser = await chromium.launch({ channel: "msedge" });
+        try {
+          const page = await recoveryBrowser.newPage({
+            viewport: { width: 1440, height: 1000 },
+          });
+          const verifyFont = async () => {
+            await page.evaluate(() =>
+              document.fonts.load('16px "Cedar Source Sans"'),
+            );
+            assert.deepEqual(
+              await page
+                .locator(
+                  ".patient-account-shell :is(h1, p, label, input, select, button, a)",
+                )
+                .evaluateAll((elements) =>
+                  elements
+                    .filter(
+                      (element) =>
+                        !getComputedStyle(element).fontFamily.includes(
+                          "Cedar Source Sans",
+                        ),
+                    )
+                    .map((element) => element.tagName),
+                ),
+              [],
+            );
+          };
+          for (const language of ["en", "ar"]) {
+            for (const [view, action] of [
+              ["recover", "email"],
+              ["recover-phone", "whatsapp"],
+              ["phone-reset", "code"],
+            ]) {
+              await page.goto(
+                origin + "/account?view=" + view + "&lang=" + language,
+              );
+              await page.locator(".patient-account-shell form").waitFor();
+              if (view !== "recover")
+                assert.equal(
+                  await page.locator("form input[type=tel]").count(),
+                  1,
+                );
+              for (const [device, width] of [
+                ["desktop", 1440],
+                ["mobile", 390],
+              ]) {
+                await page.setViewportSize({ width, height: 950 });
+                await verifyFont();
+                assert.ok(
+                  await page.evaluate(
+                    () => document.documentElement.scrollWidth <= innerWidth,
+                  ),
+                );
+                await page.screenshot({
+                  path: resolve(
+                    evidence,
+                    `recovery-${action}-${language}-${device}.png`,
+                  ),
+                  fullPage: true,
+                });
+              }
+            }
+          }
+          await page.goto(origin + "/account?view=recover-phone");
+          await page
+            .getByLabel("Phone number", { exact: true })
+            .fill(recovery.phone);
+          await page
+            .getByRole("button", { name: "Request WhatsApp code", exact: true })
+            .click();
+          await page.getByLabel(/^WhatsApp code/).waitFor();
+          assert.match(
+            await page.getByLabel("Phone number", { exact: true }).inputValue(),
+            /70\s*123\s*456/,
+          );
+          await staff
+            .getByRole("button", { name: /Phone verification/i })
+            .click();
+          const recoveryRow = staff
+            .locator(".patient-phone-queue li")
+            .filter({ hasText: "Account recovery" });
+          await desktop.evaluate(() => {
+            globalThis.phoneReviewDraft = null;
+          });
+          await recoveryRow
+            .getByRole("button", { name: "Open WhatsApp", exact: true })
+            .click();
+          await recoveryRow
+            .getByRole("button", { name: "Mark sent", exact: true })
+            .waitFor();
+          const draft = await desktop.evaluate(
+            () => globalThis.phoneReviewDraft,
+          );
+          freshCode = draft.match(/\b\d{6}\b/)[0];
+          const recoveryLink = draft.match(/http[^\s]+/)[0];
+          assert.equal(
+            new URL(recoveryLink).searchParams.get("view"),
+            "phone-reset",
+          );
+          await recoveryRow
+            .getByRole("button", { name: "Mark sent", exact: true })
+            .click();
+          await recoveryRow.getByText(/Awaiting code entry/).waitFor();
+          await page.goto(recoveryLink);
+          await page
+            .getByLabel("Phone number", { exact: true })
+            .fill(recovery.phone);
+          await page.getByLabel(/^WhatsApp code/).fill(freshCode);
+          await page.getByLabel(/^New password/).fill(replacementPassword);
+          await page
+            .getByRole("button", {
+              name: "Reset password by WhatsApp",
+              exact: true,
+            })
+            .click();
+          await page
+            .getByRole("heading", { name: "Sign in", exact: true })
+            .waitFor();
+        } finally {
+          await recoveryBrowser.close();
+        }
         await callAccount(
           "phone-reset",
           { phone: recovery.phone, code: freshCode, password: reviewPassword },
           { status: 400 },
         );
         await callAccount("phone-status", {}, { ...opts, status: 401 });
+        await callAccount(
+          "signin",
+          { identifier: recovery.phone, password: reviewPassword },
+          { status: 401 },
+        );
+        await callAccount("signin", {
+          identifier: recovery.phone,
+          password: replacementPassword,
+        });
         console.log(
           "PASS real Cedar Staff queue, manual open/sent distinction, unauthorized scope, browser verification, single-use, expiry and WhatsApp recovery",
         );

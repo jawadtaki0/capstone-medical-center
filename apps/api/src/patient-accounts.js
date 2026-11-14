@@ -1,4 +1,5 @@
 import express from "express";
+import { patientLinkLifetimeMinutes } from "./patient-email-templates.js";
 import { patientPhoneVerification } from "./patient-phone-verification.js";
 import {
   createHash,
@@ -26,7 +27,7 @@ const work = { N: 32768, r: 8, p: 3, maxmem: 40 * 1024 * 1024 };
 const randomToken = () => randomBytes(32).toString("base64url");
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
-const linkLifetime = 30 * 60_000;
+const linkLifetime = patientLinkLifetimeMinutes * 60_000;
 const sessionLifetime = 8 * 60 * 60_000;
 const usernamePattern = /^\p{L}[\p{L}\p{M}0-9_.-]{2,31}$/u;
 const normalizeUsername = (value) =>
