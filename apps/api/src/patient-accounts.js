@@ -451,7 +451,7 @@ export function patientAccountRouter({
     if (Object.keys(errors).length) throw new AccountError("invalid_patient");
     if (child && !childBirthDateAllowed(record.dateOfBirth, today))
       throw new AccountError("invalid_child_birth_date");
-    await budget(["mail", to], 5, 60 * 60_000);
+    await budget(["activation-mail", to], 5, 60 * 60_000);
     if (!(await accounts.findOne({ email: to }, { projection: { _id: 1 } }))) {
       const { token, record: link } = challenge();
       await signups.insertOne({
@@ -573,15 +573,19 @@ export function patientAccountRouter({
 
   post("/recover", async (body) => {
     const to = email(body.email);
-    await budget(["mail", to], 5, 60 * 60_000);
+    await budget(["recovery-mail", to], 5, 60 * 60_000);
     const row = await accounts.findOne({ email: to });
     if (row) {
       const { token, record } = challenge();
+      await send(to, "reset", token, body.language);
       await change(
-        { _id: row._id, revision: row.revision },
+        {
+          _id: row._id,
+          revision: row.revision,
+          "recovery.digest": row.recovery?.digest ?? { $exists: false },
+        },
         { $set: { recovery: record } },
       );
-      await send(to, "reset", token, body.language);
     }
     return { ok: true };
   });
@@ -613,7 +617,7 @@ export function patientAccountRouter({
     if (!(await matches(body.password, row.passwordHash)))
       throw new AccountError("incorrect_password", 401);
     if (to === row.email) throw new AccountError("same_email");
-    await budget(["mail", to], 5, 60 * 60_000);
+    await budget(["replacement-mail", to], 5, 60 * 60_000);
     const { token, record } = challenge();
     await change(guard, { $set: { replacement: { ...record, email: to } } });
     await send(to, "verify-email", token, body.language);
