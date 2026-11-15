@@ -461,7 +461,11 @@ export function patientAccountRouter({
         pendingPhone,
         profile: { ...record, relationship: body.relationship },
       });
-      await send(to, "activate", token, body.language);
+      try {
+        await send(to, "activate", token, body.language);
+      } catch {
+        console.warn("patient_account_activation_delivery_failed");
+      }
     }
     return { ok: true };
   });

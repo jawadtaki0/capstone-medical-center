@@ -1,5 +1,10 @@
 import { MongoClient } from "mongodb";
 import { isIP } from "node:net";
+import {
+  patientIngressHeader,
+  readPatientIngress,
+  validPatientIngressSecret,
+} from "../../../shared/patient-ingress.mjs";
 import { createHostedRuntime, createHostedApp } from "./hosted-review.js";
 import { createPublicationReceiver } from "./publication-receiver.js";
 import { createPublicIntake } from "./website-requests.js";
@@ -76,8 +81,19 @@ export function loadHostedNormalEnvironment(e = process.env) {
 export function createNormalSource(e, c) {
   if (e.CEDAR_NORMAL_TRUSTED_PROXY !== "render-cloudflare-client")
     throw Error("Explicit Render source policy required.");
+  const relaySecret = e.CEDAR_PATIENT_INGRESS_SECRET;
+  if (relaySecret && !validPatientIngressSecret(relaySecret))
+    throw Error("Invalid patient ingress configuration.");
   return (request) => {
-    const ip = request.get("CF-Connecting-IP");
+    const relay = request.get(patientIngressHeader);
+    const direct = request.get("CF-Connecting-IP");
+    const path = request.originalUrl?.split("?")[0];
+    const ip =
+      relay === undefined
+        ? direct
+        : request.method === "POST" && path?.startsWith("/api/patient-account/")
+          ? readPatientIngress(relaySecret, path, relay)
+          : null;
     if (
       request.get("Host") !== new URL(c.apiOrigin).host ||
       typeof ip !== "string" ||
