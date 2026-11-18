@@ -4,6 +4,7 @@ import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { PasswordField, NewPasswordFields } from "./PatientPasswordFields.jsx";
 import PublicPage from "../components/PublicPage.jsx";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import {
@@ -129,6 +130,18 @@ const copy = {
   newEmail: ["New email address", "البريد الإلكتروني الجديد"],
   password: ["Password", "كلمة المرور"],
   currentPassword: ["Re-enter your password", "أعد إدخال كلمة المرور"],
+  createPassword: ["Create password", "أنشئ كلمة مرور"],
+  confirmPassword: ["Confirm password", "تأكيد كلمة المرور"],
+  showPassword: ["Show password", "إظهار كلمة المرور"],
+  hidePassword: ["Hide password", "إخفاء كلمة المرور"],
+  weakPassword: ["Weak", "ضعيفة"],
+  mediumPassword: ["Medium", "متوسطة"],
+  strongPassword: ["Strong", "قوية"],
+  passwordMismatch: ["Passwords do not match.", "كلمتا المرور غير متطابقتين."],
+  password_reused: [
+    "Choose a password you have not used recently.",
+    "اختر كلمة مرور لم تستخدمها مؤخرًا.",
+  ],
   newPassword: [
     "New password (at least 12 characters)",
     "كلمة مرور جديدة (١٢ حرفًا على الأقل)",
@@ -454,6 +467,13 @@ export default function PatientAccountPage({ account, onAccount }) {
     const form = event.currentTarget;
     const fields =
       action === "signout" ? {} : Object.fromEntries(new FormData(form));
+    if (["activate", "reset", "phone-reset"].includes(action)) {
+      if (fields.password !== fields.confirmPassword) {
+        setError("passwordMismatch");
+        return;
+      }
+      delete fields.confirmPassword;
+    }
     if (["recover-phone", "phone-reset"].includes(action)) {
       if (!recoveryPhone) {
         setRecoveryPhoneError(true);
@@ -606,6 +626,7 @@ export default function PatientAccountPage({ account, onAccount }) {
                     title: omitHeading,
                     subtitle: omitHeading,
                     forgotPasswordLink: SignInLinks,
+                    passwordField: PasswordField,
                   }}
                   localeText={{ providerSignInTitle: () => t("signin") }}
                   slotProps={{
@@ -625,6 +646,11 @@ export default function PatientAccountPage({ account, onAccount }) {
                     },
                     passwordField: {
                       label: t("password"),
+                      name: "password",
+                      autoComplete: "current-password",
+                      fullWidth: true,
+                      required: true,
+                      t,
                       placeholder: "",
                       disabled: busy,
                       slotProps: { htmlInput: { maxLength: 128 } },
@@ -896,17 +922,25 @@ export default function PatientAccountPage({ account, onAccount }) {
                     maxLength={254}
                   />
                 )}
-                {passwordField && (
-                  <Field
-                    label={t(newPassword ? "newPassword" : "currentPassword")}
-                    name="password"
-                    type="password"
-                    autoComplete={
-                      newPassword ? "new-password" : "current-password"
-                    }
-                    minLength={newPassword ? 12 : 1}
-                    maxLength={128}
+                {newPassword ? (
+                  <NewPasswordFields
+                    key={view}
+                    activation={view === "activate"}
+                    t={t}
                   />
+                ) : (
+                  passwordField && (
+                    <PasswordField
+                      key={view}
+                      label={t("currentPassword")}
+                      name="password"
+                      autoComplete="current-password"
+                      fullWidth
+                      required
+                      t={t}
+                      slotProps={{ htmlInput: { maxLength: 128 } }}
+                    />
+                  )
                 )}
                 <div className="request-actions">
                   <Button variant="contained" type="submit" disabled={busy}>

@@ -64,7 +64,7 @@ export function patientPhoneVerification({
         },
       );
     },
-    async recover(row, code, passwordHash) {
+    async recover(row, code, passwordUpdate) {
       const check = row?.recoveryPhone;
       const at = clock();
       const subject = {
@@ -86,11 +86,15 @@ export function patientPhoneVerification({
         });
         throw fail("invalid_phone_code");
       }
-      await change(filter, {
-        $set: { passwordHash, sessions: [], "recoveryPhone.state": "used" },
-        $unset: { recovery: "", replacement: "" },
-        $inc: { revision: 1 },
-      });
+      const update = await passwordUpdate();
+      await change(
+        { ...filter, "recoveryPhone.expiresAt": { $gt: clock() } },
+        {
+          $set: { ...update, "recoveryPhone.state": "used" },
+          $unset: { recovery: "", replacement: "" },
+          $inc: { revision: 1 },
+        },
+      );
     },
     async request(row, guard, body) {
       exact(body, ["personal", "language"]);

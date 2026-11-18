@@ -20,20 +20,25 @@ import {
   patientAccountRouter,
 } from "../src/patient-accounts.js";
 
-const port = 5204;
+const meterMode = process.argv.includes("--password-meter");
+const port = meterMode ? 5205 : 5204;
 const verifyClinicalBoundary = process.argv.includes(
   "--verify-clinical-boundary",
 );
 const origin = `http://127.0.0.1:${port}`;
-const artifact = resolve(".local/patient-accounts/nov13-phone-verification");
+const artifact = resolve(
+  ".local/patient-accounts",
+  meterMode ? "nov15-password-meter" : "nov13-phone-verification",
+);
 const websiteDirectory = resolve(artifact, "web");
 await access(resolve(websiteDirectory, "index.html"));
 process.env.CAPSTONE_STAFF_RUNTIME_DIR = (
   await readLauncherConfig()
 ).runtimeDirectory;
 const { connectStaffDatabase } = await import("../../staff-api/src/db.js");
-const { assertIsolatedTestTarget, TEST_DATABASE } =
-  await import("../../staff-api/test/helpers/security-fixture.js");
+const { assertIsolatedTestTarget, TEST_DATABASE } = await import(
+  "../../staff-api/test/helpers/security-fixture.js"
+);
 const connection = await connectStaffDatabase({
   database: TEST_DATABASE,
   demoMode: true,
@@ -48,6 +53,8 @@ const names = [
 const prefix =
   "patient_access_review_" + randomUUID().replaceAll("-", "") + "_";
 const mailbox = [];
+let failRecoveryDelivery = false;
+let failActivationDelivery = false;
 let offset = 0;
 let server;
 let staffFixture, desktop;
@@ -125,6 +132,10 @@ try {
         throw new Error(
           "Use fictional review addresses ending in @example.invalid.",
         );
+      if (failActivationDelivery && message.purpose === "activate")
+        throw new Error("Fictional activation delivery failure");
+      if (failRecoveryDelivery && message.purpose === "reset")
+        throw new Error("Fictional mail delivery failure");
       mailbox.push(message);
     },
   });
@@ -241,7 +252,108 @@ try {
       })),
     };
   }
-  if (process.argv.includes("--verify")) {
+  if (process.argv.includes("--verify-signup-response")) {
+    const phone = "+12025550143";
+    const existing = await seedAccount("signup-response", phone, false);
+    const input = { relationship: "child", phone, patient: reviewPatient };
+    const sentBefore = mailbox.length;
+    failActivationDelivery = true;
+    const results = await Promise.all([
+      callAccount("signup", { ...input, email: existing.email }),
+      callAccount("signup", {
+        ...input,
+        email: "signup-failure@example.invalid",
+      }),
+    ]);
+    for (const { result } of results) assert.deepEqual(result, { ok: true });
+    assert.equal(mailbox.length, sentBefore);
+    failActivationDelivery = false;
+    await callAccount("signup", {
+      ...input,
+      email: "signup-failure@example.invalid",
+    });
+    assert.equal(mailbox.length, sentBefore + 1);
+    assert.equal(mailbox.at(-1).purpose, "activate");
+    console.log(
+      "PASS consistent public signup responses under simulated delivery failure and successful retry",
+    );
+  } else if (process.argv.includes("--verify-email-recovery")) {
+    const phone = "+12025550143";
+    const first = await seedAccount("closeout-recovery", phone, false);
+    const account = { email: first.email };
+    const replacement = "Cedar fictional replacement password";
+    const token = () =>
+      new URLSearchParams(new URL(mailbox.at(-1).link).hash.slice(1)).get(
+        "token",
+      );
+    await callAccount("recover", account);
+    const previous = token();
+    assert.equal(mailbox.at(-1).purpose, "reset");
+    failRecoveryDelivery = true;
+    await callAccount("recover", account, { status: 503 });
+    failRecoveryDelivery = false;
+    const second = await callAccount("signin", {
+      identifier: first.email,
+      password: reviewPassword,
+    });
+    await callAccount("reset", { token: previous, password: replacement });
+    await callAccount(
+      "reset",
+      { token: previous, password: reviewPassword },
+      { status: 400 },
+    );
+    for (const { cookie } of [first, second]) {
+      const response = await fetch(origin + "/api/patient-account/session", {
+        headers: { Cookie: cookie },
+      });
+      assert.equal((await response.json()).account, null);
+    }
+    await callAccount(
+      "signin",
+      { identifier: first.email, password: reviewPassword },
+      { status: 401 },
+    );
+    await callAccount("signin", {
+      identifier: first.email,
+      password: replacement,
+    });
+    await callAccount("recover", account);
+    const superseded = token();
+    await callAccount("recover", account);
+    const active = token();
+    assert.notEqual(active, superseded);
+    await callAccount(
+      "reset",
+      { token: superseded, password: reviewPassword },
+      { status: 400 },
+    );
+    offset += 31 * 60_000;
+    await callAccount(
+      "reset",
+      { token: active, password: reviewPassword },
+      { status: 400 },
+    );
+    console.log(
+      "PASS failed delivery preserves the previously sent proof; successful replacement, expiry, single use, new sign-in and all-session revocation",
+    );
+  } else if (meterMode && process.argv.includes("--verify")) {
+    const { verifyPasswordMeter } = await import(
+      "./verify-patient-password-meter.mjs"
+    );
+    await verifyPasswordMeter({
+      artifact,
+      origin,
+      callAccount,
+      db,
+      seedAccount,
+      mailbox,
+      patientAccounts,
+      reviewPassword,
+      advanceHour: () => {
+        offset += 60 * 60_000;
+      },
+    });
+  } else if (process.argv.includes("--verify")) {
     const p1 = "Cedar fictional review passphrase";
     const p2 = "Cedar fictional replacement passphrase";
     const first = "cedar-review@example.invalid";
@@ -815,7 +927,8 @@ try {
       await page
         .getByLabel("Username", { exact: false })
         .fill("REVIEW.PATIENT");
-      await page.getByLabel("New password", { exact: false }).fill(p1);
+      await page.getByLabel("Create password", { exact: false }).fill(p1);
+      await page.getByLabel("Confirm password", { exact: false }).fill(p1);
       await page
         .getByRole("button", { name: "Activate account", exact: true })
         .click();
@@ -934,6 +1047,7 @@ try {
       await page.goto(mailbox.at(-1).link);
       await capture("email-reset");
       await page.getByLabel("New password", { exact: false }).fill(p2);
+      await page.getByLabel("Confirm password", { exact: false }).fill(p2);
       await page
         .getByRole("button", { name: "Set a new password", exact: true })
         .click();
@@ -979,8 +1093,9 @@ try {
     const verified = await seedAccount("review.verified", "+96171123456", true);
     const pending = await seedAccount("review.pending", "+96170123456", false);
     if (verifyClinicalBoundary) {
-      const { verifyPatientClinicalBoundary } =
-        await import("./patient-clinical-boundary-review.mjs");
+      const { verifyPatientClinicalBoundary } = await import(
+        "./patient-clinical-boundary-review.mjs"
+      );
       await verifyPatientClinicalBoundary({
         origin,
         credential,
@@ -994,12 +1109,15 @@ try {
       process.argv.includes("--verify-phone") ||
       process.argv.includes("--phone-review")
     ) {
-      const { createSecurityFixture } =
-        await import("../../staff-api/test/helpers/security-fixture.js");
-      const { createRequestTransport } =
-        await import("../../staff-api/src/request-integration.js");
-      const { seedPublicationAuthority, signInSynthetic } =
-        await import("../../staff-api/test/helpers/publication-authority.js");
+      const { createSecurityFixture } = await import(
+        "../../staff-api/test/helpers/security-fixture.js"
+      );
+      const { createRequestTransport } = await import(
+        "../../staff-api/src/request-integration.js"
+      );
+      const { seedPublicationAuthority, signInSynthetic } = await import(
+        "../../staff-api/test/helpers/publication-authority.js"
+      );
       const requestIntegration = {
         mode: "test",
         target: origin + "/api/requests/integration",
@@ -1350,6 +1468,7 @@ try {
             .fill(recovery.phone);
           await page.getByLabel(/^WhatsApp code/).fill(freshCode);
           await page.getByLabel(/^New password/).fill(replacementPassword);
+          await page.getByLabel(/^Confirm password/).fill(replacementPassword);
           await page
             .getByRole("button", {
               name: "Reset password by WhatsApp",

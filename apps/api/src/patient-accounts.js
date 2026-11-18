@@ -179,6 +179,20 @@ export function patientAccountRouter({
     );
   }
 
+  async function passwordUpdate(row, value) {
+    const candidate = password(value, 12);
+    const history = [row.passwordHash, ...(row.passwordHistory ?? [])];
+    for (const previous of history.slice(0, 6)) {
+      if (await matches(candidate, previous))
+        throw new AccountError("password_reused", 409);
+    }
+    return {
+      passwordHash: await hash(candidate),
+      passwordHistory: history.slice(0, 5),
+      sessions: [],
+    };
+  }
+
   async function budget(key, count, windowMs) {
     const bucket = Math.floor(+clock() / windowMs);
     const id = digest(JSON.stringify([key, windowMs, bucket]));
@@ -328,10 +342,8 @@ export function patientAccountRouter({
       throw new AccountError("invalid_phone_code");
     await budget(["phone-reset", number], 12, 60 * 60_000);
     const row = await accounts.findOne({ verifiedPersonalPhone: number });
-    await phone().recover(
-      row,
-      body.code,
-      await hash(password(body.password, 12)),
+    await phone().recover(row, body.code, () =>
+      passwordUpdate(row, body.password),
     );
     return { ok: true };
   });
@@ -602,11 +614,11 @@ export function patientAccountRouter({
     });
     const row = await accounts.findOne(filter());
     if (!row) throw new AccountError("invalid_link");
-    const passwordHash = await hash(password(body.password, 12));
+    const update = await passwordUpdate(row, body.password);
     await change(
       { _id: row._id, revision: row.revision, ...filter() },
       {
-        $set: { passwordHash, sessions: [] },
+        $set: update,
         $unset: { recovery: "", recoveryPhone: "", replacement: "" },
         $inc: { revision: 1 },
       },
