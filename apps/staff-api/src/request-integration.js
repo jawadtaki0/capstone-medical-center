@@ -269,6 +269,7 @@ export function createRequestTransport(config, request = fetch) {
     event: (e, budget) => send("event", e, budget),
     availability: (e, budget) => send("availability", e, budget),
     rotate: (i, budget) => send("rotate", i, budget),
+    phone: (input) => send("phone", input),
   };
 }
 export function startRequestWorker(

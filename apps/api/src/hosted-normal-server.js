@@ -1,6 +1,7 @@
 import { once } from "node:events";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadHostedPatientAccounts } from "./hosted-patient-mail.js";
 import {
   loadHostedNormalEnvironment,
   createNormalSource,
@@ -17,6 +18,7 @@ export async function startHostedNormalServer({
   const application = createHostedNormalApplication({
     config,
     sourceReader: createNormalSource(environment, config),
+    ...loadHostedPatientAccounts(environment),
   });
   const server = application.app.listen(Number(raw), "0.0.0.0");
   try {

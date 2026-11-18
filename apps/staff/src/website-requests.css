@@ -25,3 +25,14 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+.patient-phone-queue {
+  list-style: none;
+  padding: 0;
+}
+.patient-phone-queue > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}

@@ -1,8 +1,17 @@
 import { MongoClient } from "mongodb";
 import { isIP } from "node:net";
+import {
+  patientIngressHeader,
+  readPatientIngress,
+  validPatientIngressSecret,
+} from "../../../shared/patient-ingress.mjs";
 import { createHostedRuntime, createHostedApp } from "./hosted-review.js";
 import { createPublicationReceiver } from "./publication-receiver.js";
 import { createPublicIntake } from "./website-requests.js";
+import {
+  ensurePatientAccountIndexes,
+  patientAccountRouter,
+} from "./patient-accounts.js";
 import { validateHostedNormalConfig } from "../../../shared/hosted-normal-config.mjs";
 
 export function loadHostedNormalEnvironment(e = process.env) {
@@ -72,8 +81,19 @@ export function loadHostedNormalEnvironment(e = process.env) {
 export function createNormalSource(e, c) {
   if (e.CEDAR_NORMAL_TRUSTED_PROXY !== "render-cloudflare-client")
     throw Error("Explicit Render source policy required.");
+  const relaySecret = e.CEDAR_PATIENT_INGRESS_SECRET;
+  if (relaySecret && !validPatientIngressSecret(relaySecret))
+    throw Error("Invalid patient ingress configuration.");
   return (request) => {
-    const ip = request.get("CF-Connecting-IP");
+    const relay = request.get(patientIngressHeader);
+    const direct = request.get("CF-Connecting-IP");
+    const path = request.originalUrl?.split("?")[0];
+    const ip =
+      relay === undefined
+        ? direct
+        : request.method === "POST" && path?.startsWith("/api/patient-account/")
+          ? readPatientIngress(relaySecret, path, relay)
+          : null;
     if (
       request.get("Host") !== new URL(c.apiOrigin).host ||
       typeof ip !== "string" ||
@@ -89,8 +109,22 @@ export function createHostedNormalApplication({
   config,
   sourceReader,
   makeClient,
+  patientAccountDelivery,
+  phoneKey,
 } = {}) {
   validateHostedNormalConfig(config);
+  const accountsEnabled =
+    patientAccountDelivery !== undefined || phoneKey !== undefined;
+  if (
+    accountsEnabled &&
+    (typeof patientAccountDelivery !== "function" ||
+      !Buffer.isBuffer(phoneKey) ||
+      phoneKey.length !== 32 ||
+      phoneKey.equals(config.key))
+  )
+    throw Error(
+      "Hosted patient accounts require dedicated delivery and phone-code configuration.",
+    );
   const runtime = createHostedRuntime({
     config,
     validateConfig: validateHostedNormalConfig,
@@ -129,13 +163,27 @@ export function createHostedNormalApplication({
         professionalReader: (date) => receiver.requestProfessionals(date),
         upcomingReader: (input) => receiver.requestUpcoming(input),
       });
-      return { db, receiver, intake };
+      let patientAccounts;
+      if (accountsEnabled) {
+        await ensurePatientAccountIndexes(db);
+        patientAccounts = patientAccountRouter({
+          db,
+          client,
+          intake,
+          phoneKey,
+          sourceReader,
+          publicOrigin: config.publicBase,
+          deliver: patientAccountDelivery,
+        });
+      }
+      return { db, receiver, intake, patientAccounts };
     },
   });
   return createHostedApp({
     config,
     runtime,
     sourceReader,
+    accountsEnabled,
     validateConfig: validateHostedNormalConfig,
     failureMessage:
       "The capstone server may be waking or temporarily unavailable. Please retry; no booking is confirmed.",

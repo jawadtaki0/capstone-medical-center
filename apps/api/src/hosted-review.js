@@ -180,6 +180,7 @@ export function createHostedApp({
   runtime = createHostedReviewRuntime({ config }),
   sourceReader,
   validateConfig,
+  accountsEnabled = false,
   failureMessage = "The synthetic review service is temporarily unavailable. Please retry; no booking is confirmed.",
 } = {}) {
   validateConfig(config);
@@ -223,6 +224,24 @@ export function createHostedApp({
   );
   const inner = createApp({
     clientOrigin: config.publicBase,
+    patientAccounts: accountsEnabled
+      ? Object.assign(
+          (req, res, next) => {
+            const binding = current();
+            assertCurrent(binding);
+            binding.patientAccounts(req, res, next);
+          },
+          {
+            phoneVerification: {
+              staff: (...args) => {
+                const binding = current();
+                assertCurrent(binding);
+                return binding.patientAccounts.phoneVerification.staff(...args);
+              },
+            },
+          },
+        )
+      : null,
     publicationReceiver: receiver,
     publicAuthority: {
       mode: async () => {

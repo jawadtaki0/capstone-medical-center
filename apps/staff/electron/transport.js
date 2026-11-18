@@ -368,8 +368,13 @@ export function createBroker({
       call("/summary/viewed", payload, true),
     staffDirectory: () => call("/staff", undefined, true),
     websiteRequests: (payload) => {
-      const { action, noticeAction, ...body } = payload;
+      const { action, noticeAction, phoneAction, ...body } = payload;
       if (action === "notification") body.action = noticeAction;
+      if (action === "phoneVerification") {
+        if (!["list", "sent"].includes(phoneAction))
+          throw Error("Use the private main-process phone action.");
+        body.action = phoneAction;
+      }
       if (
         ![
           "list",
@@ -387,6 +392,7 @@ export function createBroker({
           "rotate",
           "notification",
           "bookingNoticeLookup",
+          "phoneVerification",
         ].includes(action)
       )
         throw Error("Unsupported request action.");
@@ -403,6 +409,30 @@ export function createBroker({
       )
         throw Error("Use the private main-process notification action.");
       return call(`/website-requests/${action}`, body, true);
+    },
+    openPatientPhoneWhatsApp: async ({ id }) => {
+      const expectedEpoch = epoch;
+      const path = "/website-requests/phoneVerification";
+      const prepared = await call(path, { action: "prepare", id }, true);
+      if (
+        epoch !== expectedEpoch ||
+        !token ||
+        !(Date.parse(prepared.expiresAt) > Date.now())
+      )
+        throw Error("Phone code expired. Refresh the queue.");
+      if (!openWhatsApp) throw Error("Manual WhatsApp opening is unavailable.");
+      await openWhatsApp(prepared.phone, prepared.message);
+      try {
+        if (epoch !== expectedEpoch || !token) throw Error();
+        await call(path, { action: "opened", id }, true);
+        return { opened: true };
+      } catch {
+        return {
+          opened: true,
+          warning:
+            "WhatsApp opened. Check the draft before retrying. Nothing was marked sent.",
+        };
+      }
     },
     openStaffPhoneWhatsApp: async (payload) => {
       if (

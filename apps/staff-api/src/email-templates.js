@@ -1,17 +1,10 @@
 // Pure presentation: no configuration, delivery, storage or challenge changes.
-export function escapeHtml(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    (character) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[character],
-  );
-}
+import {
+  cedarEmailLayout as layout,
+  escapeHtml,
+  paragraph,
+} from "../../../shared/cedar-email-layout.mjs";
+export { escapeHtml };
 
 function expiryText(expiresAt) {
   // The caller supplies the original request deadline, including any session cap.
@@ -28,42 +21,6 @@ function expiryText(expiresAt) {
     hourCycle: "h23",
   }).format(expiresAt);
   return `Expires on ${deadline} (Asia/Beirut). Resending does not extend this deadline.`;
-}
-
-function layout({ heading, preview, body }) {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(heading)}</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f3f8fc; color: #263e50; font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; line-height: 1.6;">
-  <!-- Preview text -->
-  <div aria-hidden="true" style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent; font-size: 1px; line-height: 1px; mso-hide: all;">${escapeHtml(preview)}${"&#8204;&nbsp;".repeat(80)}</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; background-color: #f3f8fc;">
-    <tr>
-      <td align="center" style="padding: 24px 12px;">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 560px; border: 1px solid #d2e2ed; border-radius: 14px; background-color: #ffffff;">
-          <tr>
-            <td style="padding: 22px 24px; background-color: #226b9d; border-radius: 13px 13px 0 0; color: #ffffff; font-size: 24px; font-weight: 700; line-height: 1.3;">Cedar Staff</td>
-          </tr>
-          <tr>
-            <td style="padding: 28px 24px;">
-              <h1 style="margin: 0 0 18px; color: #163c55; font-size: 24px; font-weight: 700; line-height: 1.35;">${escapeHtml(heading)}</h1>
-              ${body}
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
-
-function paragraph(text, extraStyle = "") {
-  return `<p style="margin: 0 0 18px; ${extraStyle}">${escapeHtml(text)}</p>`;
 }
 
 export function verificationEmail({ code, expiresAt }) {

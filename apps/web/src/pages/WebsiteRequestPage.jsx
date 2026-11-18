@@ -5,6 +5,11 @@ import TrackingView from "../request-preview/TrackingView.jsx";
 import LoadingStatus from "../components/PublicLoadingStatus.jsx";
 import { createRequestClient } from "../website-request-client.js";
 import {
+  accountRequest,
+  signOutAndContinueAsGuest,
+} from "../patient-account-client.js";
+import ReceptionHoursNotice from "../components/ReceptionHoursNotice.jsx";
+import {
   createCatalogueLoader,
   preselectionDate,
 } from "../request-selection.js";
@@ -26,8 +31,30 @@ const upcoming = (professionalId, fromDate, after, signal) =>
     null,
     signal,
   );
-export default function WebsiteRequestPage({ tracking = false }) {
-  const [language, setLanguage] = useState("en"),
+export default function WebsiteRequestPage({ tracking = false, account }) {
+  const requestedProfile = new URLSearchParams(window.location.search).get(
+    "profile",
+  );
+  const selectionSearch = new URLSearchParams(window.location.search);
+  if (requestedProfile || account) {
+    selectionSearch.delete("profile");
+    selectionSearch.delete("lang");
+  }
+  const bookingProfile =
+    account?.profiles.find((profile) => profile.id === requestedProfile) ??
+    (!requestedProfile && account?.profiles.length === 1
+      ? account.profiles[0]
+      : null);
+  const needsVerification = Boolean(account && !account.bookingPhone);
+  const blocked =
+    needsVerification ||
+    (account ? !bookingProfile : Boolean(requestedProfile));
+  const canLoad = tracking || (account !== undefined && !blocked);
+  const [language, setLanguage] = useState(
+      new URLSearchParams(window.location.search).get("lang") === "ar"
+        ? "ar"
+        : "en",
+    ),
     [sessions, setSessions] = useState([]),
     [professionals, setProfessionals] = useState([]),
     [scenario, setScenario] = useState("loading"),
@@ -35,9 +62,11 @@ export default function WebsiteRequestPage({ tracking = false }) {
     [data, setData] = useState(null),
     [toast, setToast] = useState(""),
     [reload, setReload] = useState(0);
+  const [leaving, setLeaving] = useState(false);
+  const [guestError, setGuestError] = useState(false);
   const generation = useRef(0),
     [date, setDate] = useState(
-      preselectionDate(window.location.search) ??
+      preselectionDate(selectionSearch.toString()) ??
         new Intl.DateTimeFormat("en-CA", {
           timeZone: "Asia/Beirut",
           year: "numeric",
@@ -61,6 +90,7 @@ export default function WebsiteRequestPage({ tracking = false }) {
         setError(result.error.forLanguage?.(language) ?? result.error.message);
     });
   useEffect(() => {
+    if (!canLoad) return;
     let stopped = false,
       timer;
     const controller = new AbortController(),
@@ -100,7 +130,7 @@ export default function WebsiteRequestPage({ tracking = false }) {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [tracking, date, reload]);
+  }, [tracking, date, reload, canLoad]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 3500);
@@ -111,14 +141,14 @@ export default function WebsiteRequestPage({ tracking = false }) {
       className={tracking ? "public-tracking-page" : "public-request-page"}
     >
       <div className="container request-shell">
-        {hostedReview && scenario === "loading" && (
+        {hostedReview && canLoad && scenario === "loading" && (
           <p className="request-alert" role="status">
             {language === "ar"
               ? "قد يكون الخادم قيد التشغيل أو غير متاح مؤقتًا. يرجى الانتظار؛ لا حاجة لإرسال طلب جديد."
               : "The server may be waking or temporarily unavailable. Please wait; there is no need to submit a new request."}
           </p>
         )}
-        {error && (
+        {error && (tracking || !blocked) && (
           <div className="request-alert" role="alert">
             {error}{" "}
             <button
@@ -153,7 +183,85 @@ export default function WebsiteRequestPage({ tracking = false }) {
                   : "This attendance window has ended. Please contact the center."}
               </p>
             )}
+            {data?.status === "awaiting" && (
+              <ReceptionHoursNotice language={language} />
+            )}
           </>
+        ) : account === undefined ? (
+          <LoadingStatus label="Loading account…" />
+        ) : blocked ? (
+          <section
+            className="request-card"
+            lang={language}
+            dir={language === "ar" ? "rtl" : "ltr"}
+          >
+            <h1>
+              {language === "ar"
+                ? "طلب جلسة في العيادة"
+                : "Request a clinic session"}
+            </h1>
+            <p>
+              {needsVerification
+                ? language === "ar"
+                  ? "تحقق من رقم واتساب لطلب حجز أثناء تسجيل الدخول."
+                  : "Verify your WhatsApp number to request a booking while signed in."
+                : account
+                  ? language === "ar"
+                    ? "اختر ملفًا للحجز من حسابي."
+                    : "Choose a booking profile from My account."
+                  : language === "ar"
+                    ? "سجّل الدخول للحجز باستخدام ملفك."
+                    : "Sign in to book with your profile."}
+            </p>
+            <div className="request-actions">
+              <a
+                className="button button-primary"
+                href={
+                  needsVerification ? "/account?view=verify-phone" : "/account"
+                }
+              >
+                {needsVerification
+                  ? language === "ar"
+                    ? "تحقق من رقم الهاتف"
+                    : "Verify phone"
+                  : account
+                    ? language === "ar"
+                      ? "حسابي"
+                      : "My account"
+                    : language === "ar"
+                      ? "تسجيل الدخول"
+                      : "Sign in"}
+              </a>
+              {needsVerification && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={leaving}
+                  onClick={async () => {
+                    setLeaving(true);
+                    setGuestError(false);
+                    try {
+                      await signOutAndContinueAsGuest();
+                    } catch {
+                      setGuestError(true);
+                      setLeaving(false);
+                    }
+                  }}
+                >
+                  {language === "ar"
+                    ? "تسجيل الخروج والمتابعة كضيف"
+                    : "Sign out and continue as guest"}
+                </button>
+              )}
+            </div>
+            {guestError && (
+              <p role="alert" className="request-error">
+                {language === "ar"
+                  ? "تعذّر تسجيل الخروج. حاول مجددًا."
+                  : "Could not sign out. Please try again."}
+              </p>
+            )}
+          </section>
         ) : (
           <>
             <label
@@ -172,13 +280,18 @@ export default function WebsiteRequestPage({ tracking = false }) {
             </label>
             <div dir={language === "ar" ? "rtl" : "ltr"} lang={language}>
               <RequestForm
+                bookingProfile={
+                  bookingProfile
+                    ? { ...bookingProfile, phone: account.bookingPhone }
+                    : undefined
+                }
                 language={language}
                 onLanguage={setLanguage}
                 professionals={professionals}
                 sessions={sessions}
                 scenario={scenario}
                 loadUpcoming={upcoming}
-                preselectionSearch={window.location.search}
+                preselectionSearch={selectionSearch.toString()}
                 onDateChange={(value) => {
                   if (value !== date) {
                     setScenario("loading");
@@ -192,8 +305,8 @@ export default function WebsiteRequestPage({ tracking = false }) {
                   session,
                   submissionKey,
                   honeypot,
-                ) =>
-                  api("submit", {
+                ) => {
+                  const input = {
                     submissionKey,
                     selection: {
                       date: session.date,
@@ -202,10 +315,25 @@ export default function WebsiteRequestPage({ tracking = false }) {
                       startTime: session.startTime,
                       endTime: session.endTime,
                     },
-                    patient,
                     honeypot,
-                  })
-                }
+                  };
+                  if (!bookingProfile)
+                    return api("submit", { ...input, patient });
+                  try {
+                    return await accountRequest("book", {
+                      ...input,
+                      profileId: bookingProfile.id,
+                      language: patient.preferredLanguage,
+                    });
+                  } catch (error) {
+                    if (error.code === "phone_verification_required")
+                      error.forLanguage = (lang) =>
+                        lang === "ar"
+                          ? "تحقق من رقم واتساب قبل إرسال الطلب."
+                          : "Verify your WhatsApp number before submitting the request.";
+                    throw error;
+                  }
+                }}
               />
             </div>
           </>

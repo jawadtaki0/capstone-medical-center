@@ -24,7 +24,10 @@ export default function PublicShell({ children, overlay, ...navigation }) {
         <HomeBackground />
         <div className="public-page-content">{children}</div>
       </main>
-      <Footer publicDesign />
+      <Footer
+        publicDesign
+        patientAccounts={Boolean(navigation.patientAccountLink)}
+      />
       {overlay}
     </div>
   );

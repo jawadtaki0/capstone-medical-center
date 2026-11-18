@@ -116,6 +116,11 @@ export function shiftPatientYear(date, years) {
   const last = end.getUTCDate();
   return `${String(target).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
 }
+export function childBirthDateAllowed(date, today) {
+  return (
+    realPatientDate(date) && date <= today && shiftPatientYear(date, 18) > today
+  );
+}
 export function classifyPatientDuplicate(record, other) {
   if (
     !similarPatientName(record.firstName, other.firstName) ||

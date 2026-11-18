@@ -112,6 +112,8 @@ export async function createSecurityFixture({
   requestIntegration,
   publicationDeliveryConfigured = false,
   hostedReview = false,
+  collectionPrefix,
+  reviewPort,
 } = {}) {
   if (typeof hostedReview !== "boolean")
     throw new Error("Hosted review fixture selection must be explicit.");
@@ -119,10 +121,32 @@ export async function createSecurityFixture({
     const next = await connectStaffDatabase({
       database: TEST_DATABASE,
       demoMode: true,
-      initializeIndexes: !hostedReview,
+      initializeIndexes: !hostedReview && !collectionPrefix,
     });
     try {
       assertIsolatedTestTarget(next);
+      if (collectionPrefix) {
+        if (
+          !/^patient_phone_review_[a-f0-9]{32}_$/.test(collectionPrefix) ||
+          hostedReview
+        )
+          throw Error("Invalid patient phone review collection prefix.");
+        const scoped = {
+          ...next,
+          db: {
+            databaseName: next.db.databaseName,
+            command: (...args) => next.db.command(...args),
+            collection(name) {
+              assertIsolatedTestTarget(next);
+              if (!STAFF_COLLECTIONS.includes(name))
+                throw Error("Unrecognized staff fixture collection.");
+              return next.db.collection(collectionPrefix + name);
+            },
+          },
+        };
+        await ensureIndexes(scoped.db);
+        return scoped;
+      }
       if (!hostedReview) return next;
       const { createHostedReviewDatabase } =
         await import("./hosted-review-db.js");
@@ -186,7 +210,11 @@ export async function createSecurityFixture({
       requestIntegration,
       publicationDeliveryConfigured,
     });
-    server = app.listen(0, "127.0.0.1");
+    if (reviewPort !== undefined && (!collectionPrefix || reviewPort !== 4101))
+      throw Error(
+        "Fixed staff review port requires an isolated phone fixture.",
+      );
+    server = app.listen(reviewPort ?? 0, "127.0.0.1");
     await once(server, "listening");
     origin = `http://127.0.0.1:${server.address().port}`;
   }
@@ -194,6 +222,9 @@ export async function createSecurityFixture({
   return {
     get client() {
       return connection.client;
+    },
+    get origin() {
+      return origin;
     },
     get db() {
       return connection.db;
@@ -235,6 +266,14 @@ export async function createSecurityFixture({
     },
     async close() {
       await stopHttp();
+      if (collectionPrefix)
+        for (const name of STAFF_COLLECTIONS)
+          await connection.db
+            .collection(name)
+            .drop()
+            .catch((error) => {
+              if (error.code !== 26) throw error;
+            });
       await connection.client.close();
       vault.destroy();
     },

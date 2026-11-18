@@ -261,7 +261,7 @@ label.request-field {
   min-height: 100px;
   resize: vertical;
 }
-.request-field small {
+.request-field small:not(.request-error) {
   font-size: 0.78rem;
   font-weight: 400;
   line-height: 1.6;
@@ -730,6 +730,10 @@ label.request-field {
   background: #f4f8fc;
   font: inherit;
   color: #163c55;
+}
+.request-calendar[data-child-calendar] button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .request-calendar td .is-selected {
   background: #226b9d;

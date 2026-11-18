@@ -9,6 +9,7 @@ export function websiteRequestRouter({
   credential,
   trustedProxy = false,
   sourceReader = null,
+  phoneVerification,
 }) {
   const router = express.Router();
   router.use((_q, r, n) => {
@@ -102,6 +103,25 @@ export function websiteRequestRouter({
     json,
     route((q) => (exact(q.body, ["cursor"]), service.pull(q.body.cursor))),
   );
+  if (phoneVerification)
+    router.post(
+      "/integration/phone",
+      json,
+      route(async (q) => {
+        try {
+          return await phoneVerification.staff(q.body);
+        } catch (error) {
+          if (error instanceof RequestError) throw error;
+          if ([400, 404, 409].includes(error.status))
+            throw new RequestError(
+              "phone_verification_unavailable",
+              "Refresh the phone verification queue and try again.",
+              error.status,
+            );
+          throw error;
+        }
+      }),
+    );
   router.post(
     "/integration/event",
     json,
