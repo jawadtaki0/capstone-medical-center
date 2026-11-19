@@ -1,0 +1,74 @@
+.account-lab {
+  margin-block: 1rem;
+  min-width: 0;
+}
+.account-lab-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: #e8f3fc;
+  padding: 1rem;
+  border-radius: 0.6rem;
+}
+.account-lab form {
+  display: flex;
+  align-items: end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-block: 1rem;
+}
+.account-lab form input {
+  display: block;
+  border: 1px solid #a8bdce;
+  padding: 0.5rem;
+  border-radius: 0.35rem;
+  max-width: 100%;
+}
+.account-lab-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  border-bottom: 1px solid #bdcede;
+  margin-block-start: 0.6rem;
+}
+.account-lab-tabs button {
+  padding: 0.6rem 0.9rem;
+  font: inherit;
+  border: 1px solid #bdcede;
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: white;
+  color: #15384d;
+  cursor: pointer;
+}
+.account-lab-tabs [aria-selected="true"] {
+  background: #216998;
+  color: white;
+}
+.account-lab-table {
+  overflow-x: auto;
+  margin-block: 0.75rem;
+}
+.account-lab-table table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: start;
+}
+.account-lab-table th,
+.account-lab-table td {
+  text-align: start;
+  padding: 0.7rem;
+  border-bottom: 1px solid #d3e1eb;
+}
+.account-lab-table th {
+  background: #e8f3fc;
+}
+.account-lab-table bdi {
+  overflow-wrap: anywhere;
+}
+.account-lab-released {
+  background: #ddf1e4;
+  color: #145428;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.35rem;
+}

@@ -1,8 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { launcherIcon } from "../../staff-api/scripts/launcher/icon.js";
+import { copyFile } from "node:fs/promises";
 
-// Build-time only; the desktop runtime uses the bundled artwork, not the API.
-const assets = new URL("../assets/", import.meta.url);
-await mkdir(assets, { recursive: true });
-await writeFile(new URL("cedar-staff.ico", assets), launcherIcon());
-console.log("Generated local Cedar cross ICO: 16/24/32/48/64/128/256px.");
+await copyFile(
+  new URL("../assets/cedar-staff.ico", import.meta.url),
+  new URL("../../web/public/favicon.ico", import.meta.url),
+);
+console.log("Synced the approved Cedar symbol ICO to the website favicon.");

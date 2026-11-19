@@ -131,10 +131,12 @@ try {
     await readLauncherConfig()
   ).runtimeDirectory;
   delete process.env.STAFF_SETUP_TEST_MEMORY;
-  const { createSecurityFixture } =
-    await import("../../staff-api/test/helpers/security-fixture.js");
-  const { seedPublicationAuthority } =
-    await import("../../staff-api/test/helpers/publication-authority.js");
+  const { createSecurityFixture } = await import(
+    "../../staff-api/test/helpers/security-fixture.js"
+  );
+  const { seedPublicationAuthority } = await import(
+    "../../staff-api/test/helpers/publication-authority.js"
+  );
   const { beirutClock } = await import("../../staff-api/src/booking-model.js");
   fixture = await createSecurityFixture();
   await fixture.reset();
@@ -830,6 +832,11 @@ try {
           .getByRole("button", { name: "Search patients", exact: true })
           .click();
         await registry
+          .locator(".patient-results > li")
+          .filter({ hasText: admissionPatients[label].patientNumber })
+          .getByRole("button", { name: "Open patient", exact: true })
+          .click();
+        await page
           .getByRole("button", {
             name: `Choose patient ${admissionPatients[label].patientNumber}`,
             exact: true,

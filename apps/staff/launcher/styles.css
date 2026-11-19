@@ -26,16 +26,10 @@ header p {
   font-size: 12px;
   color: #4e6474;
 }
-.brand-mark {
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  width: 40px;
-  height: 40px;
-  background: #00749e;
-  color: #fff;
-  font-size: 34px;
-  line-height: 1;
+.brand-lockup {
+  display: block;
+  width: auto;
+  height: 44px;
 }
 main {
   padding: 18px 24px;

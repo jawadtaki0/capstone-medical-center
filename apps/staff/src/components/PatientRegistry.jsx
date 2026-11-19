@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { displayInternationalPhone } from "../../shared/contact-input.js";
 import PatientEditor from "./PatientEditor.jsx";
+import PhoneInput from "./PhoneInput.jsx";
 import { PATIENT_LABELS } from "../../shared/patient-input.js";
 import { isAccessError } from "../lib/staffManagement.js";
 import "./patients.css";
@@ -39,6 +41,7 @@ export default function PatientRegistry({
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [editor, setEditor] = useState(null);
+  const [phoneReset, resetPhone] = useState(0);
   useEffect(() => {
     live.current = true;
     return () => {
@@ -131,33 +134,41 @@ export default function PatientRegistry({
       >
         <h2>Find an existing patient</h2>
         <div className="staff-form-grid">
-          {searchFields.map((field) => (
-            <div className="staff-field" key={field}>
-              <label htmlFor={`${id}-${field}`}>
-                {PATIENT_LABELS[field] ?? "Patient number"}
-              </label>
-              <input
-                id={`${id}-${field}`}
-                type={
-                  field === "dateOfBirth"
-                    ? "date"
-                    : field === "phone"
-                      ? "tel"
-                      : "text"
-                }
-                value={query[field]}
-                onChange={(e) => {
-                  setQuery({ ...query, [field]: e.target.value });
+          {searchFields.map((field) =>
+            field === "phone" ? (
+              <PhoneInput
+                key={phoneReset}
+                label="Phone number"
+                required={false}
+                disabled={busy}
+                onValueChange={(phone) => {
+                  setQuery((current) => ({ ...current, phone }));
                   setSearched(null);
                   setResults(null);
                 }}
-                disabled={busy}
-                maxLength={field === "patientNumber" ? 18 : 80}
-                autoComplete="off"
-                spellCheck={false}
               />
-            </div>
-          ))}
+            ) : (
+              <div className="staff-field" key={field}>
+                <label htmlFor={`${id}-${field}`}>
+                  {PATIENT_LABELS[field] ?? "Patient number"}
+                </label>
+                <input
+                  id={`${id}-${field}`}
+                  type={field === "dateOfBirth" ? "date" : "text"}
+                  value={query[field]}
+                  onChange={(e) => {
+                    setQuery({ ...query, [field]: e.target.value });
+                    setSearched(null);
+                    setResults(null);
+                  }}
+                  disabled={busy}
+                  maxLength={field === "patientNumber" ? 18 : 80}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+            ),
+          )}
         </div>
         <p className="staff-help">
           Names are searched separately by their beginning. Enter a full phone
@@ -178,6 +189,7 @@ export default function PatientRegistry({
             disabled={busy}
             onClick={() => {
               setQuery(emptySearch());
+              resetPhone((value) => value + 1);
               setResults(null);
               setSearched(null);
               setError("");
@@ -245,7 +257,9 @@ export default function PatientRegistry({
                     </div>
                     <div>
                       <dt>Phone</dt>
-                      <dd>{p.phone}</dd>
+                      <dd>
+                        <bdi>{displayInternationalPhone(p.phone)}</bdi>
+                      </dd>
                     </div>
                   </dl>
                 </div>
@@ -257,16 +271,6 @@ export default function PatientRegistry({
                 >
                   Open patient
                 </button>
-                {onSelect && (
-                  <button
-                    type="button"
-                    className="staff-button"
-                    disabled={busy}
-                    onClick={() => onSelect(p)}
-                  >
-                    {selectionLabel} {p.patientNumber}
-                  </button>
-                )}
               </li>
             ))}
           </ul>
@@ -287,6 +291,15 @@ export default function PatientRegistry({
           registrationLabel={registrationLabel}
           api={api}
           patient={editor}
+          onSelect={
+            onSelect && editor.id
+              ? () => {
+                  close();
+                  onSelect(editor);
+                }
+              : undefined
+          }
+          selectionLabel={selectionLabel}
           onError={onError}
           onClose={close}
           onOpen={async (patientId) => {

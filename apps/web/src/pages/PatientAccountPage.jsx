@@ -12,6 +12,8 @@ import {
   signOutAndContinueAsGuest,
 } from "../patient-account-client.js";
 import { AccountProfiles, AddProfiles } from "./AccountProfiles.jsx";
+import AccountLabResults from "./AccountLabResults.jsx";
+import { displayInternationalPhone } from "../../../staff/shared/contact-input.js";
 import ReceptionHoursNotice from "../components/ReceptionHoursNotice.jsx";
 import PhoneVerificationNotice from "../components/PhoneVerificationNotice.jsx";
 import PatientPhoneVerification from "./PatientPhoneVerification.jsx";
@@ -690,7 +692,7 @@ export default function PatientAccountPage({ account, onAccount }) {
                 <p>{t("phone_verification_required")}</p>
                 {account.pendingPhone && (
                   <p>
-                    <bdi>{account.pendingPhone}</bdi>
+                    <bdi>{displayInternationalPhone(account.pendingPhone)}</bdi>
                   </p>
                 )}
                 <ReceptionHoursNotice language={language} verification />
@@ -737,6 +739,9 @@ export default function PatientAccountPage({ account, onAccount }) {
                   </Button>
                 </div>
                 <AccountProfiles account={account} language={language} t={t} />
+                {account.labResults && (
+                  <AccountLabResults key={account.email} language={language} />
+                )}
                 <div className="request-actions">
                   <Button
                     variant="outlined"

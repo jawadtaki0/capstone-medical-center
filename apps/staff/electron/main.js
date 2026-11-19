@@ -2,6 +2,7 @@ import { whatsappUrl } from "./whatsapp.js";
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   protocol,
   net,
@@ -10,6 +11,7 @@ import {
 } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve, sep } from "node:path";
+import { writeFile } from "node:fs/promises";
 import { createBroker } from "./transport.js";
 
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -99,6 +101,31 @@ function validatePayload(name, payload) {
     openStaffPhoneWhatsApp: ["accountId"],
     openPatientPhoneWhatsApp: ["id"],
     bookingSessions: ["date"],
+    lab: [
+      "action",
+      "id",
+      "revision",
+      "name",
+      "specimen",
+      "group",
+      "fields",
+      "reason",
+      "patientId",
+      "patientRevision",
+      "testIds",
+      "target",
+      "checked",
+      "results",
+      "templateRevision",
+      "reviewed",
+      "reportId",
+      "patientNumber",
+      "orderNumber",
+      "phone",
+      "confirmed",
+      "language",
+      "noticeId",
+    ],
     queueTransition: [
       "date",
       "scopeId",
@@ -332,7 +359,85 @@ function initialize() {
           authenticationBusy = true;
           ownsLock = true;
         }
-        return { ok: true, result: await broker[name](payload) };
+        const result = await broker[name](payload);
+        if (name === "lab" && result?.pdf) {
+          let { pdf, filename, ...metadata } = result;
+          const reviewDirectory =
+            demoMode && apiUrl === "http://127.0.0.1:4101"
+              ? process.env.CEDAR_LAB_PDF_DIRECTORY
+              : undefined;
+          const selection = await dialog.showSaveDialog(window, {
+            title:
+              payload.action === "preview-report"
+                ? "Save preview PDF to review"
+                : "Save Lab PDF",
+            defaultPath: reviewDirectory
+              ? resolve(reviewDirectory, filename)
+              : filename,
+            filters: [{ name: "PDF document", extensions: ["pdf"] }],
+          });
+          if (selection.canceled) return { ok: true, result: metadata };
+          if (payload.action === "open-notice") {
+            const latest = await broker.lab({
+              ...payload,
+              revision: metadata.order.revision,
+            });
+            if (latest.pdf !== pdf || latest.phone !== metadata.phone)
+              return {
+                ok: true,
+                result: {
+                  order: latest.order,
+                  fileError:
+                    "The report or verified contact changed. Open the current draft again.",
+                },
+              };
+            ({ pdf, filename, ...metadata } = latest);
+          }
+          try {
+            if (
+              reviewDirectory &&
+              dirname(resolve(selection.filePath)).toLowerCase() !==
+                resolve(reviewDirectory).toLowerCase()
+            )
+              return {
+                ok: true,
+                result: {
+                  ...metadata,
+                  fileError:
+                    "Save this fictional review PDF directly in the Capstone Lab PDFs folder.",
+                },
+              };
+            await writeFile(selection.filePath, Buffer.from(pdf, "base64"));
+          } catch {
+            return {
+              ok: true,
+              result: {
+                ...metadata,
+                fileError:
+                  "The PDF could not be saved. Choose a writable folder and try again.",
+              },
+            };
+          }
+          if (
+            payload.action === "open-notice" &&
+            apiUrl !== "http://127.0.0.1:4101"
+          )
+            await shell.openExternal(
+              whatsappUrl(metadata.phone, metadata.message),
+            );
+          return {
+            ok: true,
+            result: { ...metadata, filename, fileSaved: true },
+          };
+        }
+        if (
+          name === "lab" &&
+          payload.action === "open-notice" &&
+          result?.message &&
+          apiUrl !== "http://127.0.0.1:4101"
+        )
+          await shell.openExternal(whatsappUrl(result.phone, result.message));
+        return { ok: true, result };
       } catch (error) {
         return {
           ok: false,

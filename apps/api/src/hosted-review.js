@@ -232,6 +232,11 @@ export function createHostedApp({
             binding.patientAccounts(req, res, next);
           },
           {
+            labIntegration: (...args) => {
+              const binding = current();
+              assertCurrent(binding);
+              return binding.patientAccounts.labIntegration(...args);
+            },
             phoneVerification: {
               staff: (...args) => {
                 const binding = current();

@@ -1,6 +1,7 @@
 import WebsiteRequests from "./WebsiteRequests.jsx";
 import RequestScreenBoundary from "./RequestScreenBoundary.jsx";
 import BookingPanel from "./BookingPanel.jsx";
+import LabPanel from "./LabPanel.jsx";
 import QueuePanel from "./QueuePanel.jsx";
 import { useEffect, useRef, useState } from "react";
 import StaffDirectory from "./StaffDirectory.jsx";
@@ -48,6 +49,9 @@ export default function Workspace({
   callbacks.current = { onError, expired: timing.expired };
   const content = useRef(null);
   const roles = workspace.roles ?? user.roles ?? [];
+  const labAllowed =
+    import.meta.env.VITE_CEDAR_LAB_REVIEW === "1" &&
+    roles.some((role) => ["Admin", "Lab Admin", "Receptionist"].includes(role));
   const capabilities = summary?.capabilities ?? {};
   const directoryAllowed = capabilities.directory === true;
   const patientsAllowed = capabilities.patients === true;
@@ -205,6 +209,7 @@ export default function Workspace({
           ...(capabilities.requests ? [["requests", "Website requests"]] : []),
           ...(patientsAllowed ? [["patients", "Patients"]] : []),
           ...(bookingsAllowed ? [["bookings", "Bookings"]] : []),
+          ...(labAllowed ? [["lab", "Lab"]] : []),
           ...(capabilities.queue ? [["queue", "Queue"]] : []),
           ...(directoryAllowed ? [["directory", "Staff Directory"]] : []),
           ...(operationsAllowed
@@ -329,6 +334,8 @@ export default function Workspace({
               countsError={Boolean(summaryError)}
             />
           </RequestScreenBoundary>
+        ) : view === "lab" && labAllowed ? (
+          <LabPanel api={api} roles={roles} onError={onError} />
         ) : view === "queue" && capabilities.queue ? (
           <QueuePanel
             api={api}

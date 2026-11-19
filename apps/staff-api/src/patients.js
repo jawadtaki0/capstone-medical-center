@@ -13,6 +13,7 @@ import {
 } from "../../staff/shared/patient-input.js";
 import { validRoles } from "../../../shared/staff-roles.mjs";
 import { canonicalPhone } from "../../staff/shared/contact-input.js";
+import { createWebsitePatientAccess } from "../../../shared/website-patient-access.mjs";
 
 const bad = () =>
   new StaffError(
@@ -77,9 +78,11 @@ export function createPatientService({
   guard,
   authenticated,
   now,
+  hostedLab,
 }) {
   const patients = db.collection("patients"),
     state = db.collection("patient_registry_state");
+  const website = hostedLab && createWebsitePatientAccess({ db });
   async function actor(session, token, at) {
     const auth = await authenticated(session, token, at);
     if (auth.failure) return auth;
@@ -436,6 +439,39 @@ export function createPatientService({
           query.patientNumber = input.patientNumber;
         }
         if (!Object.keys(query).length) throw bad();
+        if (website && !input.patientNumber && input.cursor === undefined) {
+          const criteria = Object.fromEntries(
+            [...names, "dateOfBirth", "phone"]
+              .filter((field) => input[field])
+              .map((field) => [
+                field,
+                field === "phone" ? query.phone : input[field],
+              ]),
+          );
+          let after = null;
+          do {
+            const page = await hostedLab({
+              action: "profiles",
+              criteria,
+              after,
+            }).catch(() => {
+              throw new StaffError(
+                "patient_sync",
+                "Website patient search is temporarily unavailable. Try again.",
+                503,
+              );
+            });
+            for (const row of page.profiles) {
+              await website.sync(
+                row.accountId,
+                [{ ...row.patient, id: row._id }],
+                now(),
+                session,
+              );
+            }
+            after = page.after;
+          } while (after);
+        }
         if (input.cursor !== undefined) {
           if (
             typeof input.cursor !== "string" ||

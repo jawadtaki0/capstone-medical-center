@@ -270,6 +270,7 @@ export function createRequestTransport(config, request = fetch) {
     availability: (e, budget) => send("availability", e, budget),
     rotate: (i, budget) => send("rotate", i, budget),
     phone: (input) => send("phone", input),
+    ...(mode === "normal-hosted" ? { lab: (input) => send("lab", input) } : {}),
   };
 }
 export function startRequestWorker(

@@ -1,12 +1,12 @@
 # Medical Center Capstone
 
-A medical-center website and operations-system capstone. Cedar is temporary prototype branding. Public doctor names and weekly hours use the owner's confirmed English schedule. Patient, booking, and messaging test data must be synthetic.
+A medical-center website and operations-system capstone for Cedar Medical Center. Public doctor names and weekly hours use the owner's confirmed schedule. Patient, booking, and messaging test data must be synthetic.
 
 ## Current status
 
 The responsive Home and Schedule pages share the MongoDB-backed public schedule API. The weekly timetable repeats until an authorized Clinic Admin publishes a change. Monday–Friday: center 8:00 AM–5:00 PM, laboratory 8:00 AM–2:30 PM, audiometry 9:00 AM–2:30 PM. Saturday: center/laboratory 8:00 AM–1:00 PM and audiometry 9:00 AM–1:00 PM. Sunday is closed.
 
-"No walk-in" is stored and displayed as **appointment required**. Phone and future online advance bookings remain possible. Booking capacity has not been confirmed and is absent from this model. Booking controls open a prototype message. Public/patient authentication, booking, Clinic Admin editing, patient records, lab results, billing and WhatsApp delivery are not implemented. The separate synthetic staff-access foundation is described below.
+"No walk-in" is displayed as **appointment required**. Cedar supports patient accounts, appointment requests, reception confirmation, and check-in. One website account can manage patient profiles and see released Lab reports for authorized profiles.
 
 The licensed hero photo stays outside the public repository; deployment supplies it separately. Other branding, contact details and service copy remain provisional.
 
@@ -74,9 +74,11 @@ Tests cover recurring weekdays, Saturday hours, Sunday closure, appointment-requ
 
 Directory tests also cover active-profile visibility/projection, inclusion of both professional types, local search/clearing, Therapist wording, server-derived avatars/failure handling, and retryable loading. Frontend tests retain coverage of all 14 supplied specialty icons, ENT aliases, and the unknown-specialty fallback. The owner confirms supplied icon/avatar assets are licensed; accompanying notices and visible avatar watermarks are preserved. See the asset READMEs for provenance. The server derives `avatarVariant` from stored gender without exposing raw gender; missing/invalid gender gives a neutral fallback. Frontend artwork selection uses this safe choice, not a profile-ID assignment list. Current stored Therapist wording and Zeinab Mkahhel spelling are preserved.
 
-## Intended scope
+## Laboratory workflow
 
-The planned system includes public pages, full-doctor-session booking with shared online/receptionist capacity once confirmed, an FCFS check-in queue, staff-approved extra walk-ins, patient access to approved lab PDFs, and separate clinic/lab reception workflows. Development messaging uses mock/synthetic delivery; live WhatsApp requires authorized integration access. No online lab booking, online payment, pharmacy, insurance, AI chatbot or electronic doctor notes are planned for the first version.
+Cedar Staff handles Lab orders, specimen collection, result entry, PDF finalization, and release separately from Clinic bookings. Staff can open website-created patient profiles before booking. Shared phone numbers can return separate patient records. Cedar reuses an existing record only when it has a verified connection to the exact profile.
+
+My account shows released Lab results by authorized patient profile. Cedar stores an application-encrypted copy of the released PDF online and checks access on every download. Withdrawing a version removes its online availability. Drafts and internal Lab records stay in Staff. Reception can prepare English or Arabic WhatsApp drafts and confirm a manual send.
 
 ## Windows staff-access development foundation
 

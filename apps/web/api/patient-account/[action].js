@@ -20,6 +20,9 @@ const actions = new Set([
   "delete",
   "add-profiles",
   "profile-requests",
+  "family-profiles",
+  "lab-reports",
+  "lab-report",
   "book",
   "phone-request",
   "phone-status",
@@ -77,6 +80,10 @@ export function createPatientAccountProxy({ secret, send = fetch } = {}) {
       );
       for (const cookie of upstream.headers.getSetCookie())
         outgoing.append("Set-Cookie", cookie);
+      const disposition = upstream.headers.get("content-disposition");
+      if (path.endsWith("/lab-report") && disposition)
+        outgoing.set("Content-Disposition", disposition);
+      outgoing.set("X-Content-Type-Options", "nosniff");
       return new Response(upstream.body, {
         status: upstream.status,
         headers: outgoing,
