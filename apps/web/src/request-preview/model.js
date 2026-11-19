@@ -175,7 +175,7 @@ export function notificationText(
       : ar
         ? "[رابط المتابعة الخاص — نموذج فقط]"
         : "[Private tracking link — preview only]",
-    ar ? "مركز سيدر للخدمات الطبية CMC" : "Cedar Medical Center CMC",
+    ar ? "مركز سيدر الطبي" : "Cedar Medical Center",
   ]
     .filter(Boolean)
     .join("\n");

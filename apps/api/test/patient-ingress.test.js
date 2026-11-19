@@ -70,3 +70,41 @@ test("patient account POSTs preserve the Vercel client address and response cont
   );
   assert.equal(response.headers.has(patientIngressHeader), false);
 });
+
+test("Lab PDF relay preserves exact bytes and private attachment headers", async () => {
+  const path = "/api/patient-account/lab-report";
+  const pdf = Buffer.from("%PDF-1.7\nFictional Lab report\n");
+  const disposition = 'attachment; filename="LAB-fictional.pdf"';
+  const relay = createPatientAccountProxy({
+    secret: randomBytes(32).toString("base64url"),
+    async send(url, { method, headers }) {
+      assert.equal(url.pathname, path);
+      assert.equal(method, "POST");
+      assert.equal(headers.get("cookie"), "cedar=fictional");
+      assert.ok(headers.has(patientIngressHeader));
+      return new Response(pdf, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": disposition,
+        },
+      });
+    },
+  });
+  const response = await relay(
+    new Request("https://cedar-cmc.vercel.app" + path, {
+      method: "POST",
+      headers: {
+        Origin: "https://cedar-cmc.vercel.app",
+        "Content-Type": "application/json",
+        Cookie: "cedar=fictional",
+        "X-Vercel-Forwarded-For": "192.0.2.42",
+      },
+      body: JSON.stringify({ patientId: "fictional", reportId: "fictional" }),
+    }),
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+  assert.equal(response.headers.get("Content-Disposition"), disposition);
+  assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), pdf);
+});

@@ -10,6 +10,7 @@ export function websiteRequestRouter({
   trustedProxy = false,
   sourceReader = null,
   phoneVerification,
+  labIntegration,
 }) {
   const router = express.Router();
   router.use((_q, r, n) => {
@@ -103,6 +104,12 @@ export function websiteRequestRouter({
     json,
     route((q) => (exact(q.body, ["cursor"]), service.pull(q.body.cursor))),
   );
+  if (labIntegration)
+    router.post(
+      "/integration/lab",
+      express.json({ limit: "6mb", strict: true, inflate: false }),
+      route((q) => labIntegration(q.body)),
+    );
   if (phoneVerification)
     router.post(
       "/integration/phone",

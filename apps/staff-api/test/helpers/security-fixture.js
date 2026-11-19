@@ -9,6 +9,15 @@ import { OPERATIONAL_COLLECTIONS } from "../../src/operations.js";
 
 export const TEST_DATABASE = "capstone_staff_test";
 export const STAFF_COLLECTIONS = Object.freeze([
+  "lab_catalogue",
+  "lab_orders",
+  "lab_reports",
+  "hosted_lab_profiles",
+  "hosted_lab_reports",
+  "family_access_groups",
+  "patient_accounts",
+  "patient_account_signups",
+  "patient_account_limits",
   "queue_state",
   "queue_changes",
   "queue_receipts",
@@ -127,10 +136,12 @@ export async function createSecurityFixture({
       assertIsolatedTestTarget(next);
       if (collectionPrefix) {
         if (
-          !/^patient_phone_review_[a-f0-9]{32}_$/.test(collectionPrefix) ||
+          !/^(?:patient_phone|lab)_review_[a-f0-9]{32}_$/.test(
+            collectionPrefix,
+          ) ||
           hostedReview
         )
-          throw Error("Invalid patient phone review collection prefix.");
+          throw Error("Invalid isolated review collection prefix.");
         const scoped = {
           ...next,
           db: {
@@ -148,8 +159,9 @@ export async function createSecurityFixture({
         return scoped;
       }
       if (!hostedReview) return next;
-      const { createHostedReviewDatabase } =
-        await import("./hosted-review-db.js");
+      const { createHostedReviewDatabase } = await import(
+        "./hosted-review-db.js"
+      );
       const scoped = { ...next, db: createHostedReviewDatabase(next) };
       await ensureIndexes(scoped.db);
       return scoped;
@@ -295,7 +307,9 @@ export async function createSecurityFixture({
         method,
         headers: requestHeaders,
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(
+          path === "/lab" && body?.action === "preview-report" ? 30000 : 15000,
+        ),
       });
       return {
         status: response.status,

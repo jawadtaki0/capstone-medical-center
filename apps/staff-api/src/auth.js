@@ -29,6 +29,7 @@ import { createRecoveryService } from "./recovery.js";
 import { createEmergencyRecovery } from "./emergency-recovery.js";
 import { createOperationsService } from "./operations.js";
 import { createBookingService } from "./bookings.js";
+import { createLabService } from "./lab.js";
 import { createQueueService } from "./queue.js";
 import { createPatientService } from "./patients.js";
 
@@ -728,7 +729,7 @@ export function createAuthService({
 
   // Health/setup validation must not touch unrelated registry collections.
   // Initialize private services only when their named authenticated route is used.
-  let bookings, patients, websiteRequests, queue;
+  let bookings, patients, websiteRequests, queue, lab;
   const operations = createOperationsService({
     db,
     transaction,
@@ -899,6 +900,16 @@ export function createAuthService({
         now,
       }));
     },
+    get lab() {
+      return (lab ??= createLabService({
+        db,
+        transaction,
+        guard,
+        authenticated,
+        now,
+        hostedLab: requestIntegration?.transport.lab,
+      }));
+    },
     get patients() {
       return (patients ??= createPatientService({
         db,
@@ -906,6 +917,7 @@ export function createAuthService({
         guard,
         authenticated,
         now,
+        hostedLab: requestIntegration?.transport.lab,
       }));
     },
     contacts,
@@ -929,10 +941,10 @@ export function createAuthService({
       return {
         available: Boolean(
           marker?.status === "issued" &&
-          validInstant(marker.expiresAt) &&
-          marker.expiresAt > now() &&
-          validCounter(marker.attempts) &&
-          marker.attempts < AUTH_POLICY.maxFailures,
+            validInstant(marker.expiresAt) &&
+            marker.expiresAt > now() &&
+            validCounter(marker.attempts) &&
+            marker.attempts < AUTH_POLICY.maxFailures,
         ),
       };
     },

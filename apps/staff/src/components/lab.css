@@ -1,0 +1,145 @@
+.lab-workspace > fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.lab-card {
+  border: 1px solid #cfdce4;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-block: 0.75rem;
+  background: white;
+}
+.lab-card label,
+.lab-workspace fieldset > label {
+  display: block;
+  margin-block: 0.5rem;
+}
+.lab-card button,
+.lab-workspace fieldset > button {
+  margin: 0.25rem;
+}
+.lab-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.lab-table {
+  overflow-x: auto;
+}
+.lab-table table {
+  border-collapse: collapse;
+}
+.lab-table :is(th, td) {
+  padding: 0.65rem;
+  border-bottom: 1px solid #dce7ef;
+  text-align: start;
+}
+.lab-table th {
+  background: #eef4f8;
+}
+.lab-table td:first-child button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+.lab-status {
+  display: inline-block;
+  background: #edf1f4;
+  padding: 0.25rem 0.65rem;
+  border-radius: 1rem;
+}
+.lab-status[data-status="Registered"] {
+  background: #e0effb;
+}
+.lab-status[data-status="Sample collected"] {
+  background: #dff3e7;
+}
+.lab-status[data-status="Ready to release"] {
+  color: #573b04;
+  background: #fff0bd;
+}
+.lab-status[data-status="Released"] {
+  color: #43226a;
+  background: #ede1fa;
+}
+.lab-status[data-status="Cancelled"] {
+  color: #831a25;
+  background: #f9e0e4;
+}
+.lab-result-test {
+  margin-block: 1rem;
+  border-bottom: 1px solid #dce7ef;
+  padding-bottom: 0.75rem;
+}
+.lab-card summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.lab-card input[type="checkbox"] {
+  accent-color: #216998;
+  width: 1.15rem;
+  height: 1.15rem;
+  vertical-align: middle;
+}
+.lab-timeline {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  list-style: none;
+  padding: 0;
+  gap: 0.5rem;
+}
+.lab-timeline li {
+  border-top: 3px solid #cfdce4;
+  padding-top: 0.5rem;
+}
+.lab-timeline .lab-current {
+  border-color: #087363;
+  font-weight: 700;
+}
+.lab-card table {
+  width: 100%;
+  text-align: start;
+}
+.lab-ordered-tests :is(th, td) {
+  text-align: center;
+}
+.staff-warning {
+  padding: 0.65rem;
+  color: #614300;
+  background: #fff2c4;
+  border-inline-start: 3px solid #b8860b;
+}
+.lab-workspace .staff-error,
+.staff-field-error {
+  color: #991b1b;
+  background: #fef2f2;
+  border-inline-start: 3px solid #b91c1c;
+}
+.staff-field-error {
+  display: block;
+  margin-block: 0.35rem;
+  padding: 0.4rem 0.6rem;
+}
+.lab-card textarea {
+  display: block;
+  width: min(100%, 36rem);
+}
+.lab-card input:not([type="checkbox"]),
+.lab-card textarea,
+.lab-workspace select {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.45rem;
+  border: 1px solid #a3b9c8;
+  border-radius: 0.35rem;
+  background: white;
+  color: inherit;
+  font: inherit;
+}
+.lab-card h2 {
+  overflow-wrap: anywhere;
+}

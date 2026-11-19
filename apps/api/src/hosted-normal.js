@@ -1,5 +1,7 @@
 import { MongoClient } from "mongodb";
 import { isIP } from "node:net";
+import { createHmac } from "node:crypto";
+import { createHostedLab } from "./hosted-lab.js";
 import {
   patientIngressHeader,
   readPatientIngress,
@@ -174,6 +176,12 @@ export function createHostedNormalApplication({
           sourceReader,
           publicOrigin: config.publicBase,
           deliver: patientAccountDelivery,
+          familyAccess: createHostedLab({
+            db,
+            key: createHmac("sha256", config.key)
+              .update("cedar-hosted-lab-v1")
+              .digest(),
+          }),
         });
       }
       return { db, receiver, intake, patientAccounts };

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import cedarLogo from "../../../shared/cedar-brand/cedar-logo.png";
 import {
   AssignedSetupForm,
   SignInForm,
@@ -440,9 +441,13 @@ export default function App({ api = desktopApi }) {
       </a>
       <header className="staff-header">
         <div className="staff-brand">
-          <span aria-hidden="true" className="staff-brand-mark">
-            +
-          </span>
+          <img
+            className="staff-brand-lockup"
+            src={cedarLogo}
+            alt="Cedar Medical Center · مركز سيدر الطبي"
+            width="620"
+            height="475"
+          />
           <span>
             Cedar Staff<small>STAFF FOUNDATION · SYNTHETIC DEVELOPMENT</small>
           </span>

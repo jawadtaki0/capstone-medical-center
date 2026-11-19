@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { launcherIcon } from "../../staff-api/scripts/launcher/icon.js";
 
-test("Cedar cross ICO provides transparent blue-and-white Windows sizes", () => {
+test("Cedar symbol ICO provides an RGBA PNG at each Windows icon size", () => {
   const icon = launcherIcon();
   const sizes = [16, 24, 32, 48, 64, 128, 256];
   assert.equal(icon.readUInt16LE(2), 1);
@@ -17,23 +17,13 @@ test("Cedar cross ICO provides transparent blue-and-white Windows sizes", () => 
     const length = icon.readUInt32LE(entry + 8);
     const offset = icon.readUInt32LE(entry + 12);
     assert.equal(offset, end);
-    assert.equal(icon.readInt32LE(offset + 4), size);
-    assert.equal(icon.readInt32LE(offset + 8), size * 2);
-    const pixel = (x, y) => [
-      ...icon.subarray(
-        offset + 40 + ((size - 1 - y) * size + x) * 4,
-        offset + 40 + ((size - 1 - y) * size + x) * 4 + 4,
-      ),
-    ];
-    assert.equal(pixel(0, 0)[3], 0);
-    assert.deepEqual(
-      pixel(Math.floor(size / 2), Math.floor(size / 2)),
-      [255, 255, 255, 255],
+    assert.equal(
+      icon.subarray(offset, offset + 8).toString("hex"),
+      "89504e470d0a1a0a",
     );
-    assert.deepEqual(
-      pixel(Math.floor(size / 4), Math.floor(size / 4)),
-      [158, 116, 0, 255],
-    );
+    assert.equal(icon.readUInt32BE(offset + 16), size);
+    assert.equal(icon.readUInt32BE(offset + 20), size);
+    assert.equal(icon[offset + 25], 6);
     end += length;
   }
   assert.equal(end, icon.length);
@@ -44,6 +34,10 @@ test("packaged local artwork matches shortcut artwork and is configured without 
     new URL("../assets/cedar-staff.ico", import.meta.url),
   );
   assert.deepEqual(icon, launcherIcon());
+  assert.deepEqual(
+    icon,
+    await readFile(new URL("../../web/public/favicon.ico", import.meta.url)),
+  );
   const config = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8"),
   );

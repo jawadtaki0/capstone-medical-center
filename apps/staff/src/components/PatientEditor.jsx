@@ -16,8 +16,11 @@ export default function PatientEditor({
   onClose,
   onSaved,
   onOpen,
+  onSelect,
+  selectionLabel,
   onError,
   registrationLabel = "Register patient",
+  duplicateCheckLabel = "Check duplicates",
 }) {
   const id = useId(),
     live = useRef(true),
@@ -231,11 +234,13 @@ export default function PatientEditor({
             </p>
             {!review.candidates.length && !review.hasMore ? (
               <p role="status">
-                No similar records found. The server checks again when you save.
+                No similar records found. Select{" "}
+                {patient.id ? "Save changes" : registrationLabel} to save the
+                patient.
               </p>
             ) : (
               <>
-                <p role="status">
+                <p className="staff-warning" role="status">
                   Compare these records before continuing. Phone matches are
                   supporting evidence only.
                 </p>
@@ -343,6 +348,16 @@ export default function PatientEditor({
           </div>
         ) : (
           <div className="staff-actions">
+            {onSelect && (
+              <button
+                type="button"
+                className="staff-button"
+                disabled={busy || dirty}
+                onClick={onSelect}
+              >
+                {selectionLabel} {patient.patientNumber}
+              </button>
+            )}
             <button
               type="submit"
               className="staff-button staff-button-primary"
@@ -354,7 +369,7 @@ export default function PatientEditor({
                   ? patient.id
                     ? "Save changes"
                     : registrationLabel
-                  : "Check duplicates"}
+                  : duplicateCheckLabel}
             </button>
             <button
               type="button"

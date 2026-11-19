@@ -104,6 +104,7 @@ export function createApp({
       websiteRequestRouter({
         ...websiteRequests,
         phoneVerification: patientAccounts?.phoneVerification,
+        labIntegration: patientAccounts?.labIntegration,
       }),
     );
   app.use(express.json({ limit: "100kb", inflate: false }));

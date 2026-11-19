@@ -246,6 +246,18 @@ export function createApp({
       service.summary.viewed(bearer(request), request.body),
     ),
   );
+  if (
+    demoMode &&
+    ((db?.databaseName === "capstone_staff_test" &&
+      process.env.CEDAR_LAB_REVIEW === "1") ||
+      (db?.databaseName === "capstone_staff_dev" &&
+        requestIntegration?.mode === "normal-hosted" &&
+        requestIntegration.transport.lab))
+  )
+    app.post(
+      "/lab",
+      route((service, request) => service.lab(bearer(request), request.body)),
+    );
   // Fixed, permission-checked staff operations; no generic collection browser.
   for (const action of ["search", "read", "check", "create", "update"]) {
     app.post(

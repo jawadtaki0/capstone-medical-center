@@ -259,23 +259,11 @@ p {
   flex-shrink: 0;
   line-height: 1;
 }
-.brand-mark {
-  display: grid;
-  place-items: center;
-  background: var(--blue);
-  color: white;
-  border-radius: 13px 13px 13px 3px;
-  width: 43px;
-  height: 47px;
-  font-size: 2.7rem;
-  font-weight: 350;
-}
-.brand-subtitle {
+.brand-lockup {
   display: block;
-  font-size: 0.52rem;
-  letter-spacing: 0.19em;
-  margin-top: 0.45rem;
-  font-weight: 600;
+  width: auto;
+  height: 60px;
+  object-fit: contain;
 }
 .main-nav {
   display: flex;
@@ -959,9 +947,8 @@ h1 {
   background: var(--deep-blue);
   color: white;
 }
-.site-footer .brand-mark {
-  background: #deeff9;
-  color: var(--deep-blue);
+.site-footer .brand-lockup {
+  border-radius: 5px;
 }
 .site-footer .text-button {
   color: #d3eeff;

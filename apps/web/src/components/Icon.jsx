@@ -1,3 +1,5 @@
+import cedarLogo from "../../../../shared/cedar-brand/cedar-logo.png";
+
 const paths = {
   arrow: "M5 12h14m-5-5 5 5-5 5",
   chevron: "m6 9 6 6 6-6",
@@ -31,13 +33,18 @@ export default function Icon({ name }) {
 }
 export function Brand() {
   return (
-    <a className="brand" href="/" aria-label="Cedar Medical Center home">
-      <span className="brand-mark" aria-hidden="true">
-        +
-      </span>
-      <span>
-        Cedar<span className="brand-subtitle">MEDICAL CENTER</span>
-      </span>
+    <a
+      className="brand"
+      href="/"
+      aria-label="Cedar Medical Center home · مركز سيدر الطبي"
+    >
+      <img
+        className="brand-lockup"
+        src={cedarLogo}
+        alt="Cedar Medical Center · مركز سيدر الطبي"
+        width="620"
+        height="475"
+      />
     </a>
   );
 }

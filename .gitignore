@@ -20,3 +20,4 @@ npm-debug.log*
 /apps/staff/release/
 /apps/staff/test-results/
 /apps/staff/playwright-report/
+/Lab PDFs/

@@ -25,6 +25,7 @@ export function AddProfiles({ account, language, t, onSaved, onCancel }) {
   const [errors, setErrors] = useState({});
   const [failure, setFailure] = useState("");
   const [busy, setBusy] = useState(false);
+  const [creationKey] = useState(() => crypto.randomUUID());
   const roles = choice === "both" ? ["self", "child"] : [choice];
   async function save(event) {
     event.preventDefault();
@@ -55,6 +56,7 @@ export function AddProfiles({ account, language, t, onSaved, onCancel }) {
     setBusy(true);
     try {
       const result = await accountRequest("add-profiles", {
+        ...(account.labResults ? { creationKey } : {}),
         profiles: roles.map((relationship) => ({
           relationship,
           patient: details[relationship],

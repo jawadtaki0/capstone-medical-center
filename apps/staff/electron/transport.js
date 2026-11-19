@@ -101,9 +101,11 @@ export function createBroker({
               ? hostedRefresh
                 ? 90000
                 : 20000
-              : path.startsWith("/contacts/")
-                ? 20000
-                : 5000,
+              : path === "/lab" && body?.action === "preview-report"
+                ? 30000
+                : path.startsWith("/contacts/")
+                  ? 20000
+                  : 5000,
         ),
       });
     } catch {
@@ -538,6 +540,7 @@ export function createBroker({
       };
     },
     bookingSessions: (payload) => call("/bookings/sessions", payload, true),
+    lab: (payload) => call("/lab", payload, true),
     queueTransition: (payload) => call("/queue/transition", payload, true),
     queueSessions: (payload) => call("/queue/sessions", payload, true),
     queueAdmit: (payload) => call("/queue/admit", payload, true),

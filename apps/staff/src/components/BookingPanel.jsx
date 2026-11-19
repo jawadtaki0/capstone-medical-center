@@ -278,7 +278,7 @@ export default function BookingPanel({
                   setReceipt(null);
                 }}
               >
-                {patient?.id === p.id ? "Selected" : "Select"} {p.patientNumber}
+                Open patient
               </button>
             </li>
           ))}

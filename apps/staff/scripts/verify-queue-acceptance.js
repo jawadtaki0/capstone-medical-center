@@ -101,12 +101,15 @@ try {
     await readLauncherConfig()
   ).runtimeDirectory;
   delete process.env.STAFF_SETUP_TEST_MEMORY;
-  const { createSecurityFixture } =
-    await import("../../staff-api/test/helpers/security-fixture.js");
-  const { seedPublicationAuthority } =
-    await import("../../staff-api/test/helpers/publication-authority.js");
-  const { createRequestTransport } =
-    await import("../../staff-api/src/request-integration.js");
+  const { createSecurityFixture } = await import(
+    "../../staff-api/test/helpers/security-fixture.js"
+  );
+  const { seedPublicationAuthority } = await import(
+    "../../staff-api/test/helpers/publication-authority.js"
+  );
+  const { createRequestTransport } = await import(
+    "../../staff-api/src/request-integration.js"
+  );
   const { beirutClock } = await import("../../staff-api/src/booking-model.js");
   const credential = randomBytes(32).toString("base64url");
   const config = {
@@ -207,12 +210,15 @@ try {
       }),
     ).patient;
   }
-  const { ensureIntakeIndexes, createPublicIntake } =
-    await import("../../api/src/website-requests.js");
-  const { createPublicationReceiver } =
-    await import("../../api/src/publication-receiver.js");
-  const { buildDelivery } =
-    await import("../../../shared/publication-contract.mjs");
+  const { ensureIntakeIndexes, createPublicIntake } = await import(
+    "../../api/src/website-requests.js"
+  );
+  const { createPublicationReceiver } = await import(
+    "../../api/src/publication-receiver.js"
+  );
+  const { buildDelivery } = await import(
+    "../../../shared/publication-contract.mjs"
+  );
   const { createApp } = await import("../../api/src/app.js");
   await ensureIntakeIndexes(fixture.db);
   const state = await fixture.db
@@ -499,6 +505,11 @@ try {
     await page
       .locator(".queue-admission")
       .getByRole("button", { name: "Search patients", exact: true })
+      .click();
+    await page
+      .locator(".patient-results > li")
+      .filter({ hasText: patients[label].patientNumber })
+      .getByRole("button", { name: "Open patient", exact: true })
       .click();
     await page
       .getByRole("button", {

@@ -62,6 +62,8 @@ export function phoneNumber(value, country = "LB") {
 }
 export const canonicalPhone = (value, country = "LB") =>
   phoneNumber(value, country)?.number ?? null;
+export const displayInternationalPhone = (value) =>
+  phoneNumber(value, "LB")?.formatInternational() ?? String(value ?? "");
 export function formattedPhoneInput(value, country = "LB") {
   if (typeof value !== "string" || !/^[+\d\s().-]*$/.test(value)) return value;
   return new AsYouType(country).input(value);

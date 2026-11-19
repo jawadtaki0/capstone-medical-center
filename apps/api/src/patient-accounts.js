@@ -78,20 +78,20 @@ function password(value, minimum = 1) {
   return value;
 }
 
-const dto = (row) => ({
+const accountDto = (row) => ({
   email: row.email,
   username: row.username ?? null,
   verifiedPhone: row.verifiedPersonalPhone ?? null,
   bookingPhone: row.verifiedWhatsAppPhone ?? null,
   pendingPhone: row.pendingPhone ?? null,
-  profiles: (row.profiles ?? []).map(
-    ({ id, firstName, lastName, relationship }) => ({
+  profiles: (row.profiles ?? [])
+    .filter((profile) => !profile.revokedAt)
+    .map(({ id, firstName, lastName, relationship }) => ({
       id,
       firstName,
       lastName,
       relationship,
-    }),
-  ),
+    })),
 });
 
 export async function ensurePatientAccountIndexes(db) {
@@ -137,6 +137,7 @@ export function patientAccountRouter({
   deliver,
   intake,
   phoneKey,
+  familyAccess,
   sourceReader = (req) => req.ip,
   clock = () => new Date(),
 }) {
@@ -151,6 +152,10 @@ export function patientAccountRouter({
       "A canonical HTTPS patient account origin is required outside loopback review.",
     );
   const cookieName = secure ? "__Host-cedar-patient" : "cedar-patient-review";
+  const dto = (row) => ({
+    ...accountDto(row),
+    ...(familyAccess ? { labResults: true } : {}),
+  });
   const cookie = { httpOnly: true, secure, sameSite: "lax", path: "/" };
   const router = express.Router();
   const accounts = db.collection("patient_accounts");
@@ -280,6 +285,7 @@ export function patientAccountRouter({
       ErrorType: AccountError,
     });
   router.phoneVerification = phoneVerification;
+  router.labIntegration = familyAccess?.staff;
   const phone = () => {
     if (!phoneVerification) throw new AccountError("try_later", 503);
     return phoneVerification;
@@ -307,6 +313,42 @@ export function patientAccountRouter({
         throw new AccountError("invalid_input");
       res.json(await handler(body, req, res));
     });
+  }
+
+  if (familyAccess) {
+    post("/family-profiles", async (body, req) => {
+      exact(body, []);
+      const { row } = await current(req);
+      return { profiles: await familyAccess.profiles(row) };
+    });
+    post("/lab-reports", async (body, req) => {
+      exact(body, ["patientId"]);
+      const { row } = await current(req);
+      return { reports: await familyAccess.list(row, body.patientId) };
+    });
+    const download = async (req, res, { patientId, reportId }) => {
+      const { row } = await current(req);
+      await budget(["lab-download", row._id], 60, 15 * 60_000);
+      const { bytes, filename } = await familyAccess.download(
+        row,
+        patientId,
+        reportId,
+      );
+      if ((await current(req)).row.revision !== row.revision)
+        throw new AccountError("profile_unavailable", 404);
+      res.set("Cache-Control", "private, no-store");
+      res.set("X-Content-Type-Options", "nosniff");
+      res.attachment(filename).type("application/pdf").send(bytes);
+    };
+    router.post("/lab-report", async (req, res) => {
+      await budget(["source", sourceReader(req)], 60, 15 * 60_000);
+      exact(req.body, ["patientId", "reportId"]);
+      await download(req, res, req.body);
+    });
+    if (!secure)
+      router.get("/lab-report/:patientId/:reportId", async (req, res) => {
+        await download(req, res, req.params);
+      });
   }
 
   post("/phone-request", async (body, req) => {
@@ -355,14 +397,33 @@ export function patientAccountRouter({
   });
 
   function ownedProfile(row, id) {
-    const profile = (row.profiles ?? []).find((item) => item.id === id);
+    const profile = (row.profiles ?? []).find(
+      (item) => item.id === id && !item.revokedAt,
+    );
     if (!profile) throw new AccountError("profile_unavailable", 404);
     return profile;
   }
 
   post("/add-profiles", async (body, req) => {
     const { row, guard } = await current(req);
-    exact(body, ["profiles"]);
+    exact(
+      body,
+      ["profiles", ...(familyAccess ? ["creationKey"] : [])],
+      ["profiles"],
+    );
+    const creationKey = body.creationKey;
+    if (
+      familyAccess &&
+      creationKey !== undefined &&
+      (typeof creationKey !== "string" || !/^[a-f0-9-]{36}$/i.test(creationKey))
+    )
+      throw new AccountError("invalid_patient");
+    if (
+      familyAccess &&
+      creationKey !== undefined &&
+      row.profiles?.some((profile) => profile.creationKey === creationKey)
+    )
+      return { account: dto(row) };
     const inputs = body.profiles;
     if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > 2)
       throw new AccountError("invalid_patient");
@@ -388,12 +449,31 @@ export function patientAccountRouter({
         !childBirthDateAllowed(record.dateOfBirth, today)
       )
         throw new AccountError("invalid_child_birth_date");
-      return { ...record, id: randomUUID(), relationship };
+      return {
+        ...record,
+        id: randomUUID(),
+        relationship,
+        ...(familyAccess && creationKey !== undefined ? { creationKey } : {}),
+      };
     });
-    await change(guard, {
+    const update = {
       $push: { profiles: { $each: profiles } },
       $inc: { revision: 1 },
-    });
+    };
+    if (familyAccess) {
+      const session = client.startSession();
+      try {
+        await session.withTransaction(async () => {
+          if (
+            !(await accounts.updateOne(guard, update, { session })).matchedCount
+          )
+            throw new AccountError("try_again", 409);
+          await familyAccess.sync(row._id, profiles, clock(), session);
+        });
+      } finally {
+        await session.endSession();
+      }
+    } else await change(guard, update);
     return {
       account: dto({
         ...row,
@@ -499,6 +579,10 @@ export function patientAccountRouter({
           { session },
         );
         if (!signup) throw new AccountError("invalid_link");
+        const accountId = randomUUID();
+        const profiles = signup.profile
+          ? [{ ...signup.profile, id: randomUUID() }]
+          : [];
         await accounts.insertOne(
           {
             email: signup.email,
@@ -506,10 +590,8 @@ export function patientAccountRouter({
             ...(signup.pendingPhone
               ? { pendingPhone: signup.pendingPhone }
               : {}),
-            ...(signup.profile
-              ? { profiles: [{ ...signup.profile, id: randomUUID() }] }
-              : {}),
-            _id: randomUUID(),
+            ...(profiles.length ? { profiles } : {}),
+            _id: accountId,
             passwordHash,
             revision: 0,
             emailVerifiedAt: clock(),
@@ -517,6 +599,8 @@ export function patientAccountRouter({
           },
           { session },
         );
+        if (familyAccess)
+          await familyAccess.sync(accountId, profiles, clock(), session);
         await signups.deleteMany({ email: signup.email }, { session });
       });
     } catch (error) {
@@ -679,6 +763,7 @@ export function patientAccountRouter({
       await session.withTransaction(async () => {
         const result = await accounts.deleteOne(guard, { session });
         if (!result.deletedCount) throw new AccountError("try_again", 409);
+        await familyAccess?.pruneProfiles?.(row._id, session);
         await signups.deleteMany({ email: row.email }, { session });
       });
     } finally {
@@ -689,6 +774,10 @@ export function patientAccountRouter({
   });
 
   router.use((error, _req, res, _next) => {
+    if (error.code === "family_access")
+      return res
+        .status(error.status)
+        .json({ error: error.code, message: error.message });
     if (error instanceof RequestError)
       return res
         .status(error.status)

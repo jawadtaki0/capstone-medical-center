@@ -22,6 +22,7 @@ export default function PhoneInput({
   error = "",
   className = "",
   validateOnBlur = true,
+  required = true,
 }) {
   const id = useId();
   const [initial] = useState(() => phoneNumber(defaultValue, "LB"));
@@ -29,7 +30,9 @@ export default function PhoneInput({
     [value, setValue] = useState(initial?.formatNational() ?? defaultValue),
     [touched, setTouched] = useState(false);
   const canonical = canonicalPhone(value, country),
-    invalid = Boolean(error) || (touched && !canonical);
+    invalid =
+      Boolean(error) ||
+      (touched && !canonical && (required || Boolean(value.trim())));
   function changed(input) {
     const raw = input.value;
     const parsed = phoneNumber(raw, country);
@@ -44,7 +47,9 @@ export default function PhoneInput({
         ? parsed.formatNational()
         : formattedPhoneInput(raw, nextCountry),
     );
-    input.setCustomValidity(parsed ? "" : PHONE_INPUT_MESSAGE);
+    input.setCustomValidity(
+      parsed || (!required && !raw.trim()) ? "" : PHONE_INPUT_MESSAGE,
+    );
     setTouched(true);
     onValueChange?.(canonicalPhone(raw, nextCountry) ?? "");
   }
@@ -91,7 +96,7 @@ export default function PhoneInput({
               event.currentTarget.setCustomValidity(PHONE_INPUT_MESSAGE);
               setTouched(true);
             }}
-            required
+            required={required}
             disabled={disabled}
             autoComplete="off"
             maxLength={80}
