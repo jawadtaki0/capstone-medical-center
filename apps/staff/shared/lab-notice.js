@@ -1,4 +1,4 @@
-const signIn = "https://cedar-cmc.vercel.app/account";
+const signIn = "https://cmc-cedar.site/account";
 
 export function labNotice(order) {
   const entry = order.history.findLastIndex(

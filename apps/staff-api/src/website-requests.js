@@ -1636,7 +1636,11 @@ export function createWebsiteRequestService({
               r.tokenEnvelope,
               `${r._id}:${r.generation}`,
             ).token;
-            trackingLink = `${config.publicBase}/track#${raw}`;
+            const origin =
+              config.mode === "normal-hosted"
+                ? "https://cmc-cedar.site"
+                : config.publicBase;
+            trackingLink = `${origin}/track#${raw}`;
           }
           const message = websiteNoticeText(
             {

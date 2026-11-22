@@ -134,6 +134,7 @@ export function patientAccountRouter({
   db,
   client,
   publicOrigin,
+  linkOrigin = publicOrigin,
   deliver,
   intake,
   phoneKey,
@@ -238,7 +239,7 @@ export function patientAccountRouter({
   }
 
   function send(to, purpose, token, language) {
-    const link = new URL("/account", publicOrigin);
+    const link = new URL("/account", linkOrigin);
     if (language === "ar") link.searchParams.set("lang", "ar");
     link.hash = new URLSearchParams({ action: purpose, token }).toString();
     return deliver({
@@ -280,7 +281,7 @@ export function patientAccountRouter({
       accounts,
       key: phoneKey,
       clock,
-      publicOrigin,
+      publicOrigin: linkOrigin,
       change,
       ErrorType: AccountError,
     });

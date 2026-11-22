@@ -175,6 +175,7 @@ export function createHostedNormalApplication({
           phoneKey,
           sourceReader,
           publicOrigin: config.publicBase,
+          linkOrigin: "https://cmc-cedar.site",
           deliver: patientAccountDelivery,
           familyAccess: createHostedLab({
             db,
@@ -189,6 +190,7 @@ export function createHostedNormalApplication({
   });
   return createHostedApp({
     config,
+    clientOrigin: [config.publicBase, "https://cmc-cedar.site"],
     runtime,
     sourceReader,
     accountsEnabled,
