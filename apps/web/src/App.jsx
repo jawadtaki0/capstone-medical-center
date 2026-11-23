@@ -33,10 +33,10 @@ export default function App() {
     let current = true;
     accountRequest("session").then(
       (result) => {
-        if (current) setAccount(result.account);
+        if (current) setAccount((value) => value === undefined ? result.account : value);
       },
       () => {
-        if (current) setAccount(null);
+        if (current) setAccount((value) => value === undefined ? null : value);
       },
     );
     return () => {

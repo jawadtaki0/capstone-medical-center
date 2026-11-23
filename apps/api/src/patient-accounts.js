@@ -573,8 +573,10 @@ export function patientAccountRouter({
       throw new AccountError("invalid_username");
     const passwordHash = await hash(password(body.password, 12));
     const session = client.startSession();
+    let stage = "claim";
     try {
       await session.withTransaction(async () => {
+        stage = "claim";
         const signup = await signups.findOneAndDelete(
           { _id: key, expiresAt: { $gt: clock() } },
           { session },
@@ -584,6 +586,7 @@ export function patientAccountRouter({
         const profiles = signup.profile
           ? [{ ...signup.profile, id: randomUUID() }]
           : [];
+        stage = "account";
         await accounts.insertOne(
           {
             email: signup.email,
@@ -600,13 +603,24 @@ export function patientAccountRouter({
           },
           { session },
         );
+        stage = "profile_sync";
         if (familyAccess)
           await familyAccess.sync(accountId, profiles, clock(), session);
+        stage = "cleanup";
         await signups.deleteMany({ email: signup.email }, { session });
+        stage = "commit";
       });
     } catch (error) {
       if (error.code === 11000 && error.keyPattern?.username)
         throw new AccountError("username_taken", 409);
+      if (!(error instanceof AccountError)) {
+        console.warn("patient_account_activation_transaction_failed", {
+          stage,
+          code: Number.isSafeInteger(error.code) ? error.code : null,
+          commitUncertain:
+            error.hasErrorLabel?.("UnknownTransactionCommitResult") === true,
+        });
+      }
       throw error;
     } finally {
       await session.endSession();
