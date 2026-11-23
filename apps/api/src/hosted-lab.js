@@ -28,30 +28,28 @@ export function createHostedLab({ db, key }) {
 
   return {
     async sync(accountId, saved, _at, session) {
-      if (!saved.length) return;
-      await profiles.bulkWrite(
-        saved.map((profile) => ({
-          updateOne: {
-            filter: { _id: profile.id, accountId },
-            update: {
-              $setOnInsert: {
-                accountId,
-                patient: Object.fromEntries(
-                  PATIENT_FIELDS.map((field) => [field, profile[field]]),
-                ),
-                keys: Object.fromEntries(
-                  PATIENT_FIELDS.slice(0, 4).map((field) => [
-                    field,
-                    nameKey(profile[field]),
-                  ]),
-                ),
-              },
+      // A collection bulk write re-applies the client timeout inside the
+      // hosted transaction. Individual upserts use the transaction deadline.
+      for (const profile of saved) {
+        await profiles.updateOne(
+          { _id: profile.id, accountId },
+          {
+            $setOnInsert: {
+              accountId,
+              patient: Object.fromEntries(
+                PATIENT_FIELDS.map((field) => [field, profile[field]]),
+              ),
+              keys: Object.fromEntries(
+                PATIENT_FIELDS.slice(0, 4).map((field) => [
+                  field,
+                  nameKey(profile[field]),
+                ]),
+              ),
             },
-            upsert: true,
           },
-        })),
-        { session },
-      );
+          { upsert: true, session },
+        );
+      }
     },
     async pruneProfiles(accountId, session) {
       await profiles.deleteMany({ accountId }, { session });
