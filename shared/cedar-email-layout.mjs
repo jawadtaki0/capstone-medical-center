@@ -38,6 +38,13 @@ export function cedarEmailLayout({
           </tr>
           <tr>
             <td style="padding: 28px 24px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding-bottom: 18px;">
+                    <img src="https://cmc-cedar.site/cedar-email-logo-v1.png" width="112" height="86" alt="${language === "ar" ? "مركز سيدر الطبي" : "Cedar Medical Center"}" style="display: block; width: 112px; height: 86px; border: 0;">
+                  </td>
+                </tr>
+              </table>
               <h1 style="margin: 0 0 18px; color: #163c55; font-size: 24px; font-weight: 700; line-height: 1.35;">${escapeHtml(heading)}</h1>
               ${body}
             </td>
