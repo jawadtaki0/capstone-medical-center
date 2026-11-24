@@ -112,6 +112,7 @@ export function createHostedNormalApplication({
   sourceReader,
   makeClient,
   patientAccountDelivery,
+  labReportDelivery,
   phoneKey,
 } = {}) {
   validateHostedNormalConfig(config);
@@ -179,6 +180,8 @@ export function createHostedNormalApplication({
           deliver: patientAccountDelivery,
           familyAccess: createHostedLab({
             db,
+            deliverReportNotice: labReportDelivery,
+            signInUrl: new URL("/account", config.publicBase).href,
             key: createHmac("sha256", config.key)
               .update("cedar-hosted-lab-v1")
               .digest(),

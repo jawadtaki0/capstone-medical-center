@@ -11,7 +11,7 @@ const unavailable = () =>
     status: 404,
   });
 
-export function createHostedLab({ db, key }) {
+export function createHostedLab({ db, key, deliverReportNotice, signInUrl }) {
   const crypto = requestCrypto(key);
   const accounts = db.collection("patient_accounts");
   const reports = db.collection("hosted_lab_reports");
@@ -25,6 +25,46 @@ export function createHostedLab({ db, key }) {
     account?.emailVerifiedAt &&
     account.verifiedWhatsAppPhone &&
     active(account, profileId);
+
+  async function notify(reportId, retry = false) {
+    const filter = { _id: reportId, state: "released" };
+    const report = await reports.findOneAndUpdate(
+      { ...filter, emailStatus: retry ? "failed" : "pending" },
+      { $set: { emailStatus: "sending", emailStartedAt: new Date() } },
+      { returnDocument: "after", writeConcern: { w: "majority" } },
+    );
+    if (!report) {
+      const current = await reports.findOne(filter);
+      if (!current) return null;
+      if (current.emailStatus === "sending" &&
+          Date.now() - current.emailStartedAt > 30_000)
+        return "unconfirmed";
+      return current.emailStatus ?? "skipped";
+    }
+
+    const account = await accounts.findOne({ _id: report.accountId });
+    let emailStatus = "skipped";
+    if (authorized(account, report.profileId) && account.email) {
+      if (!deliverReportNotice) emailStatus = "failed";
+      else if (await reports.findOne(filter, { projection: { _id: 1 } })) {
+        try {
+          await deliverReportNotice({ to: account.email, link: signInUrl });
+          emailStatus = "sent";
+        } catch (error) {
+          // SES supplies no idempotency key. Retry explicit rejection only;
+          // a timeout or lost response might already have delivered the email.
+          emailStatus = /^http_4\d\d$/.test(error?.deliveryReason) &&
+            error.deliveryReason !== "http_408" ? "failed" : "unconfirmed";
+        }
+      }
+    }
+    const result = await reports.updateOne(
+      { ...filter, emailStatus: "sending" },
+      { $set: { emailStatus }, $unset: { emailStartedAt: "" } },
+      { writeConcern: { w: "majority" } },
+    );
+    return result.matchedCount ? emailStatus : null;
+  }
 
   return {
     async sync(accountId, saved, _at, session) {
@@ -96,6 +136,13 @@ export function createHostedLab({ db, key }) {
       return { bytes, filename: report.filename };
     },
     async staff(input) {
+      if (input?.action === "retry-release-email") {
+        exact(input, ["action", "reportId"]);
+        if (!id.test(input.reportId ?? "")) throw unavailable();
+        const emailStatus = await notify(input.reportId, true);
+        if (!emailStatus) throw unavailable();
+        return { released: true, emailStatus };
+      }
       if (input?.action === "contact") {
         exact(input, ["action", "accountId", "profileId"]);
         if (
@@ -216,6 +263,7 @@ export function createHostedLab({ db, key }) {
         corrected,
         digest: input.digest,
         state: "released",
+        emailStatus: "pending",
       };
       record.sealed = crypto.seal(pdf, context(record));
       await reports.updateOne(
@@ -226,7 +274,8 @@ export function createHostedLab({ db, key }) {
       const stored = await reports.findOne({ _id: reportId });
       if (stored?.state === "withdrawn") return { withdrawn: true };
       if (!stored || context(stored) !== context(record)) throw unavailable();
-      return { released: true };
+      const emailStatus = await notify(reportId);
+      return emailStatus ? { released: true, emailStatus } : { withdrawn: true };
     },
   };
 }

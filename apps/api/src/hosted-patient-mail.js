@@ -94,9 +94,7 @@ export function loadHostedPatientAccounts(
       credentials: { accessKeyId, secretAccessKey },
       maxAttempts: 1,
     });
-    return {
-      phoneKey,
-      patientAccountDelivery: async ({ to, purpose, link, language }) => {
+    const patientAccountDelivery = async ({ to, purpose, link, language }) => {
         if (!address.test(to)) throw Error("Patient mail input unavailable.");
         const { subject, text, html } = patientLinkEmail({
           purpose,
@@ -157,7 +155,12 @@ export function loadHostedPatientAccounts(
         }
         trace("patient_mail_ses_accepted", { messageId: result.MessageId });
         return { mailTraceId };
-      },
+    };
+    return {
+      phoneKey,
+      patientAccountDelivery,
+      labReportDelivery: (draft) =>
+        patientAccountDelivery({ ...draft, purpose: "lab-report-ready" }),
     };
   }
   if (

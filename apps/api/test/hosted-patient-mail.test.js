@@ -65,6 +65,22 @@ test("SES sends one localized account message to the requested address", async (
   );
 });
 
+test("Lab ready uses the Cedar SES envelope and a plain sign-in URL", async () => {
+  const { labReportDelivery } = loadHostedPatientAccounts(sesEnv, () => ({
+    async send({ input }) {
+      assert.equal(input.FromEmailAddress, "Cedar Medical Center <accounts@cmc-cedar.site>");
+      assert.deepEqual(input.ReplyToAddresses, ["contact@cmc-cedar.site"]);
+      assert.deepEqual(input.Destination.ToAddresses, [draft.to]);
+      assert.equal(input.Content.Simple.Subject.Data, "Your report is ready");
+      assert.match(input.Content.Simple.Body.Text.Data, /Sign in to Cedar: https:\/\/example\.invalid\/account/);
+      assert.doesNotMatch(input.Content.Simple.Body.Text.Data, /expires|LAB-/);
+      assert.equal(input.Content.Simple.Attachments, undefined);
+      return { MessageId: "fictional" };
+    },
+  }));
+  await labReportDelivery({ to: draft.to, link: draft.link });
+});
+
 test("SES fails closed without credentials and hides provider error details", async () => {
   assert.throws(
     () =>
