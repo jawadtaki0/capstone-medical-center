@@ -123,3 +123,47 @@ test("mail delivery separates OAuth refusal, timeout and Gmail refusal", async (
     deliveryReason: "http_403",
   });
 });
+
+
+test("SES trace correlates acceptance to the action without logging sensitive fields", async (t) => {
+  const events = t.mock.method(console, "info", () => {});
+  const input = {
+    ...draft, purpose: "verify-email",
+    link: "https://cmc-cedar.site/account#token=private-fictional",
+  };
+  const messageId = "fictional-ses-42";
+  let command;
+  const { patientAccountDelivery } = loadHostedPatientAccounts(sesEnv, () => ({
+    async send(request) {
+      command = request.input;
+      return { MessageId: messageId };
+    },
+  }));
+  const { mailTraceId } = await patientAccountDelivery(input);
+  assert.match(mailTraceId, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(command.EmailTags, [
+    { Name: "cedar-purpose", Value: "verify-email" },
+    { Name: "cedar-trace", Value: mailTraceId },
+  ]);
+  assert.deepEqual(events.mock.calls.map(({arguments:[line]}) => JSON.parse(line)), [
+    {event:"patient_mail_ses_attempt", mailTraceId, purpose:"verify-email"},
+    {event:"patient_mail_ses_accepted", mailTraceId, purpose:"verify-email", messageId},
+  ]);
+  const blocked = loadHostedPatientAccounts(sesEnv, () => ({
+    async send() {
+      throw Object.assign(new Error(input.link), {
+        deliveryStage: "private",
+        deliveryReason: input.to,
+        $metadata: { httpStatusCode: 403 },
+      });
+    },
+  })).patientAccountDelivery;
+  await assert.rejects(blocked(input), {deliveryReason:"http_403"});
+  const rejected = JSON.parse(events.mock.calls.at(-1).arguments[0]);
+  assert.equal(rejected.event, "patient_mail_ses_unconfirmed");
+  assert.equal(rejected.reason, "http_403");
+  const log = JSON.stringify(events.mock.calls.map(call => call.arguments));
+  assert.ok(!log.includes(input.link));
+  assert.ok(!log.includes(input.to));
+  assert.ok(!log.includes(sesEnv.CEDAR_PATIENT_SES_SECRET_ACCESS_KEY));
+});

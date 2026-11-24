@@ -735,8 +735,11 @@ export function patientAccountRouter({
     await budget(["replacement-mail", to], 5, 60 * 60_000);
     const { token, record } = challenge();
     await change(guard, { $set: { replacement: { ...record, email: to } } });
-    await send(to, "verify-email", token, body.language);
-    return { ok: true };
+    const delivery = await send(to, "verify-email", token, body.language);
+    return {
+      ok: true,
+      ...(delivery?.mailTraceId && { mailTraceId: delivery.mailTraceId }),
+    };
   });
 
   post("/verify-email", async (body) => {
