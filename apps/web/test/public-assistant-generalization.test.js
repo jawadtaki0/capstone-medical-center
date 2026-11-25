@@ -78,6 +78,134 @@ test("protected disclosures outrank schedules and do not use the provider", asyn
   assert.deepEqual(provider, []);
 });
 
+test("service hours use the referenced Clinic day without keeping Clinic filters", async () => {
+  const { ask, provider } = fixture();
+  const clinic = await ask("Any heart specialist windows on Thursday?");
+  assert.equal(clinic.cards[0].date, tomorrow);
+  for (const [question, language, page, closingTime] of [
+    [
+      "إيمتى بيسكّر المختبر بنفس التاريخ؟",
+      "ar",
+      "/services/laboratory",
+      "14:00",
+    ],
+    [
+      "Emta byesakker el sama3 bnafs el yom?",
+      "en",
+      "/services/audiometry",
+      "14:30",
+    ],
+    [
+      "What are the Clinic hours on that same date?",
+      "en",
+      "/schedule",
+      "17:00",
+    ],
+  ]) {
+    const hours = await ask(question, language, clinic.searchContext);
+    assert.equal(hours.kind, "library");
+    assert.equal(hours.page, page);
+    assert.match(hours.text, new RegExp(tomorrow));
+    assert.doesNotMatch(hours.text, new RegExp(today));
+    assert.match(hours.text, new RegExp(closingTime));
+    assert.equal(hours.cards, undefined);
+    assert.equal(hours.searchContext, null);
+  }
+  const undated = await ask("Any available cardiology sessions?");
+  assert.equal(undated.kind, "sessions");
+  for (const context of [undefined, undated.searchContext]) {
+    const ambiguous = await ask(
+      "What are the Lab hours that same day?",
+      "en",
+      context,
+    );
+    assert.equal(ambiguous.kind, "clarify");
+    assert.equal(ambiguous.text, "Which date do you mean?");
+    assert.equal(ambiguous.cards, undefined);
+  }
+  assert.deepEqual(provider, ["called"]); // Undated Clinic search tries interpretation before local fallback.
+});
+
+test("public booking and fee replies stay separate from personal advice", async () => {
+  const { ask, provider } = fixture();
+  for (const [message, language, pattern] of [
+    [
+      "Does this site let me book an appointment for a hearing assessment?",
+      "en",
+      /booking is not offered.*reception/i,
+    ],
+    [
+      "Fik e7jez fa7s sama3 online?",
+      "en",
+      /booking is not offered.*reception/i,
+    ],
+    ["فيني احجز قياس السمع عالموقع؟", "ar", /غير متاح.*الاستقبال/],
+  ]) {
+    const answer = await ask(message, language);
+    assert.equal(answer.kind, "library");
+    assert.match(answer.text, pattern);
+    assert.equal(answer.cards, undefined);
+  }
+  const fee = await ask(
+    "What payment is required for a serum test for vitamin B12?",
+  );
+  assert.equal(fee.kind, "reception");
+  assert.match(fee.text, /not published.*Reception/);
+  assert.equal(fee.cards, undefined);
+  const advice = await ask(
+    "What is the Lab fee, and should I start taking vitamin D daily?",
+  );
+  assert.equal(advice.kind, "clinical");
+  assert.equal(advice.text, rulesCopy.en.clinical);
+  assert.equal(advice.cards, undefined);
+  assert.deepEqual(provider, []);
+});
+
+test("named specimen requests use published preparation, with a local handoff when details are unknown", async () => {
+  const { ask, provider } = fixture();
+  for (const [message, language] of [
+    ["Is a special jar needed when collecting for urine analysis?", "en"],
+    ["شو نوع الوعاء المطلوب وقت جمع العيّنة لتحليل البول؟", "ar"],
+    ["Badi a3ref ayya 3elbe la urine analysis.", "en"],
+  ]) {
+    const answer = await ask(message, language);
+    assert.equal(answer.kind, "labs");
+    assert.match(answer.text, /collection method and container/);
+    assert.match(answer.text, /Reception|الاستقبال/);
+    assert.equal(answer.cards, undefined);
+  }
+  const unknown = await ask(
+    "Is any sample container okay for a stool specimen?",
+  );
+  assert.equal(unknown.kind, "reception");
+  assert.match(unknown.text, /Contact Reception before collecting/);
+  assert.equal(unknown.cards, undefined);
+  assert.deepEqual(provider, []);
+});
+
+test("conversational drafting requests bypass the provider while Cedar requests stay local", async () => {
+  const { ask, provider } = fixture();
+  for (const [message, language, pattern] of [
+    ["ممكن تجهّزلي بطاقة شكر لأستاذي؟", "ar", /يمكنني مساعدتك في عيادات سيدر/],
+    ["Fik tektob shi lal 3ayle?", "en", /I can help with Cedar’s clinics/],
+    [
+      "Could you draft an invitation for my cousin?",
+      "en",
+      /I can help with Cedar’s clinics/,
+    ],
+  ]) {
+    const answer = await ask(message, language);
+    assert.equal(answer.kind, "unrelated");
+    assert.match(answer.text, pattern);
+    assert.equal(answer.cards, undefined);
+  }
+  const hours = await ask("ممكن تخبرني شو دوام المختبر بكرا؟", "ar");
+  assert.equal(hours.kind, "library");
+  assert.match(hours.text, new RegExp(tomorrow));
+  assert.equal(hours.cards, undefined);
+  assert.deepEqual(provider, []);
+});
+
 test("example quotations, symptom negation and general questions are not emergency disclosures", () => {
   for (const message of [
     "For example, the character said “I’m gasping for air.”",

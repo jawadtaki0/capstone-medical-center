@@ -244,7 +244,7 @@ const scheduleText = (value) =>
       .replace(/\bfryday\b/g, "friday")
       .replace(/\bgynecolgy\b/g, "gynecology")
       .replace(/\bwindw\b/g, "window")
-      .replace(/\b(?:nhar l )?ahad\b/g, "sunday")
+      .replace(/\b(?:nhar l )?(?:a7ad|ahad)\b/g, "sunday")
       .replace(/\btuesdy\b/g, "tuesday")
       .replace(/\burolojy\b/g, "urology")
       .replace(/(?:الثلاثا(?![ء\p{L}])|التلات[اه](?!\p{L}))/gu, "الثلاثاء")
@@ -411,13 +411,13 @@ export const availabilityQuestion = (value) => {
         message,
       )) &&
     (Object.keys(scheduleTime(message)).length > 0 ||
-      /\b(?:available|availability|listed|on (?:the|.{0,20}published) schedule|open|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|when|can i see|could i see|find|show|are there|any|next|book)\b|اليوم|بكرا|غد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمع[هة]|السبت|الاحد|متى|هل يوجد|في مواعيد|متاح|f[iy]|bukra|bokra|emta|\d{4}-\d{2}-\d{2}/iu.test(
+      /\b(?:available|availability|listed|on (?:the|.{0,20}published) schedule|open|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|when|can i see|could i see|find|show|are there|any|next|book)\b|اليوم|بكرا|غد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمع[هة]|السبت|الاحد|متى|هل يوجد|في مواعيد|متاح|f[iy]|bukra|boukra|bokra|lyom|emta|\d{4}-\d{2}-\d{2}/iu.test(
         message,
       ))
   );
 };
 export const refinementQuestion = (value) =>
-  /^(?:(?:actually|instead|and|what about|how about|could i go|can i come|anything)[,\s]+)?(?:only|after|before|any later|(?:in the )?(?:afternoon|morning)|tomorrow|today|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|later|earlier|بس|فقط|بعد|قبل|الصبح|بكرا|غدا|هل يوجد وقت|وقتا|ba3d|bas|bokra|bukra)/iu.test(
+  /^(?:(?:actually|instead|and|what about|how about|could i go|can i come|anything)[,\s]+)?(?:only|after|before|any later|(?:in the )?(?:afternoon|morning)|tomorrow|today|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|later|earlier|بس|فقط|بعد|قبل|الصبح|بكرا|غدا|هل يوجد وقت|وقتا|ba3d|bas|bokra|bukra|boukra|lyom)/iu.test(
     scheduleText(value),
   );
 export const specialtyCorrection = (value) =>
@@ -425,11 +425,19 @@ export const specialtyCorrection = (value) =>
     scheduleText(value),
   );
 export const genericArabiziAvailability = (value) =>
-  /^(?:(?:f[iy]|doctor|doktor|daktor|bokra|bukra|emta|maw3ad|pls)\b\s*)+[?.!؟]*$/u.test(
+  /^(?:(?:f[iy]|doctor|doktor|daktor|bokra|bukra|boukra|lyom|emta|maw3ad|pls)\b\s*)+[?.!؟]*$/u.test(
     scheduleText(value),
   );
+const sameDayWords =
+  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar))\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})/gu;
+
+export function sameDayReference(value) {
+  const text = canon(value);
+  return text.replace(sameDayWords, "") !== text;
+}
+
 export function resolveDay(value, date) {
-  const text = scheduleText(value);
+  const text = scheduleText(canon(value).replace(sameDayWords, ""));
   const weekdays = [
     /sunday|الاحد/,
     /monday|الاثنين/,
@@ -508,13 +516,17 @@ export function resolveDay(value, date) {
       return { day: null, specified: true };
     return { day: candidate.toISOString().slice(0, 10), specified: true };
   }
-  if (/\btoday\b|اليوم|lyom/.test(text.replace(/نفس اليوم/gu, "")))
-    return { day: date, specified: true };
-  if (
-    /\btomorrow\b|بكرا|(?<!\p{L})غدا?(?!\p{L})|\b(?:bokra|bukra)\b/u.test(text)
-  )
-    day.setUTCDate(day.getUTCDate() + 1);
-  else {
+  const today = /\b(?:today|l(?:yom|youm)|el ?yom)\b|اليوم|هاليوم/u.test(text);
+  const tomorrow =
+    /\btomorrow\b|بكر[اه]|(?<!\p{L})غدا?(?!\p{L})|\b(?:bokra|bukra|boukra)\b/u.test(
+      text,
+    );
+  if (today && tomorrow) return { day: null, specified: true };
+  if (today || tomorrow) {
+    day.setUTCDate(day.getUTCDate() + Number(tomorrow));
+    if (namedWeekday >= 0 && day.getUTCDay() !== namedWeekday)
+      return { day: null, specified: true };
+  } else {
     const which = weekdays.findIndex((pattern) => pattern.test(text));
     if (which < 0)
       return {

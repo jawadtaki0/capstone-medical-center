@@ -329,10 +329,20 @@ export function unrelatedConcept(value) {
       "event",
     )
     .trim();
+  const request = text.replace(
+    /^(?:(?:انا\s+)?(?:بدي|اريد|حابب|حابه)\s+(?:منك\s+|ان\s+)?|(?:ممكن|فيك|فيني|لو سمحت)\s+|(?:badde|baddi|bade|fik|fiki|momken|law sama7t)\s+(?:menn(?:ak|ik)\s+)?)+/u,
+    "",
+  );
   const hasDomain =
     cedarDomain.test(text) || /\breception\b|الاستقبال/u.test(text);
   if (hasDomain) return false;
-  return offTopic.test(text) || contentTask.test(text);
+  return (
+    offTopic.test(text) ||
+    contentTask.test(request) ||
+    /^(?:تكتب|تعمل|تالف|تجهز|تصيغ|تترجم)|^(?:tekteb|tektob|tiktob|tiktib|kteb|ekteb|ta3mel|t3mel|t2allif|tarjem)/u.test(
+      request,
+    )
+  );
 }
 
 // Advice about medicines, doses or the meaning of a personal result.
@@ -340,6 +350,12 @@ export function clinicalConcept(value) {
   const text = canon(value);
   const medicine =
     /\b(?:medicines?|medications?|meds|drugs?|pills?|tablets?|antibiotics?|supplements?|vitamins?|doses?|dosage|painkillers?|treat(?:ment)?|cure)\b|(?<!\p{L})(?:هال|ال)?دوا(?:ء)?(?!\p{L})|ادويه|حبوب|حبه|علاج|مضاد|فيتامين|مكمل|جرعه|مسكن|\b(?:dawa|edwye|7bub|7obob|3ilaj|3elej|dawe)\b/u;
+  const medicationText = text
+    .replace(
+      /\bvitamin\s+[a-z]\d*\s+(?:(?:blood|lab|serum)\s+)?(?:tests?|panels?|screening)\b|\b(?:tests?|panel|screening)\s+(?:for|of)\s+vitamin\s+[a-z]\d*\b/gu,
+      "",
+    )
+    .replace(/(?:فحص|تحليل)\s+(?:ال)?فيتامين\s+[\p{L}\p{N}]+/gu, "");
   const advice =
     /\b(?:should|which|what|do i|need|take|use|start|stop|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|فيني|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
   const result =
@@ -349,7 +365,7 @@ export function clinicalConcept(value) {
   const meaning =
     /\b(?:mean|means|worried|serious|dangerous|bad|normal|what should|what do i)\b|شو يعني|يعني شي|خطير|خطر|طبيعي|شو بعمل|شو لازم|\b(?:shu ya3ne|khatir)\b/u;
   return (
-    (medicine.test(text) && advice.test(text)) ||
+    (medicine.test(medicationText) && advice.test(text)) ||
     (result.test(text) &&
       abnormal.test(text) &&
       (meaning.test(text) || medicine.test(text)))
@@ -358,7 +374,7 @@ export function clinicalConcept(value) {
 
 // Questions about prices, fees or costs.
 export const priceConcept = (value) =>
-  /\b(?:prices?|pricing|priced|costs?|costing|fees?|charges?|cheap\w*|expensive|how much (?:is|does|do|would|will|for)|afford\w*)\b|سعر|اسعار|تكلفه|كلفه|بكلف|يكلف|قديش|كم (?:حق|سعر|بيكلف)|\b(?:se3r|se3er|as3ar|2adesh|addesh|adde|kalfe|bikallef)\b/u.test(
+  /\b(?:prices?|pricing|priced|costs?|costing|fees?|charg(?:e[ds]?|ing)|pay(?:ing|ment)?|cheap\w*|expensive|how much (?:is|does|do|would|will|for)|afford\w*)\b|سعر|اسعار|تكلفه|كلفه|بكلف|يكلف|قديش|كم (?:حق|سعر|بيكلف)|\b(?:se3r|se3er|as3ar|2adesh|addesh|adde|kalfe|bikallef)\b/u.test(
     canon(value),
   );
 

@@ -12,7 +12,6 @@ import {
   catalogueIntent,
   combinedRequestParts,
   hoursQuestion,
-  sameDayReference,
   publicServiceAnswer,
   publishedHourAnswer,
 } from "./public-assistant-facts.js";
@@ -23,6 +22,7 @@ import {
   localRoute,
   refinementQuestion,
   resolveDay,
+  sameDayReference,
   rulesCopy,
   scheduleRequest,
   scheduleSpecialty,
@@ -266,11 +266,14 @@ export function createAssistant({
     const hours = hoursQuestion(hoursMessage);
     const referencedDay = parts
       ? day
-      : activeSearch?.filters.from === activeSearch?.filters.through
-        ? activeSearch?.filters.from
+      : activeSearch &&
+          activeSearch.filters.from === activeSearch.filters.through
+        ? activeSearch.filters.from
         : null;
+    const sameDay = hours && sameDayReference(hoursMessage);
     if (
-      (hours && sameDayReference(hoursMessage) && !referencedDay) ||
+      (sameDay &&
+        (!referencedDay || (hoursDay.day && hoursDay.day !== referencedDay))) ||
       (hours && hoursDay.specified && !hoursDay.day) ||
       (!hours &&
         request.specified &&
@@ -293,9 +296,7 @@ export function createAssistant({
         lang,
         readHours,
         deadline,
-        sameDayReference(hoursMessage)
-          ? referencedDay
-          : (day ?? hoursDay.day ?? date),
+        sameDay ? referencedDay : (hoursDay.day ?? day ?? date),
       );
       if (!combinedSchedule)
         return reply(result.complete ? "library" : "reception", {
