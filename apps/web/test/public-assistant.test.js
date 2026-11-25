@@ -138,7 +138,9 @@ test("private and clinical questions stay out of the provider and failure is saf
     assert.match((await ask(assistant, query)).kind, /^(private|clinical)$/);
   assert.equal(calls, 0);
   const result = await ask(assistant, "My report status", "Clinic");
-  assert.equal(result.kind, "failure");
+  assert.equal(result.kind, "reception");
+  assert.equal(result.fallback, true);
+  assert.match(result.text, /Contact Reception/i);
   assert.doesNotMatch(result.text, /payload/);
 });
 

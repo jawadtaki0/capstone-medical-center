@@ -191,7 +191,7 @@ export function nameScore(requested, published) {
 }
 
 const nameStop =
-  /^(?:on|at|in|for|have|has|had|is|was|available|listed|published|session|sessions|window|windows|schedule|this|next|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|and|or|please|work|working|see|seeing|open|slots?|appointments?|pls|bukra|bokra|emta|hours|saturday|nhar|yom|يوم|نهار|بكرا|اليوم|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|الاحد|شو|متى|امتى|في|على|عند|بس|هل|وقت|موعد|مواعيد|جلسه|دوام|بيداوم|بيشتغل|بكره|غدا)$/u;
+  /^(?:on|at|in|for|have|has|had|is|was|available|listed|published|session|sessions|window|windows|schedule|this|next|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|and|or|please|work|working|see|seeing|open|slots?|appointments?|pls|bukra|bokra|emta|hours|saturday|nhar|yom|يوم|نهار|بكرا|اليوم|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|الاحد|شو|متى|امتى|في|على|عند|عنده|عندها|عندن|بيقبل|بتقبل|يستقبل|بتستقبل|بس|هل|وقت|موعد|مواعيد|جلسه|دوام|بيداوم|بيشتغل|بكره|غدا)$/u;
 
 // A clinician named after a title, e.g. "Dr. Zeinab Mkahhel" or "الدكتور غازي سرغاني".
 export function requestedProfessional(message) {
@@ -244,13 +244,13 @@ function selfHarmRisk(clause) {
   )
     return false;
   return (
-    /\b(?:hurt|harm|injure|kill|cut|end)\w*\s+(?:my ?self|my life)\b|\bsuicid\w*|\b(?:don'?t|do not) (?:want to (?:live|be alive|wake up)|feel safe)\b|\bnot (?:feeling |feel )?safe (?:with|around) myself\b|\bbetter off dead\b/u.test(
+    /\b(?:hurt|harm|injure|kill|cut|end)\w*\s+(?:my ?self|my life)\b|\bsuicid\w*|\b(?:don'?t|do not) (?:want to (?:live|be alive|wake up)|feel safe)\b|\bnot (?:feeling |feel )?safe (?:with|around) myself\b|\bbetter off dead\b|\b(?:tak(?:e|ing) my own life|(?:afraid|scared|worried|might|may|could).{0,28}do something to myself)\b/u.test(
       clause,
     ) ||
-    /(?:اذي|ااذي|اءذي|اوذي|ايذاء|اضر|اجرح|اقتل|انهي|اموت)\s*(?:حالي|نفسي|حياتي)|انتحر|انتحار|بدي موت|بدي اموت|ما بدي عيش|(?:مش|ما) (?:حاسس|حاسه|حاس) (?:حالي|نفسي) (?:بامان|امان|بأمان)/u.test(
+    /(?:اذي|ااذي|اءذي|اوذي|ايذاء|اضر|اجرح|اقتل|انهي|اموت)\s*(?:حالي|نفسي|حياتي)|(?:اعمل|ساوي)\s+(?:اذي|اذى|شي)\s*(?:ل|ب)(?:حالي|نفسي)|(?:مش|ماني) ضامن(?:ه)? (?:حالي|نفسي)|انتحر|انتحار|بدي موت|بدي اموت|ما بدي عيش|(?:مش|ما) (?:حاسس|حاسه|حاس) (?:حالي|نفسي) (?:بامان|امان|بأمان)/u.test(
       clause,
     ) ||
-    /\b(?:2?a?2?z+[aei]|2?e?2?z+[aei]|2o?ze|2?azzi|2?a2zi|2?tol|a2tol|2otol|2?2?ezi)\s+(?:nafs[aei]?|7al[aei]?h?|hal[aei]|7ayat[iey])\b|\b(?:enta7er|ente7er|nta7er|ent7er|entehar|enti7ar)\b|\b(?:mesh|mish|ma)\s+(?:7ases|7assa|7ass|7ese)\w*\s+(?:(?:7al[aei]|nafs[aei])\s+)?(?:b?aman)\b|\bbadde? mout\b/u.test(
+    /\b(?:2?a?2?z+[aei]|2?e?2?z+[aei]|2o?ze|2?azzi|2?a2zi|2?tol|a2tol|2otol|2?2?ezi)\s+(?:nafs[aei]?|7al[aei]?h?|hal[aei]|7ayat[iey])\b|\b(?:y2azz[ei]|y2az[ei]|y2ez[ei]|e?3mol (?:aza[ae]?|2aza))\s+(?:la\s+)?(?:7al[aei]|nafs[aei])\b|\b(?:enta7er|ente7er|nta7er|ent7er|entehar|enti7ar)\b|\b(?:mesh|mish|ma)\s+(?:7ases|7assa|7ass|7ese)\w*\s+(?:(?:7al[aei]|nafs[aei])\s+)?(?:b?aman)\b|\bbadde? mout\b/u.test(
       clause,
     )
   );
@@ -287,7 +287,7 @@ export function urgentConcept(value) {
 export function cancellationConcept(value) {
   const text = canon(value);
   const verb =
-    /\b(?:cancel\w*|call off|delete|remove|withdraw|drop)\b|(?:الغي|الغاء|بلغي|لغي|يلغي|تلغي|تلغيلي|بشطب|اشطب|شطب|تشطب|امسح|بمسح|تمسح|احذف|بحذف|تحذف|شيل|بشيل|تشيل)|\b(?:l8i|elghe|ilghe|2elghe|bl8i|shatb|ashtob|bshtob|emsa7|bemsa7)\b/u;
+    /\b(?:cancel\w*|call off|delete|remove|withdraw|drop)\b|(?:الغي|الغاء|بلغي|لغي|يلغي|تلغي|تلغو(?:ه|ها)?|تلغيلي|بشطب|اشطب|شطب|تشطب|امسح|بمسح|تمسح|احذف|بحذف|تحذف|شيل|بشيل|تشيل)|\b(?:l8i|elghe|ilghe|2elghe|bl8i|shatb|ashtob|bshtob|emsa7|bemsa7|telghi(?:ha|h)?|telgho(?:ha|h)?|tel8i(?:ha|h)?)\b|\btake (?:it|that) off (?:the |my )?(?:schedule|calendar)\b/u;
   const booking =
     /\b(?:booking|appointment|reservation|visit|session|request|slot)s?\b|موعد|مواعيد|حجز|زياره|طلب|جلسه|\b(?:maw3ad|maw3ed|mow3ad|7ajz|7ajez)\b/u;
   const verbMatch = verb.exec(text);
@@ -295,7 +295,7 @@ export function cancellationConcept(value) {
   return Boolean(
     verbMatch &&
     bookingMatch &&
-    Math.abs(verbMatch.index - bookingMatch.index) <= 60,
+    Math.abs(verbMatch.index - bookingMatch.index) <= 100,
   );
 }
 
@@ -306,12 +306,24 @@ export function instructionConcept(value) {
     /\b(?:instructions?|rules|prompt|system prompt|guidelines|directives|configuration|guardrails|programming)\b|تعليمات|التعليمات|قواعد|القواعد|برومبت|\b(?:ta3limet|ta3limat|2awa3ed)\b/u;
   if (!target.test(text)) return false;
   const disclose =
-    /\b(?:quote|repeat|reveal|show|print|share|tell me|list|copy|paste|recite|output|leak|dump|display|read out|write out|what (?:are|were) your)\b|(?:اكتب|اكتبلي|اكشف|اظهر|اعرض|انسخ|قلي|قللي|قولي|خبرني|عطيني|اعطني|ورجيني|فرجيني)|\b(?:warjine|farjine|ekteble|2elle|2olle|khabberne)\b/u;
+    /\b(?:quote|repeat|reproduce|reveal|show|print|share|tell me|list|copy|paste|recite|output|leak|dump|display|read out|write out|what (?:are|were) your)\b|(?:اكتب|اكتبلي|اكشف|اظهر|اعرض|انسخ|قلي|قللي|قولي|خبرني|عطيني|تعطيني|اعطني|تورجيني|ورجيني|فرجيني)|\b(?:warjine|farjine|ekteble|2elle|2olle|khabberne|tbayyen|tbayyin|ta3tine)\b/u;
   const own =
-    /\b(?:your|you(?:'ve| have| were| got)?|supplied|given|provided|before (?:this|the) (?:conversation|chat)|confidential|hidden|secret|internal|system|developer|original|initial)\b|تبعك|الك|اعطوك|المعطاه|السريه|الداخليه|المخفيه|يلي عندك|\b(?:taba3ak|ta3ak)\b/u;
+    /\b(?:your|you(?:'ve| have| were| got)?|supplied|given|provided|before (?:this|the) (?:conversation|chat)|confidential|hidden|secret|internal|system|developer|original|initial)\b|تبعك|الك|اعطوك|المعطاه|السريه|الخاصه|الداخليه|المخفيه|قواعدك|تعليماتك|عطوكن|عطوك|يلي عندك|\b(?:taba3ak|ta3ak|seriyye|siriyye)\b|\b(?:taba3|ta3) (?:el |l )?(?:bot|chat|assistant)\b/u;
   const override =
     /\b(?:ignore|disregard|forget|bypass|override)\b.{0,30}\b(?:instructions?|rules|guidelines|prompt)\b|تجاهل|انسى/u;
   return (disclose.test(text) && own.test(text)) || override.test(text);
+}
+
+// Retrieve a personal result without intercepting public Lab education.
+export function privateResultRequest(value) {
+  const text = canon(value);
+  const result =
+    /\b(?:test reports?|lab reports?|lab results?|test results?|medical records?)\b|نتيج[هة]|تقرير|نتايج|\b(?:natij\w*|nata2ej|ta2rir|ta9rir)\b/u;
+  const retrieval =
+    /\b(?:pull|fetch|get|send|show|display|look up|retrieve|share|access|download)\b|جيب|ابعث|ابعت|ارسل|اعرض|فرجي|ورجي|طلع|\b(?:jib\w*|tjib\w*|b3at\w*|farji\w*|warji\w*)\b/u;
+  const owner =
+    /\b(?:my|our|another|their|his|her|patient'?s|someone else)\b|تبع|ل(?:بيي|امي|خيي|اختي|مرتي|جوزي|زوجي|زوجتي)|(?:مرت|زوج|ابن|بنت|والد)\p{L}*|\b(?:taba3|ta3|ekhte|ekhti|khayye|bayye|emme|mart[ei])\b/u;
+  return result.test(text) && retrieval.test(text) && owner.test(text);
 }
 
 const cedarDomain =
@@ -382,10 +394,10 @@ export const priceConcept = (value) =>
 export const confirmationConcept = (value) => {
   const text = canon(value);
   return (
-    /\b(?:choos\w*|select\w*|pick\w*|submit\w*|send\w*|click\w*|request\w*)\b|اختيار|اختار|اخترت|بختار|نقيت|بنقي|ارسال|ارسلت|بعتت|ببعت|طلب/u.test(
+    /\b(?:choos\w*|select\w*|pick\w*|submit\w*|send\w*|click\w*|request\w*)\b|اختيار|اختار|اخترت|بختار|نقيت|بنقي|نقي|ارسال|نبعت|نرسل|ارسلت|بعتت|ببعت|طلب/u.test(
       text,
     ) &&
-    /\b(?:confirm\w*|reserv\w*|guarantee\w*|booked|final|secured?)\b|تاكد|تأكد|مأكد|ماكد|مؤكد|مضمون|محجوز|ثابت|انحجز|اتحجز/u.test(
+    /\b(?:confirm\w*|reserv\w*|guarantee\w*|booked|final|approv\w*|secured?)\b|تاكيد|تاكد|تأكد|مأكد|ماكد|مؤكد|مضمون|محجوز|ثابت|انحجز|اتحجز/u.test(
       text,
     )
   );

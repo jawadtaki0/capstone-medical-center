@@ -4,6 +4,16 @@ import { createAssistant } from "../server/public-assistant.js";
 import { rulesCopy } from "../server/public-assistant-routing.js";
 import { requestSelectionUrl } from "../src/request-selection.js";
 
+test("fail-safe · an uncertain immediate safety signal escalates when the provider fails", async (t) => {
+  const reply = await session(t)(
+    "I am not sure I can stay safe on my own tonight.",
+  );
+  assert.equal(reply.kind, "emergency");
+  assert.equal(reply.text, rulesCopy.en.emergency);
+  assert.deepEqual(reply.cards, []);
+  assert.equal(reply.calls, 1);
+});
+
 const today = "2026-11-25";
 const thursday = "2026-11-26";
 const friday = "2026-11-27";
@@ -136,7 +146,9 @@ function hours(reply, page, date, time) {
   assert.match(reply.text, new RegExp(time));
   assert.equal(reply.page, page);
   assert.deepEqual(reply.cards, []);
-  assert.equal(reply.searchContext, null);
+  const [raw] = reply.searchContext?.split(".") ?? [];
+  if (raw)
+    assert.equal(JSON.parse(Buffer.from(raw, "base64url")).filters, undefined);
   assert.equal(reply.calls, 0);
 }
 
@@ -220,6 +232,14 @@ for (const [index, [message, language, kind]] of [
     } else boundary(reply, kind, language);
   });
 
+test("protected mixed-language follow-up · a relative’s report remains private", async (t) => {
+  boundary(
+    await session(t)("Please fetch التقرير تبع خيي from the Lab.", "en"),
+    "private",
+    "en",
+  );
+});
+
 test("dates 1 · referenced closing time follows the selected weekday", async (t) => {
   const ask = session(t);
   matches(await ask("Dentistry on Saturday, please?"), dental);
@@ -268,6 +288,22 @@ test("dates 6 · a reference with no prior date requires clarification", async (
   assert.deepEqual(reply.cards, []);
   assert.equal(reply.calls, 0);
 });
+test("dates follow-up · service hours carry the day without restoring Clinic filters", async (t) => {
+  const ask = session(t);
+  hours(
+    await ask("Lab schedule hours Saturday?"),
+    "/services/laboratory",
+    saturday,
+    "12:00",
+  );
+  hours(
+    await ask("And Audiometry hours that same date?"),
+    "/services/audiometry",
+    saturday,
+    "12:30",
+  );
+});
+
 test("dates 7 · time-only refinement keeps the explicit day and specialty", async (t) => {
   const ask = session(t);
   matches(

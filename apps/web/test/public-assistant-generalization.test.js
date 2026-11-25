@@ -109,7 +109,11 @@ test("service hours use the referenced Clinic day without keeping Clinic filters
     assert.doesNotMatch(hours.text, new RegExp(today));
     assert.match(hours.text, new RegExp(closingTime));
     assert.equal(hours.cards, undefined);
-    assert.equal(hours.searchContext, null);
+    assert.equal(
+      JSON.parse(Buffer.from(hours.searchContext.split(".")[0], "base64url"))
+        .filters,
+      undefined,
+    );
   }
   const undated = await ask("Any available cardiology sessions?");
   assert.equal(undated.kind, "sessions");
@@ -280,7 +284,11 @@ test("known domains resolve conversational days, typos, and a fresh service-hour
   assert.equal(hours.page, "/services/laboratory");
   assert.equal(hours.cards, undefined);
   assert.match(hours.text, /2026-11-26.*14:00/);
-  assert.equal(hours.searchContext, null);
+  assert.equal(
+    JSON.parse(Buffer.from(hours.searchContext.split(".")[0], "base64url"))
+      .filters,
+    undefined,
+  );
   const friday = await ask("شو ساعات المختبر يوم الجمعة؟", "ar");
   assert.equal(friday.kind, "library");
   assert.match(friday.text, /2026-11-27/);

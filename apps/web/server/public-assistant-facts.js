@@ -49,7 +49,11 @@ export function catalogueIntent(message) {
           query.includes(words(term)),
         ) ||
         (id === "urinalysis" &&
-          /(?<!\p{L})ل?تحليل البول(?!\p{L})/u.test(query)),
+          /(?<!\p{L})ل?تحليل البول(?!\p{L})/u.test(query)) ||
+        (id === "urine-culture" &&
+          /(?<!\p{L})ل?(?:زرع|زراعه|زراعة|مزرعه|مزرعة)\s+البول(?!\p{L})|\b(?:zare3|zar3|zera3et) (?:el |l )?(?:bawl|bol)\b/u.test(
+            query,
+          )),
     )
     .map(({ id }) => id);
   if (/\bthyroid\b/.test(query) && /\biron\b/.test(query))
@@ -195,9 +199,12 @@ export function publicServiceAnswer(value, language) {
       kind: "reception",
     };
   if (
-    confirmationConcept(value) &&
+    (confirmationConcept(value) ||
+      /\b(?:where (?:does|will) the request go|who (?:handles|confirms|approves) (?:the |a )?request)\b/u.test(
+        canonical,
+      )) &&
     /\b(?:appointment|session|slot|window|booking|clinic|request)\b|جلسه|موعد|حجز|العياده|طلب/u.test(
-      canon(value),
+      canonical,
     )
   ) {
     return library(
@@ -257,7 +264,7 @@ export function publicServiceAnswer(value, language) {
 }
 
 const closingQuestion =
-  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|يقفل|بيقفل|بيسكر|يسكر|لحد اي ساع[هة]/iu;
+  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|يقفل|بيقفل|بيسكر|يسكر|بخلص|بيخلص|بيضل شغال|لحد اي ساع[هة]/iu;
 
 export function hoursQuestion(value) {
   const text = canon(value);
@@ -293,7 +300,7 @@ export function hoursQuestion(value) {
 
 export function combinedRequestParts(message) {
   const clauses = message.split(
-    /(?:,\s*)?\band\b|[?؟;؛]\s*|،\s*و?|\s+و(?=امتى|إمتى|متى|اي ساعة|أي ساعة|اللاب|المختبر)/iu,
+    /(?:,\s*)?\band\b|[?؟;؛]\s*|،\s*و?|,\s*(?=و)|\s+و(?=امتى|إمتى|متى|اي ساعة|أي ساعة|اللاب|المختبر|بنفس)/iu,
   );
   const session = clauses.findIndex(
     (part) =>
@@ -414,5 +421,6 @@ export async function publishedHourAnswer(
       ". " +
       note,
     complete,
+    day: days.length === 1 ? days[0] : null,
   };
 }

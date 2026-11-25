@@ -6,6 +6,7 @@ import {
   correctTypos,
   instructionConcept,
   requestedProfessional,
+  privateResultRequest,
   unrelatedConcept,
   urgentConcept,
 } from "./public-assistant-language.js";
@@ -67,7 +68,7 @@ export const rulesCopy = {
   },
 };
 
-export function emergencyDisclosure(value) {
+export function emergencyDisclosure(value, { includeUncertain = false } = {}) {
   const text = normalize(value);
   const quotes =
     /"([^"]*)"|“([^”]*)”|«([^»]*)»|(?<!\p{L})'((?:[^']|(?<=\p{L})'(?=\p{L}))*)'(?!\p{L})/gu;
@@ -115,7 +116,11 @@ export function emergencyDisclosure(value) {
         (selfHarm.test(value) ||
           immediateDanger.test(value) ||
           directArabicDanger.test(value) ||
-          urgentConcept(value)) &&
+          urgentConcept(value) ||
+          (includeUncertain &&
+            /\b(?:i|my)\b.{0,32}\b(?:can't|cannot|might not|not sure i can|don't know if i can)\s+(?:keep myself|stay|be) safe\b|مش (?:متاكد|متاكده) (?:فيني|بقدر) (?:ضل|ابقى) بامان/u.test(
+              canon(value),
+            ))) &&
         !general.test(value) &&
         !/^(?:if |suppose |hypothetically |لو |اذا )/u.test(value)
       )
@@ -158,7 +163,7 @@ export const cancellationRequest = (message) =>
 export function localRoute(message) {
   const text = normalize(message);
   if (emergencyDisclosure(text)) return "emergency";
-  if (cancellationRequest(text)) return "private";
+  if (cancellationRequest(text) || privateResultRequest(text)) return "private";
   if (instructionConcept(text)) return "override";
   if (
     /\b(?:ignore|disregard|bypass)\s+(?:(?:the|all|your)\s+)?(?:cedar |clinic |safety )?(?:rules|instructions|restrictions)\b/u.test(
@@ -429,7 +434,7 @@ export const genericArabiziAvailability = (value) =>
     scheduleText(value),
   );
 const sameDayWords =
-  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar)|(?:el ?|l ?)?(?:yom|nhar) nafs[ouh]+)\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})|(?:اليوم|النهار|التاريخ)\s+نفسه(?!\p{L})/gu;
+  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar)|(?:el ?|l ?)?(?:yom|nhar) nafs[ouh]+)\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})|\b(?:that (?:very )?(?:same )?(?:day|afternoon|morning)|hal nhar|bhal nhar)\b|(?:اليوم|النهار|التاريخ)\s+نفسه(?!\p{L})|(?:بهالنهار|بهداك (?:اليوم|النهار)|وقتها)(?!\p{L})/gu;
 
 export function sameDayReference(value) {
   const text = canon(value);
@@ -452,14 +457,69 @@ export function resolveDay(value, date) {
   const months =
     /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b|تشرين الثاني|كانون الاول/iu;
   const month = months.exec(text);
-  const numberedDay = /(?:^|\s)(\d{1,2})(?:st|nd|rd|th)?\s+$/u;
-  const explicit = /\b\d{4}-\d{2}-\d{2}\b/u.exec(text)?.[0];
+  const numberedDay = /(?:^|\s)(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?$/u;
+  const spokenOrdinals = [
+    "first",
+    "second",
+    "third",
+    "fourth",
+    "fifth",
+    "sixth",
+    "seventh",
+    "eighth",
+    "ninth",
+    "tenth",
+    "eleventh",
+    "twelfth",
+    "thirteenth",
+    "fourteenth",
+    "fifteenth",
+    "sixteenth",
+    "seventeenth",
+    "eighteenth",
+    "nineteenth",
+    "twentieth",
+    "twenty first",
+    "twenty second",
+    "twenty third",
+    "twenty fourth",
+    "twenty fifth",
+    "twenty sixth",
+    "twenty seventh",
+    "twenty eighth",
+    "twenty ninth",
+    "thirtieth",
+    "thirty first",
+  ];
+  const beforeMonth = month ? text.slice(0, month.index).trimEnd() : "";
+  const spokenDay =
+    spokenOrdinals.findLastIndex(
+      (word) =>
+        beforeMonth.replace(/-/g, " ").endsWith(" " + word + " of") ||
+        beforeMonth.replace(/-/g, " ") === word + " of",
+    ) + 1;
+  const today = /\b(?:today|l(?:yom|youm)|el ?yom)\b|اليوم|هاليوم/u.test(text);
+  const tomorrow =
+    /\btomorrow\b|بكر[اه]|(?<!\p{L})غدا?(?!\p{L})|\b(?:bokra|bukra|boukra)\b/u.test(
+      text,
+    );
+  if (today && tomorrow) return { day: null, specified: true };
+  const relativeDate =
+    today || tomorrow
+      ? new Date(day.getTime() + Number(tomorrow) * 86400000)
+          .toISOString()
+          .slice(0, 10)
+      : null;
+  const explicitDates = [...new Set(text.match(/\b\d{4}-\d{2}-\d{2}\b/gu))];
+  if (explicitDates.length > 1) return { day: null, specified: true };
+  const [explicit] = explicitDates;
   const monthDay =
     month &&
     (numberedDay.exec(text.slice(0, month.index))?.[1] ??
       /^\s+(\d{1,2})(?:st|nd|rd|th)?\b/u.exec(
         text.slice(month.index + month[0].length),
-      )?.[1]);
+      )?.[1] ??
+      (spokenDay || null));
   const ordinal = /(?:اول الشهر|\bfirst of (?:the )?month\b)/u.test(text)
     ? 1
     : namedWeekday >= 0
@@ -511,18 +571,13 @@ export function resolveDay(value, date) {
     if (
       !Number.isFinite(+candidate) ||
       (explicit && candidate.toISOString().slice(0, 10) !== explicit) ||
+      (relativeDate && candidate.toISOString().slice(0, 10) !== relativeDate) ||
       (namedWeekday >= 0 && candidate.getUTCDay() !== namedWeekday)
     )
       return { day: null, specified: true };
     return { day: candidate.toISOString().slice(0, 10), specified: true };
   }
-  const today = /\b(?:today|l(?:yom|youm)|el ?yom)\b|اليوم|هاليوم/u.test(text);
-  const tomorrow =
-    /\btomorrow\b|بكر[اه]|(?<!\p{L})غدا?(?!\p{L})|\b(?:bokra|bukra|boukra)\b/u.test(
-      text,
-    );
-  if (today && tomorrow) return { day: null, specified: true };
-  if (today || tomorrow) {
+  if (relativeDate) {
     day.setUTCDate(day.getUTCDate() + Number(tomorrow));
     if (namedWeekday >= 0 && day.getUTCDay() !== namedWeekday)
       return { day: null, specified: true };

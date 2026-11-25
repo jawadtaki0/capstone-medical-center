@@ -20,6 +20,7 @@ import {
   identityQuestion,
   cancellationRequest,
   localRoute,
+  emergencyDisclosure,
   refinementQuestion,
   resolveDay,
   sameDayReference,
@@ -67,8 +68,6 @@ const copy = {
       "I can help with Cedar’s clinics, lab tests, and appointment requests. What would you like to know?",
     reception:
       "Please contact Reception for that information. I can help with Cedar’s public services, published sessions, and lab education.",
-    failure:
-      "The assistant is temporarily unavailable. Try again or contact Reception.",
     unavailable:
       "I couldn’t load the published schedule. Try again or contact Reception.",
     empty:
@@ -90,7 +89,6 @@ const copy = {
       "يمكنني مساعدتك في عيادات سيدر وفحوصات المختبر وطلبات المواعيد. ماذا تود أن تعرف؟",
     reception:
       "يرجى التواصل مع الاستقبال لهذه المعلومات. يمكنني مساعدتك في خدمات سيدر العامة والجلسات المنشورة والمعلومات المخبرية العامة.",
-    failure: "المساعد غير متاح مؤقتًا. حاول مجددًا أو تواصل مع الاستقبال.",
     unavailable:
       "تعذّر تحميل الجدول المنشور. حاول مجددًا أو تواصل مع الاستقبال.",
     empty:
@@ -193,7 +191,6 @@ export function createAssistant({
       empty: "published_schedule_no_match",
       unavailable: "published_schedule_unavailable",
       reception: "insufficient_public_facts",
-      failure: "provider_unavailable",
     };
     const reply = (key, extra = {}) => {
       trace(routeReasons[key] ?? "conversation_route");
@@ -216,8 +213,8 @@ export function createAssistant({
     const latest = messages.at(-1);
     const early = localRoute(latest);
     if (early) {
-      if (["greeting", "thanks"].includes(early) && activeSearch)
-        carried = { ...activeSearch, remaining: activeSearch.remaining - 1 };
+      if (["greeting", "thanks"].includes(early) && context)
+        carried = { ...context, remaining: context.remaining - 1 };
       return reply(
         early,
         early === "private"
@@ -269,7 +266,7 @@ export function createAssistant({
       : activeSearch &&
           activeSearch.filters.from === activeSearch.filters.through
         ? activeSearch.filters.from
-        : null;
+        : (context?.serviceDay ?? null);
     const sameDay = hours && sameDayReference(hoursMessage);
     if (
       (sameDay &&
@@ -298,7 +295,9 @@ export function createAssistant({
         deadline,
         sameDay ? referencedDay : (hoursDay.day ?? day ?? date),
       );
-      if (!combinedSchedule)
+      if (!combinedSchedule) {
+        if (result.complete && result.day)
+          carried = { at, remaining: 2, serviceDay: result.day };
         return reply(result.complete ? "library" : "reception", {
           text: result.text,
           page: hours.lab
@@ -308,6 +307,7 @@ export function createAssistant({
               : "/schedule",
           reception: true,
         });
+      }
       hoursSummary = result.text;
     }
     const joinedReply = (kind, sessionText, cards = []) =>
@@ -387,10 +387,19 @@ export function createAssistant({
         return reply("unavailable");
       }
     }
-    const directSearch = request.availability || combinedSchedule;
+    const referencedRefinement = Boolean(
+      activeSearch &&
+      hasTime &&
+      !specialtyHint &&
+      !namedProfessional &&
+      sameDayReference(latest),
+    );
+    const directSearch =
+      !referencedRefinement && (request.availability || combinedSchedule);
     const refinement =
       !directSearch &&
-      (nameClarification ||
+      (referencedRefinement ||
+        nameClarification ||
         (refinementQuestion(latest) &&
           (!activeSearch || day || hasTime || specialtyHint)) ||
         (activeSearch &&
@@ -546,7 +555,15 @@ export function createAssistant({
             }
           : await interpret(conversation, { deadline, observe });
     } catch {
-      if (!knownSearch) return { ...reply("failure"), fallback: true };
+      if (!knownSearch)
+        return {
+          ...reply(
+            emergencyDisclosure(latest, { includeUncertain: true })
+              ? "emergency"
+              : "reception",
+          ),
+          fallback: true,
+        };
     }
     if (knownSearch && (!intent || intent.kind === "reception"))
       intent = { kind: "sessions" };
