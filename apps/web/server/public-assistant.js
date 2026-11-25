@@ -19,7 +19,7 @@ import {
   identityQuestion,
   localRoute,
   refinementQuestion,
-  relativeDay,
+  resolveDay,
   rulesCopy,
   scheduleRequest,
   scheduleSpecialty,
@@ -219,7 +219,7 @@ export function createAssistant({
         early,
         early === "private"
           ? {
-              ...(/\b(?:cancel|delete)\b.{0,30}\b(?:booking|appointment|request)\b|(?:[اأ]لغي?|احذف|تشيل|شيل).*(?:موعد|حجز)/iu.test(
+              ...(/\b(?:cancel|delete)\b.{0,30}\b(?:booking|appointment|request)\b|(?:[اأ]لغي?|تلغيلي|احذف|تشيل|شيل).*(?:موعد|حجز)/iu.test(
                 latest.replace(/[\u064b-\u065fـ]/g, ""),
               )
                 ? {
@@ -257,6 +257,12 @@ export function createAssistant({
     const request = scheduleRequest(sessionMessage, date);
     const { day, specialty: specialtyHint, clinician: namedProfessional } = request;
     const hours = hoursQuestion(hoursMessage);
+    const hoursDay = resolveDay(hoursMessage, date);
+    if ((hours && hoursDay.specified && !hoursDay.day) ||
+        (request.specified && !day && (request.availability || activeSearch)))
+      return reply("clarify", {
+        text: lang === "ar" ? "أي تاريخ تقصد؟" : "Which date do you mean?",
+      });
     const combinedSchedule =
       hours && specialtyHint && request.availability;
     let hoursSummary;
@@ -268,7 +274,7 @@ export function createAssistant({
         lang,
         readHours,
         deadline,
-        day ?? relativeDay(latest, date) ?? date,
+        day ?? hoursDay.day ?? date,
       );
       if (!combinedSchedule)
         return reply(result.complete ? "library" : "reception", {

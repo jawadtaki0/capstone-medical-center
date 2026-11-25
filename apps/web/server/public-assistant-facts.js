@@ -6,6 +6,7 @@ import { publicContent } from "./public-assistant-content.js";
 import {
   availabilityQuestion,
   relativeDay,
+  resolveDay,
   scheduleSpecialty,
   serviceLogistics,
 } from "./public-assistant-routing.js";
@@ -27,7 +28,7 @@ export function catalogueIntent(message) {
     " ",
   );
   const prep =
-    /\b(?:prep(?:are|aration)?|fast(?:ing)?|abel|before)\b|تحضير|صيام/u.test(
+    /\b(?:prep(?:ar(?:e|ing|ation))?|fast(?:ing)?|abel|before)\b|تحضير|صيام/u.test(
       preparationQuery,
     );
   const ids = laboratoryTests
@@ -45,9 +46,8 @@ export function catalogueIntent(message) {
       tests: ids,
       preparation: prep,
       description:
-        /\b(?:measure|detect|what (?:is|does)|purpose)\b|ماذا يقيس|ما هو/u.test(
-          query,
-        ),
+        /\b(?:measure|detect|purpose)\b|ماذا يقيس/u.test(query) ||
+        (!prep && /\bwhat (?:is|does)\b|ما هو/u.test(query)),
       compare: ids.length > 1,
     };
   return null;
@@ -179,7 +179,7 @@ export function hoursQuestion(value) {
   const clinic = /\bclinic\b|العيادة/u.test(text);
   const center = /\bcent(?:er|re)\b|المركز/u.test(text);
   const when =
-    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7)\b|يفتح|يغلق|مسكر|ساعات|السبت|بكرا/u.test(
+    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|fet[iy]7|fetih)\b|يفتح|فاتح|يغلق|مسكر|ساعات|السبت|بكرا/u.test(
       text,
     );
   if (!when && !closingQuestion.test(text) && !(lab && audio)) return null;
@@ -226,7 +226,7 @@ export async function publishedHourAnswer(
     ? ["Saturday", "Sunday"].map((day) => relativeDay(day, date))
     : comparison?.length === 2
       ? [...new Set(comparison.map((day) => relativeDay(day, date)))]
-      : [/\b(?:the )?same day\b|نفس اليوم/iu.test(message) ? defaultDay : relativeDay(message, date) ?? defaultDay];
+      : [/\b(?:the )?same day\b|نفس اليوم/iu.test(message) ? defaultDay : resolveDay(message, date).day ?? defaultDay];
   const closingOnly = closingQuestion.test(message);
   const names =
     language === "ar"

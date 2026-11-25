@@ -156,7 +156,7 @@ export function localRoute(message) {
     /\b(?:patient|visitor) names\b|(?:اسماء|اسامي) (?:جميع )?(?:المرضى|المراجعين)|\b(?:asame|asemi)\s+(?:el |l )?(?:marda|mar[dt]a)\b/iu.test(
       text,
     ) ||
-    /[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\b.{0,24}\b(?:appointments?|bookings?|reports?|results?|records?|password|account|requests?)\b|\b(?:my id number|patient records?|someone else.?s (?:records?|cedar account|visit history)|(?:their|another patient.?s) (?:lab report|test results?|visit history|medical records?|account)|\b(?:look up|pull up|retrieve|show)\b.{0,65}\b(?:lab report|test results?|visit history)\b.{0,35}\b(?:their|someone else.?s|coworker.?s)\b|reset (?:my )?password|booking status|report status)\b|\b(?:list|show|name)\b.{0,30}\bpatients\b|نتيجتي|موعدي|حجزي|تقريري|سجلي|حسابي|طلبي|كلمة السر|natijte|maw3ade|7sebe/iu.test(
+    /[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\b.{0,24}\b(?:appointments?|bookings?|reports?|results?|records?|password|account|requests?)\b|\b(?:my id number|patient records?|someone else.?s (?:records?|cedar account|visit history)|(?:their|another patient.?s) (?:lab report|test results?|visit history|medical records?|account)|\b(?:look up|pull up|retrieve|show)\b.{0,65}\b(?:lab report|test results?|visit history)\b.{0,35}\b(?:their|someone else.?s|coworker.?s)\b|reset (?:my )?password|booking status|report status)\b|\b(?:list|show|name)\b.{0,30}\bpatients\b|تلغيلي.{0,20}(?:حجز|موعد)|نتيجتي|موعدي|حجزي|تقريري|سجلي|حسابي|طلبي|كلمة السر|natijte|maw3ade|7sebe/iu.test(
       text.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ""),
     )
   )
@@ -169,7 +169,7 @@ export function localRoute(message) {
   )
     return "clinical";
   if (
-    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|graphics cards?|gaming (?:pc|computer)|(?:bicycle|bike) (?:tire|tyre)|flat (?:bicycle|bike) (?:tire|tyre)|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
+    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|graphics cards?|gaming (?:pc|computer)|packing list|camping trip|(?:bicycle|bike) (?:tire|tyre)|flat (?:bicycle|bike) (?:tire|tyre)|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
       text,
     )
   )
@@ -204,6 +204,9 @@ const scheduleText = (value) =>
     .replace(/\bgastroentrology\b/g, "gastroenterology")
     .replace(/\bgastroentrologist\b/g, "gastroenterologist")
     .replace(/\bfryday\b/g, "friday")
+    .replace(/\btuesdy\b/g, "tuesday")
+    .replace(/\burolojy\b/g, "urology")
+    .replace(/(?:الثلاثا(?![ء\p{L}])|التلات[اه](?!\p{L}))/gu, "الثلاثاء")
     .replace(/\b(?:nhar l )?(?:etnen|etnein|tnen)\b/g, "monday")
     .replace(/\b(?:opthalmolgy|opthalmology|ophthalmolgy)\b/g, "ophthalmology")
     .replace(/\b(?:jom3a|jem3a|j[ou]m3a)\b/g, "friday")
@@ -247,7 +250,8 @@ export function scheduleSpecialty(value) {
     urology: /(?:ال)?مسالك(?: بولي[هة])?|\burinary specialist\b/u,
     dietitian: /اختصاصي[هة]? تغذي[هة]|اخصائي[هة]? تغذي[هة]|\bnutritionist\b/u,
     ent: /\bear (?:doctor|specialist)\b|(?:انف|اذن)(?:\s*و\s*(?:ال)?اذن)?\s*و?\s*حنجر[هة]|(?:ال)?انف\s*و\s*(?:ال)?اذن|\b7akim wedan\b/u,
-    surgery: /\bgeneral surgeon\b|جراح عام/u,
+    surgery: /\bgeneral surgeon\b|جراح عام|جراح[هة] (?:ال)?عام[هة]/u,
+    gastroenterology: /\bgastro (?:doctor|clinic|specialist)\b|(?:طبيب|دكتور) جهاز هضمي/u,
   };
   for (const { id, label } of specialtyDefinitions)
     if (colloquial[id]?.test(text)) matches.add(label);
@@ -263,6 +267,8 @@ export function scheduleTime(value) {
   )
     return { after: "", before: "" };
   const noon = /\b(after|before) noon\b/u.exec(text);
+  if (/\bbefore eleven(?: in the morning)?\b/u.test(text))
+    return { after: "", before: "11:00" };
   if (noon)
     return { after: "", before: "", [noon[1]]: "12:00" };
   const match =
@@ -308,7 +314,7 @@ export const availabilityQuestion = (value) => {
   );
 };
 export const refinementQuestion = (value) =>
-  /^(?:(?:actually|instead|and|what about|how about)[,\s]+)?(?:only|after|before|any later|afternoon|morning|tomorrow|today|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|later|بس|فقط|بعد|قبل|الصبح|بكرا|غدا|هل يوجد وقت|وقتا|ba3d|bas|bokra|bukra)/iu.test(
+  /^(?:(?:actually|instead|and|what about|how about|could i go|can i come)[,\s]+)?(?:only|after|before|any later|(?:in the )?(?:afternoon|morning)|tomorrow|today|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|later|بس|فقط|بعد|قبل|الصبح|بكرا|غدا|هل يوجد وقت|وقتا|ba3d|bas|bokra|bukra)/iu.test(
     scheduleText(value),
   );
 export const specialtyCorrection = (value) =>
@@ -319,7 +325,7 @@ export const genericArabiziAvailability = (value) =>
   /^(?:(?:f[iy]|doctor|doktor|daktor|bokra|bukra|emta|maw3ad|pls)\b\s*)+[?.!؟]*$/u.test(
     scheduleText(value),
   );
-export function relativeDay(value, date) {
+export function resolveDay(value, date) {
   const text = scheduleText(value);
   const weekdays = [
     /sunday|الاحد/,
@@ -331,26 +337,60 @@ export function relativeDay(value, date) {
     /saturday|السبت/,
   ];
   const day = new Date(date + "T12:00:00Z");
-  if (/\btoday\b|اليوم|lyom/.test(text)) return date;
+  const namedWeekday = weekdays.findIndex((pattern) => pattern.test(text));
+  const months = /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b|تشرين الثاني|كانون الاول/iu;
+  const month = months.exec(text);
+  const numberedDay = /(?:^|\s)(\d{1,2})(?:st|nd|rd|th)?\s+$/u;
+  const explicit = /\b\d{4}-\d{2}-\d{2}\b/u.exec(text)?.[0];
+  const monthDay = month && (numberedDay.exec(text.slice(0, month.index))?.[1] ??
+    /^\s+(\d{1,2})(?:st|nd|rd|th)?\b/u.exec(text.slice(month.index + month[0].length))?.[1]);
+  const ordinal = /(?:اول الشهر|\bfirst of (?:the )?month\b)/u.test(text) ? 1 :
+    namedWeekday >= 0 ? Number(/(?:^|\s)(\d{1,2})(?:st|nd|rd|th)(?=$|[\s,?.])/u.exec(text)?.[1]) || null : null;
+  if (explicit || monthDay || ordinal) {
+    const candidate = explicit ? new Date(explicit + "T12:00:00Z") : new Date(day);
+    if (!explicit) {
+      const requestedDay = Number(monthDay || ordinal);
+      const requestedMonth = monthDay ? ["january","february","march","april","may","june","july","august","september","october","november","december"].indexOf(month[0]) : -1;
+      if (monthDay) candidate.setUTCMonth(requestedMonth >= 0 ? requestedMonth : month[0] === "تشرين الثاني" ? 10 : 11, requestedDay);
+      else {
+        candidate.setUTCDate(requestedDay);
+        if (candidate < day) {
+          candidate.setUTCDate(1);
+          candidate.setUTCMonth(candidate.getUTCMonth() + 1, requestedDay);
+        }
+      }
+      if (candidate.getUTCDate() !== requestedDay) return { day: null, specified: true };
+    }
+    if (!Number.isFinite(+candidate) || (explicit && candidate.toISOString().slice(0, 10) !== explicit) ||
+      (namedWeekday >= 0 && candidate.getUTCDay() !== namedWeekday))
+      return { day: null, specified: true };
+    return { day: candidate.toISOString().slice(0, 10), specified: true };
+  }
+  if (/\btoday\b|اليوم|lyom/.test(text)) return { day: date, specified: true };
   if (
     /\btomorrow\b|بكرا|(?<!\p{L})غدا?(?!\p{L})|\b(?:bokra|bukra)\b/u.test(text)
   )
     day.setUTCDate(day.getUTCDate() + 1);
   else {
     const which = weekdays.findIndex((pattern) => pattern.test(text));
-    if (which < 0) return null;
+    if (which < 0) return {
+      day: null,
+      specified: Boolean(month || /\b(?:weekday|\d{1,2}[/.-]\d{1,2})\b|نهار ال\p{L}+/u.test(text)),
+    };
     day.setUTCDate(day.getUTCDate() + ((which - day.getUTCDay() + 7) % 7));
   }
-  return day.toISOString().slice(0, 10);
+  return { day: day.toISOString().slice(0, 10), specified: true };
 }
+
+export const relativeDay = (value, date) => resolveDay(value, date).day;
 
 export function scheduleRequest(message, today) {
   return {
-    day: relativeDay(message, today),
+    ...resolveDay(message, today),
     specialty: scheduleSpecialty(message),
     time: scheduleTime(message),
     clinician:
-      /\b(?:dr\.?|doctor)\s+([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,3}?)\s+(?:available|listed|in|on (?:the|[\p{L}'’-]+(?:’s|'s)? published) schedule)\b/iu.exec(message)?.[1] ??
+      /\b(?:dr\.?|doctor)\s+([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,3}?)\s+(?:available|listed|in|for|on (?:(?:the )?published(?: [\p{L}]+)?|the|[\p{L}'’-]+(?:’s|'s)? published) schedule)\b/iu.exec(message)?.[1] ??
       /\b(?:surname|last name)\s+([\p{L}][\p{L}'’-]*)/iu.exec(message)?.[1],
     availability: availabilityQuestion(message),
   };
