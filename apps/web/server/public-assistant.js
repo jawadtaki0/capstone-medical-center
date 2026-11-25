@@ -1,3 +1,8 @@
+import {
+  emergencyDisclosure,
+  protectedGate,
+  rulesCopy,
+} from "./public-assistant-gate.js";
 import { nameScore } from "./public-assistant-language.js";
 import { laboratoryTests } from "../src/data/labAudioContent.js";
 import { arabicLabContent } from "../src/data/publicLabArabic.js";
@@ -19,11 +24,9 @@ import {
 import {
   genericArabiziAvailability,
   identityQuestion,
-  cancellationRequest,
   localRoute,
-  emergencyDisclosure,
+  socialRoute,
   refinementQuestion,
-  rulesCopy,
   scheduleRequest,
   scheduleSpecialty,
   specialtyCorrection,
@@ -220,7 +223,9 @@ export function createAssistant({
     )
       return reply("reception");
     const latest = messages.at(-1);
-    const early = localRoute(latest);
+    const category = protectedGate(latest);
+    const early =
+      category === "cancel" ? "private" : (category ?? socialRoute(latest));
     if (early) {
       if (["greeting", "thanks"].includes(early) && context)
         carried = { ...context, remaining: context.remaining - 1 };
@@ -228,14 +233,7 @@ export function createAssistant({
         early,
         early === "private"
           ? {
-              ...(cancellationRequest(latest)
-                ? {
-                    text:
-                      lang === "ar"
-                        ? "لا يمكن إلغاء الموعد من الدردشة. راجع طلبك في حسابي أو تواصل مع الاستقبال للمساعدة."
-                        : "Chat cannot cancel your booking. Open My account or contact Reception for help.",
-                  }
-                : {}),
+              ...(category === "cancel" ? { text: fixed.cancel } : {}),
               page: /lab results?|reports?|نتائج المختبر|نتيجتي|تقريري|natijte/i.test(
                 latest,
               )

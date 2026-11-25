@@ -4,18 +4,14 @@ import { createAssistant } from "../server/public-assistant.js";
 import { rulesCopy } from "../server/public-assistant-routing.js";
 import { requestSelectionUrl } from "../src/request-selection.js";
 
-test("fail-safe · an uncertain immediate safety signal escalates when the provider fails", async (t) => {
+test("fail-safe · an uncertain immediate safety signal bypasses the provider", async (t) => {
   const reply = await session(t)(
     "I am not sure I can stay safe on my own tonight.",
   );
   assert.equal(reply.kind, "emergency");
-  assert.equal(
-    reply.text,
-    rulesCopy.en.emergency +
-      " If this is an emergency, call the Lebanese Red Cross ambulance at 140 in Lebanon or go to the nearest emergency department. For non-emergency help, contact Cedar Reception.",
-  );
+  assert.equal(reply.text, rulesCopy.en.emergency);
   assert.deepEqual(reply.cards, []);
-  assert.equal(reply.calls, 1);
+  assert.equal(reply.calls, 0);
 });
 
 const today = "2026-11-25";

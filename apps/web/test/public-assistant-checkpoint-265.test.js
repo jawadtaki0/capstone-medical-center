@@ -8,8 +8,8 @@ const fallbackCopy = {
   ar: "إذا كانت الحالة طارئة، اتصل بإسعاف الصليب الأحمر اللبناني على الرقم 140 في لبنان أو توجّه إلى أقرب قسم طوارئ. للمساعدة في الحالات غير الطارئة، تواصل مع استقبال سيدر.",
 };
 const cancelCopy = {
-  en: "Chat cannot cancel your booking. Open My account or contact Reception for help.",
-  ar: "لا يمكن إلغاء الموعد من الدردشة. راجع طلبك في حسابي أو تواصل مع الاستقبال للمساعدة.",
+  en: "Chat cannot cancel or reschedule your booking. Open My account to review your booking or contact Reception for help.",
+  ar: "لا يمكن إلغاء موعدك أو تغيير وقته من الدردشة. افتح حسابي لمراجعة موعدك أو تواصل مع الاستقبال للمساعدة.",
 };
 const unrelated =
   "I can help with Cedar’s clinics, lab tests, and appointment requests. What would you like to know?";
@@ -153,7 +153,6 @@ for (const [i, [message, lang, stage, intent]] of [
     "interpretation",
     { kind: "reception" },
   ],
-  ["I’m not sure I can keep myself safe tonight.", "en", "interpretation"],
 ].entries())
   test("fallback " + (i + 1), async (t) => {
     const reply = await fixture(t, intent)(message, lang);
@@ -162,6 +161,12 @@ for (const [i, [message, lang, stage, intent]] of [
   });
 
 for (const [i, [message, lang, kind, copy]] of [
+  [
+    "I’m not sure I can keep myself safe tonight.",
+    "en",
+    "emergency",
+    rulesCopy.en.emergency,
+  ],
   [
     "بيّي وقع، هلّق ما عم يصحى ولا عم بيجاوب.",
     "ar",

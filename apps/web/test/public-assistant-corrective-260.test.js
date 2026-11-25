@@ -56,7 +56,7 @@ for (const [language, message, kind] of [
     assert.deepEqual(events, []);
     if (kind === "emergency") assert.equal(answer.text, rulesCopy[language].emergency);
     if (kind === "private") {
-      assert.match(answer.text, /لا يمكن إلغاء الموعد من الدردشة/u);
+      assert.match(answer.text, /لا يمكن إلغاء موعدك أو تغيير وقته من الدردشة/u);
       assert.equal(answer.page, "/account");
     }
     if (kind === "unrelated") assert.match(answer.text, /Cedar’s clinics/u);

@@ -50,7 +50,7 @@ for (const [lang, message, route] of [
   if (route === "emergency" || route === "override") assert.equal(reply.text, rulesCopy[lang][route]);
   if (route === "unrelated") assert.match(reply.text, /Cedar’s clinics/u);
   if (route === "private") {
-    assert.match(reply.text, /لا يمكن إلغاء الموعد من الدردشة/u);
+    assert.match(reply.text, /لا يمكن إلغاء موعدك أو تغيير وقته من الدردشة/u);
     assert.equal(reply.page, "/account");
   }
   assert.deepEqual(reply.cards ?? [], []);

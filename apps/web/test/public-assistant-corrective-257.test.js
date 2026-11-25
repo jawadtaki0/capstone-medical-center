@@ -62,7 +62,7 @@ for (const enabled of [false, true]) {
     assert.equal(answer.kind, "private");
     assert.equal(
       answer.text,
-      "لا يمكن إلغاء الموعد من الدردشة. راجع طلبك في حسابي أو تواصل مع الاستقبال للمساعدة.",
+      "لا يمكن إلغاء موعدك أو تغيير وقته من الدردشة. افتح حسابي لمراجعة موعدك أو تواصل مع الاستقبال للمساعدة.",
     );
     assert.equal(answer.page, "/account");
     assert.deepEqual(answer.cards ?? [], []);
