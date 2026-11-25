@@ -281,6 +281,10 @@ test("known domains resolve conversational days, typos, and a fresh service-hour
   assert.equal(hours.cards, undefined);
   assert.match(hours.text, /2026-11-26.*14:00/);
   assert.equal(hours.searchContext, null);
+  const friday = await ask("شو ساعات المختبر يوم الجمعة؟", "ar");
+  assert.equal(friday.kind, "library");
+  assert.match(friday.text, /2026-11-27/);
+  assert.equal(friday.cards, undefined);
 });
 
 test("unpublished pricing cannot emit a test card", async () => {

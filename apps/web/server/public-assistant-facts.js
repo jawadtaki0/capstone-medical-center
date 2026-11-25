@@ -27,7 +27,7 @@ const words = (value) =>
 const audiometryTopic =
   /\b(?:audiometry|hearing (?:tests?|assessment|screening|exam)|sama3)\b|(?:فحص|فحوصات|قسم|اختبار|قياس) السمع/u;
 const specimenPreparation =
-  /\b(?:collect(?:ion|ing)?|container|cup|jar|tube|specimen (?:kit|instructions)|sample (?:kit|instructions))\b|جمع|تجميع|وعاء|عبوه|علبه|كوب|انبوب|مرطبان|\b(?:3elbe|3elbeh|kebeye|tajmi3|jame3)\b/u;
+  /\b(?:collect(?:ion|ing)?|container|cup|jar|tube|specimen (?:kit|instructions)|sample (?:kit|instructions))\b|(?<!\p{L})(?:ل?جمع|تجميع)(?!\p{L})|وعاء|عبوه|علبه|كوب|انبوب|مرطبان|\b(?:3elbe|3elbeh|kebeye|tajmi3|jame3)\b/u;
 const timeRange = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export function catalogueIntent(message) {

@@ -429,7 +429,7 @@ export const genericArabiziAvailability = (value) =>
     scheduleText(value),
   );
 const sameDayWords =
-  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar))\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})/gu;
+  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar)|(?:el ?|l ?)?(?:yom|nhar) nafs[ouh]+)\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})|(?:اليوم|النهار|التاريخ)\s+نفسه(?!\p{L})/gu;
 
 export function sameDayReference(value) {
   const text = canon(value);
