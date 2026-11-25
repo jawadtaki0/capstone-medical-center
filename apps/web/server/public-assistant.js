@@ -220,8 +220,8 @@ export function createAssistant({
         early,
         early === "private"
           ? {
-              ...(/\b(?:cancel|delete)\b.{0,30}\b(?:booking|appointment|request)\b|(?:الغ|احذف|ألغي).*(?:موعد|حجز)/iu.test(
-                latest,
+              ...(/\b(?:cancel|delete)\b.{0,30}\b(?:booking|appointment|request)\b|(?:[اأ]لغي?|احذف).*(?:موعد|حجز)/iu.test(
+                latest.replace(/[\u064b-\u065fـ]/g, ""),
               )
                 ? {
                     text:
@@ -269,7 +269,7 @@ export function createAssistant({
         lang,
         readHours,
         deadline,
-        day ?? date,
+        day ?? relativeDay(latest, date) ?? date,
       );
       if (!combinedSchedule)
         return reply(result.complete ? "library" : "reception", {
@@ -394,9 +394,10 @@ export function createAssistant({
       /\brequire[s]? an? appointment\b/i.test(latest) ||
       Boolean(refinement && activeSearch?.filters?.requiresAppointment);
     const namedProfessional =
-      /\b(?:dr\.?|doctor)\s+([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,3})\s+(?:available|in)\b/iu.exec(
+      /\b(?:dr\.?|doctor)\s+([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,3}?)\s+(?:available|listed|in)\b/iu.exec(
         latest,
-      )?.[1];
+      )?.[1] ??
+      /\b(?:surname|last name)\s+([\p{L}][\p{L}'’-]*)/iu.exec(latest)?.[1];
     if (
       day &&
       !specialtyHint &&
@@ -678,9 +679,8 @@ export function createAssistant({
             (!professional ||
               norm(row.professionalName).includes(norm(professional))) &&
             (!specialty ||
-              specialtyWords(row.specialty).includes(
-                specialtyWords(specialty),
-              )) &&
+              (scheduleSpecialty(row.specialty) || specialtyWords(row.specialty)) ===
+                (scheduleSpecialty(specialty) || specialtyWords(specialty))) &&
             (!after || row.startTime >= after) &&
             (!before || row.endTime <= before),
         )

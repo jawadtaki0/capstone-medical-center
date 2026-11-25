@@ -169,7 +169,7 @@ export function publicServiceAnswer(value, language) {
 }
 
 const closingQuestion =
-  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|يغلق|يسكر/iu;
+  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|stop (?:receiving|seeing) (?:visitors|patients)|يغلق|بيسكر|يسكر|لحد اي ساع[هة]/iu;
 
 export function hoursQuestion(value) {
   const text = normalize(value);
@@ -224,7 +224,7 @@ export async function publishedHourAnswer(
     ? ["Saturday", "Sunday"].map((day) => relativeDay(day, date))
     : comparison?.length === 2
       ? [...new Set(comparison.map((day) => relativeDay(day, date)))]
-      : [relativeDay(message, date) ?? defaultDay];
+      : [/\b(?:the )?same day\b|نفس اليوم/iu.test(message) ? defaultDay : relativeDay(message, date) ?? defaultDay];
   const closingOnly = closingQuestion.test(message);
   const names =
     language === "ar"

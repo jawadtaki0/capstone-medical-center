@@ -21,9 +21,9 @@ const selfHarm =
 const negatedSelfHarm =
   /\b(?:not|never)\s+(?:thinking|going|planning)|ما (?:عم فكر|بدي)|لا (?:افكر|اريد)|\b(?:ma|mesh|mish) (?:3am|badde|fakker)\b/iu;
 const immediateDanger =
-  /(?:افكر|عم (?:فكر|بفكر)|بدي|رح|خايف)\s*(?:اني\s*)?(?:(?:ائذي|اوذي|اذي|اضر|اجرح|اقتل)\s*(?:حالي|نفسي)|انهي حياتي)|\b(?:i might injure|i'?ll harm|i'?ll hurt) myself\b|\b(?:ma|mesh|mish)\s+(?:3am\s+)?(?:e2dar|2ader|2dar|bi2dar|b2dar)\s+(?:etnaffas|etnafas|atnaffas)\b|\b(?:3am (?:fakker|fekker)|badde|ra7)\s+(?:enno\s+)?(?:e2ze|e2zi|2ezi|2azi|2tol)\s+(?:7ale|7ali|hale)\b/iu;
+  /(?:افكر|عم (?:فكر|بفكر)|بدي|رح|خايف)\s*(?:اني\s*)?(?:(?:ائذي|اوذي|اذي|اضر|اجرح|اقتل)\s*(?:حالي|نفسي)|انهي حياتي)|\b(?:i might injure|i'?ll harm|i'?ll hurt) myself\b|\b(?:ma|mesh|mish)\s+(?:3am\s+)?(?:e2dar|2ader|2dar|bi2dar|b2dar)\s+(?:etnaffas|etnafas|atnaffas)\b|\b(?:3am (?:fakker|fekker)|badde|ra7)\s+(?:enno\s+)?(?:e2ze|e2zi|2ze|2eze|2ezi|2azi|2tol)\s+(?:7ale|7ali|hale)\b/iu;
 const directArabicDanger =
-  /^(?:لا (?:استطيع|اقدر) (?:التنفس|ان اتنفس)|ما (?:بقدر|فيني) (?:اتنفس|اخد نفس)|(?:اشعر|احس) ب(?:الم|ضغط) (?:في |ب)?صدري)/u;
+  /(?:ما عم (?:بقدر|اقدر|فيني) (?:اتنفس|اخد نفس)|نفسي عم ينقطع|^(?:لا (?:استطيع|اقدر) (?:التنفس|ان اتنفس)|ما (?:بقدر|فيني) (?:اتنفس|اخد نفس)|(?:اشعر|احس) ب(?:الم|ضغط) (?:في |ب)?صدري))/u;
 
 export const rulesCopy = {
   en: {
@@ -138,7 +138,7 @@ export function localRoute(message) {
   )
     return "clinical";
   if (
-    /ignore (?:all |your |previous )*(?:rules|instructions)|override|jailbreak|system prompt|(?:private|hidden|internal) instructions|(?:translate|repeat|show|reveal|paste|print) (?:all )?your (?:internal )?(?:instructions|rules)|reveal.*prompt|تجاهل.*(?:تعليمات|قواعد)|(?:اكشف|اظهر|انسخ).*(?:التعليمات|القواعد)|نسيت القواعد|(?:warjine|farjine|ekteble).*(?:ta3limet|ta3limat|system prompt)/i.test(
+    /ignore (?:all |your |previous )*(?:rules|instructions)|override|jailbreak|system prompt|(?:private|hidden|internal) instructions|(?:translate|repeat|show|reveal|paste|print) (?:all )?your (?:internal )?(?:instructions|rules)|(?:show|print|repeat|quote|reveal)\b.{0,30}\binstructions\b.{0,40}\b(?:you (?:were given|received)|before (?:this |the )?chat)|reveal.*prompt|تجاهل.*(?:تعليمات|قواعد)|(?:اكشف|اظهر|انسخ).*(?:التعليمات|القواعد)|نسيت القواعد|(?:warjine|farjine|ekteble).*(?:ta3limet|ta3limat|system prompt)/i.test(
       text,
     )
   )
@@ -147,7 +147,7 @@ export function localRoute(message) {
     /\b(?:my|i got|i have)\b.{0,50}\b(?:came back|tested|result|levels?)\b.{0,75}\b(?:what condition|what (?:do i have|is wrong with me)|what disease|what does it mean)\b|طلعت نتيجتي.*(?:شو عندي|شو يعني|ما المرض)|natijte.*(?:shu 3ande|shu ya3ne)/iu.test(
       text,
     ) ||
-    /\b(?:what (?:does|do)|interpret|explain)\b.{0,40}\b(?:my\s+)?(?:lab\s+)?results?\b.{0,20}\bmean\b|\b(?:interpret|explain) my (?:lab )?(?:results?|report)\b|شو يعني نتيجتي|ما معنى نتيجتي/iu.test(
+    /\b(?:what (?:does|do)|interpret|explain)\b.{0,40}\b(?:my\s+)?(?:lab\s+)?results?\b.{0,20}\bmean\b|\b(?:interpret|explain) my (?:lab )?(?:results?|report)\b|شو يعني نتيجتي|ما معنى نتيجتي|نتيج[هة].{0,45}(?:عندي|تبعي).{0,45}(?:شو يعني|هل عندي|عندي مرض)|\b(?:natije|ta7lil)\b.{0,35}\b(?:3ande|taba3e)\b.{0,45}\b(?:shu ya3ne|3ande marad)\b/iu.test(
       text,
     )
   )
@@ -156,7 +156,7 @@ export function localRoute(message) {
     /\b(?:patient|visitor) names\b|(?:اسماء|اسامي) (?:جميع )?(?:المرضى|المراجعين)|\b(?:asame|asemi)\s+(?:el |l )?(?:marda|mar[dt]a)\b/iu.test(
       text,
     ) ||
-    /[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\b.{0,24}\b(?:appointments?|bookings?|reports?|results?|records?|password|account|requests?)\b|\b(?:my id number|patient records?|someone else.?s records?|reset (?:my )?password|booking status|report status)\b|\b(?:list|show|name)\b.{0,30}\bpatients\b|نتيجتي|موعدي|تقريري|سجلي|حسابي|طلبي|كلمة السر|natijte|maw3ade|7sebe/iu.test(
+    /[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\b.{0,24}\b(?:appointments?|bookings?|reports?|results?|records?|password|account|requests?)\b|\b(?:my id number|patient records?|someone else.?s (?:records?|cedar account|visit history)|(?:their|another patient.?s) (?:visit history|medical records?)|reset (?:my )?password|booking status|report status)\b|\b(?:list|show|name)\b.{0,30}\bpatients\b|نتيجتي|موعدي|حجزي|تقريري|سجلي|حسابي|طلبي|كلمة السر|natijte|maw3ade|7sebe/iu.test(
       text.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ""),
     )
   )
@@ -169,7 +169,7 @@ export function localRoute(message) {
   )
     return "clinical";
   if (
-    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
+    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|(?:bicycle|bike) (?:tire|tyre)|flat (?:bicycle|bike) (?:tire|tyre)|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
       text,
     )
   )
@@ -202,6 +202,7 @@ const scheduleText = (value) =>
     .replace(/\b(?:satuday|satruday|satudray|sabet|sabt)\b/g, "saturday")
     .replace(/\bpediatrcs\b/g, "pediatrics")
     .replace(/\bgastroentrology\b/g, "gastroenterology")
+    .replace(/\b(?:opthalmolgy|opthalmology|ophthalmolgy)\b/g, "ophthalmology")
     .replace(/\b(?:jom3a|jem3a|j[ou]m3a)\b/g, "friday")
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
 
@@ -237,6 +238,7 @@ export function scheduleSpecialty(value) {
     matches.add("Pediatrics, Neonatology, and General Health");
   if (/\bdentist\b|اسنان/u.test(text)) matches.add("Dentistry");
   const colloquial = {
+    gynecology: /نسائي[هة]|طبيب نسا|دكتور نسا|\b(?:nisa2iya|nisa2iyye)\b/u,
     ophthalmology:
       /\beye (?:doctor|specialist|surgeon)\b|طبيب (?:عيون|العيون)|دكتور عيون/u,
     urology: /مسالك بولي[هة]|\burinary specialist\b/u,
@@ -294,7 +296,7 @@ export const availabilityQuestion = (value) => {
         message,
       )) &&
     (Object.keys(scheduleTime(message)).length > 0 ||
-      /\b(?:available|availability|open|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|when|can i see|could i see|find|show|are there|any|next|book)\b|اليوم|بكرا|غد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعة|السبت|الاحد|متى|هل يوجد|في مواعيد|متاح|f[iy]|bukra|bokra|emta|\d{4}-\d{2}-\d{2}/iu.test(
+      /\b(?:available|availability|listed|open|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|when|can i see|could i see|find|show|are there|any|next|book)\b|اليوم|بكرا|غد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعة|السبت|الاحد|متى|هل يوجد|في مواعيد|متاح|f[iy]|bukra|bokra|emta|\d{4}-\d{2}-\d{2}/iu.test(
         message,
       ))
   );
