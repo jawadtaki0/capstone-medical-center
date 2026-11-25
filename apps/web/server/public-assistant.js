@@ -23,13 +23,26 @@ import {
   localRoute,
   emergencyDisclosure,
   refinementQuestion,
-  resolveDay,
-  sameDayReference,
   rulesCopy,
   scheduleRequest,
   scheduleSpecialty,
   specialtyCorrection,
 } from "./public-assistant-routing.js";
+
+import {
+  addDays,
+  cedarToday,
+  isCurrentWeek,
+  resolveTurnDates,
+  sameDayReference,
+  selectSessionByTime,
+  sessionDateRange,
+  sessionDays,
+  shownDateFor,
+  timePattern,
+} from "./public-assistant-dates.js";
+
+export { cedarToday } from "./public-assistant-dates.js";
 
 const localContextKey = randomBytes(32);
 const turnBudgetMs = 16_000;
@@ -112,17 +125,8 @@ const localLab = (test, language) =>
 
 const blocked =
   /(?:[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\s+(?:appointment|booking|report|result|record|test|symptom|password|dose)|\b(?:diagnos\w*|prescri\w*|dosage|symptom\w*|should i (?:take|stop|get|do|fast)|interpret\w*|patient records?)\b|نتيجتي|موعدي|تقـ?ريري|سجلي|تشخيص|جرعة|أعراض|هل أتناول|هل أصوم)/iu;
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-const validDate = (value) => {
-  if (typeof value !== "string" || !datePattern.test(value)) return false;
-  const instant = new Date(value + "T12:00:00Z");
-  return (
-    Number.isFinite(+instant) && instant.toISOString().slice(0, 10) === value
-  );
-};
 const blockedMessage = (value) =>
   blocked.test(value.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ""));
-const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const fallbackSafety = {
   en: "If this is an emergency, call the Lebanese Red Cross ambulance at 140 in Lebanon or go to the nearest emergency department. For non-emergency help, contact Cedar Reception.",
   ar: "إذا كانت الحالة طارئة، اتصل بإسعاف الصليب الأحمر اللبناني على الرقم 140 في لبنان أو توجّه إلى أقرب قسم طوارئ. للمساعدة في الحالات غير الطارئة، تواصل مع استقبال سيدر.",
@@ -145,14 +149,6 @@ const specialtyWords = (text) =>
   " ";
 const internalCopy =
   /\b(?:system prompt|developer message|system instructions|return json|output schema|insert (?:text|response)|placeholder|previous instructions)\b|\{\{|\[(?:insert|placeholder|todo)\b/i;
-const next = (date, offset) => {
-  const day = new Date(date + "T12:00:00Z");
-  day.setUTCDate(day.getUTCDate() + offset);
-  return day.toISOString().slice(0, 10);
-};
-export const cedarToday = (now = new Date()) =>
-  new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Beirut" }).format(now);
-
 export function createAssistant({
   interpret,
   compose,
@@ -198,14 +194,18 @@ export function createAssistant({
       fallback: true,
     });
     let providerFallback = false;
-    const reply = (key, extra = {}) => {
+    const reply = (key, extra = {}, relativeDisplayDate) => {
       trace(routeReasons[key] ?? "conversation_route");
       const result = {
         kind: key,
         text: prefix + (words[key] ?? fixed[key]),
-        searchContext: tokens.encode(carried),
         ...extra,
       };
+      const state =
+        carried && !["greeting", "thanks", "identity"].includes(key)
+          ? { ...carried, shownDate: shownDateFor(result, relativeDisplayDate) }
+          : carried;
+      result.searchContext = tokens.encode(state);
       return providerFallback || extra.fallback === true
         ? safeFallback(result)
         : result;
@@ -261,31 +261,27 @@ export function createAssistant({
     const parts = combinedRequestParts(latest);
     const sessionMessage = parts?.session ?? latest;
     const hoursMessage = parts?.hours ?? latest;
-    const request = scheduleRequest(sessionMessage, date);
-    const hoursDay = resolveDay(hoursMessage, date);
-    if (parts && !request.specified && hoursDay.day) request.day = hoursDay.day;
+    const hours = hoursQuestion(hoursMessage);
+    const { clinic, hourDays, conflict } = resolveTurnDates(
+      sessionMessage,
+      hoursMessage,
+      hours,
+      Boolean(parts),
+      date,
+      context,
+    );
+    const request = scheduleRequest(sessionMessage, date, clinic);
     const {
       day,
       specialty: specialtyHint,
       clinician: namedProfessional,
     } = request;
-    const hours = hoursQuestion(hoursMessage);
-    const referencedDay = parts
-      ? day
-      : activeSearch &&
-          activeSearch.filters.from === activeSearch.filters.through
-        ? activeSearch.filters.from
-        : (context?.serviceDay ?? null);
-    const sameDay = hours && sameDayReference(hoursMessage);
     if (
-      (sameDay &&
-        (!referencedDay || (hoursDay.day && hoursDay.day !== referencedDay))) ||
-      (hours && hoursDay.specified && !hoursDay.day) ||
+      conflict ||
       (!hours &&
         request.specified &&
         !day &&
-        (request.availability || activeSearch)) ||
-      (parts && request.specified && !day)
+        (request.availability || activeSearch || sameDayReference(latest)))
     )
       return reply("clarify", {
         text: lang === "ar" ? "أي تاريخ تقصد؟" : "Which date do you mean?",
@@ -298,15 +294,13 @@ export function createAssistant({
       const result = await publishedHourAnswer(
         hours,
         hoursMessage,
-        date,
+        hourDays,
         lang,
         readHours,
         deadline,
-        sameDay ? referencedDay : (hoursDay.day ?? day ?? date),
       );
       if (!combinedSchedule) {
-        if (result.complete && result.day)
-          carried = { at, remaining: 2, serviceDay: result.day };
+        if (result.complete && result.day) carried = { at, remaining: 2 };
         return reply(result.complete ? "library" : "reception", {
           text: result.text,
           page: hours.lab
@@ -353,22 +347,7 @@ export function createAssistant({
       /\b(?:one|session|slot|appointment)\b|الجلسة|الموعد/iu.test(latest);
     if (booking || (onScreenChoice && /\d/.test(latest) && !hasTime && !day)) {
       const choices = activeSearch?.choices ?? [];
-      const pickedTime = /\b(\d{1,2})(?::([0-5]\d))?\s*(am|pm)?\b/i.exec(
-        latest,
-      );
-      const matches = pickedTime
-        ? choices.filter(([, , , start]) => {
-            const [, hour, minute = "00", period] = pickedTime;
-            const hours = Number(hour);
-            return (
-              +start.slice(0, 2) ===
-                (period
-                  ? (hours % 12) + (/pm/i.test(period) ? 12 : 0)
-                  : hours) && start.slice(3) === minute
-            );
-          })
-        : choices.filter((_, index) => index === activeSearch?.picked);
-      const pick = matches.length === 1 ? matches[0] : null;
+      const pick = selectSessionByTime(latest, choices, activeSearch?.picked);
       if (activeSearch)
         carried = {
           ...activeSearch,
@@ -471,7 +450,7 @@ export function createAssistant({
             ? "لم أتمكن من تحديد الاختصاص في دليل سيدر. أي اختصاص تقصد؟"
             : "I couldn’t match the specialty to Cedar’s published directory. Which specialty do you mean?",
       });
-    const currentWeek = /\bthis week\b/i.test(latest);
+    const currentWeek = isCurrentWeek(latest);
     const nextSession = /\bnext\b/i.test(latest) && Boolean(specialtyHint);
     const fixedSearch =
       directSearch &&
@@ -690,50 +669,36 @@ export function createAssistant({
         ...intent,
         professional: namedProfessional || nameClarification,
       };
-    if (day) intent = { ...intent, from: day, through: day };
-    if (!day && currentWeek) {
-      const weekday = new Date(date + "T12:00:00Z").getUTCDay();
-      intent = {
-        ...intent,
-        from: date,
-        through: next(date, (7 - weekday) % 7),
-      };
-    }
+
     intent = {
       ...intent,
       ...(directSearch ? context?.pendingTime : {}),
       ...time,
     };
-    if (intent.from !== undefined && !validDate(intent.from))
-      return reply("empty");
+    const range = sessionDateRange(intent, date, {
+      day,
+      currentWeek,
+      timeOnlyContext: refinement && hasTime ? activeSearch : null,
+    });
+    const days = range && sessionDays(range, date);
+    if (!days) return reply("empty");
+    const { from, through } = range;
     const {
       professional = "",
       specialty = "",
-      from = date,
-      through = next(from, 6),
       after = "",
       before = "",
       startsAtOrAfter = false,
-    } = {
-      ...intent,
-      from: intent.from ?? date,
-    };
+    } = intent;
     if (
       ![professional, specialty].every(
         (text) => typeof text === "string" && text.length <= 100,
       ) ||
-      !validDate(through) ||
       (after && !timePattern.test(after)) ||
       (before && !timePattern.test(before)) ||
-      (before && after && before <= after) ||
-      from < date ||
-      through < from ||
-      through > next(from, 6) ||
-      through > next(date, 60)
+      (before && after && before <= after)
     )
       return reply("empty");
-    const days = [];
-    for (let day = from; day <= through; day = next(day, 1)) days.push(day);
     try {
       const records = (
         await Promise.all(
@@ -847,7 +812,7 @@ export function createAssistant({
         ),
       };
       const tomorrow =
-        from === next(date, 1) &&
+        from === addDays(date, 1) &&
         from === through &&
         /\b(?:tomorrow|tomorow|tomoorow|tommorow|tommorrow|tmrw|bokra|bukra)\b|بكرا|غد/i.test(
           latest,
@@ -939,6 +904,7 @@ export function createAssistant({
                       : emptyText),
                 }
               : {},
+            tomorrow && emptyText ? from : undefined,
           );
     } catch {
       return combinedSchedule

@@ -9,9 +9,9 @@ import {
   requestedProfessional,
 } from "./public-assistant-language.js";
 import { publicContent } from "./public-assistant-content.js";
+import { timePattern } from "./public-assistant-dates.js";
 import {
   availabilityQuestion,
-  relativeDay,
   scheduleSpecialty,
   serviceLogistics,
 } from "./public-assistant-routing.js";
@@ -28,7 +28,6 @@ const audiometryTopic =
   /\b(?:audiometry|hearing (?:tests?|assessment|screening|exam)|sama3)\b|(?:فحص|فحوصات|قسم|اختبار|قياس) السمع/u;
 const specimenPreparation =
   /\b(?:collect(?:ion|ing)?|container|cup|jar|tube|specimen (?:kit|instructions)|sample (?:kit|instructions))\b|(?<!\p{L})(?:ل?جمع|تجميع)(?!\p{L})|وعاء|عبوه|علبه|كوب|انبوب|مرطبان|\b(?:3elbe|3elbeh|kebeye|tajmi3|jame3)\b/u;
-const timeRange = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export function catalogueIntent(message) {
   const query = words(message);
@@ -264,7 +263,7 @@ export function publicServiceAnswer(value, language) {
 }
 
 const closingQuestion =
-  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|\b(?:la|la7ad) ay(?:ya)? se3a\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|يقفل|بيقفل|بيسكر|يسكر|بخلص|بيخلص|بيضل شغال|لحد اي ساع[هة]/iu;
+  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|\b(?:la|la7ad) ay(?:ya)? se3a\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|يقفل|بيقفل|بيسكر|يسكر|بخلص|بيخلص|بيضل شغال|(?:لحد|حتى) اي ساع[هة]|اخر ساع[هة]/iu;
 
 export function hoursQuestion(value) {
   const text = canon(value);
@@ -324,22 +323,11 @@ export function combinedRequestParts(message) {
 export async function publishedHourAnswer(
   question,
   message,
-  date,
+  days,
   language,
   readHours,
   deadline,
-  defaultDay = date,
 ) {
-  const comparison = /\b(?:earlier|later)\b/i.test(message)
-    ? message.match(
-        /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
-      )
-    : null;
-  const days = question.weekend
-    ? ["Saturday", "Sunday"].map((day) => relativeDay(day, date))
-    : comparison?.length === 2
-      ? [...new Set(comparison.map((day) => relativeDay(day, date)))]
-      : [defaultDay];
   const closingOnly = closingQuestion.test(canon(message));
   const names =
     language === "ar"
@@ -384,8 +372,8 @@ export async function publishedHourAnswer(
             ? schedule.centerHours
             : schedule.otherServices?.find(({ id }) => id === label);
         return row &&
-          timeRange.test(row.startTime) &&
-          timeRange.test(row.endTime)
+          timePattern.test(row.startTime) &&
+          timePattern.test(row.endTime)
           ? {
               text: closingOnly
                 ? language === "ar"

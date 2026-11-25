@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createAssistant } from "../server/public-assistant.js";
+import { resolveBeirutDate } from "../server/public-assistant-dates.js";
 import {
   emergencyDisclosure,
   rulesCopy,
@@ -23,7 +24,7 @@ const rows = [
   row("Maya Salim", "maya", "11:00", "12:00"),
   row("Dina Salim", "dina", "13:00", "14:00"),
 ];
-function fixture() {
+function fixture(sessionRows = rows) {
   const provider = [];
   const unexpected = () => {
     provider.push("called");
@@ -33,7 +34,7 @@ function fixture() {
     today: () => today,
     interpret: unexpected,
     compose: unexpected,
-    readSessions: async (day) => rows.filter((r) => r.date === day),
+    readSessions: async (day) => sessionRows.filter((r) => r.date === day),
     readHours: async (day) => ({
       date: day,
       publicationStatus: "published",
@@ -117,8 +118,31 @@ test("service hours use the referenced Clinic day without keeping Clinic filters
   }
   const undated = await ask("Any available cardiology sessions?");
   assert.equal(undated.kind, "sessions");
-  for (const context of [undefined, undated.searchContext]) {
-    const ambiguous = await ask(
+  assert.ok(undated.cards.every((card) => card.date === tomorrow));
+  const anchored = await ask(
+    "What are the Lab hours that same day?",
+    "en",
+    undated.searchContext,
+  );
+  assert.match(anchored.text, /2026-11-26/);
+  assert.equal(anchored.cards, undefined);
+  const { ask: askSeveralDays } = fixture([
+    ...rows,
+    {
+      ...row("Maya Salim", "maya", "09:00", "10:00"),
+      date: "2026-11-27",
+      sourceSessionId: "maya-friday",
+    },
+  ]);
+  const severalDays = await askSeveralDays(
+    "Any available cardiology sessions?",
+  );
+  assert.deepEqual(
+    [...new Set(severalDays.cards.map((card) => card.date))],
+    [tomorrow, "2026-11-27"],
+  );
+  for (const context of [undefined, severalDays.searchContext]) {
+    const ambiguous = await askSeveralDays(
       "What are the Lab hours that same day?",
       "en",
       context,
@@ -128,6 +152,22 @@ test("service hours use the referenced Clinic day without keeping Clinic filters
     assert.equal(ambiguous.cards, undefined);
   }
   assert.deepEqual(provider, ["called"]); // Undated Clinic search tries interpretation before local fallback.
+});
+
+test("relative day-after-tomorrow phrases use the Beirut date and detect conflicts", () => {
+  for (const text of [
+    "Lab the day after tomorrow?",
+    "يوم بعد بكرا بدوام المركز؟",
+    "emta byefta7 ba3d bukra?",
+  ])
+    assert.deepEqual(resolveBeirutDate(text, today), {
+      day: "2026-11-27",
+      specified: true,
+    });
+  assert.deepEqual(
+    resolveBeirutDate("Tomorrow or the day after tomorrow?", today),
+    { day: null, specified: true },
+  );
 });
 
 test("public booking and fee replies stay separate from personal advice", async () => {
