@@ -5,7 +5,7 @@ const normalize = (value) =>
     .normalize("NFKC")
     .toLowerCase()
     .replace(/[\u064b-\u065fـ]/g, "")
-    .replace(/[أإآ]/g, "ا")
+    .replace(/[أإآٱ]/g, "ا")
     .replace(/[’‘]/g, "'");
 
 const danger =
@@ -21,9 +21,9 @@ const selfHarm =
 const negatedSelfHarm =
   /\b(?:not|never)\s+(?:thinking|going|planning)|ما (?:عم فكر|بدي)|لا (?:افكر|اريد)|\b(?:ma|mesh|mish) (?:3am|badde|fakker)\b/iu;
 const immediateDanger =
-  /(?:افكر|عم (?:فكر|بفكر)|بدي|رح|خايف)\s*(?:اني\s*)?(?:(?:ائذي|اوذي|اذي|اضر|اجرح|اقتل)\s*(?:حالي|نفسي)|انهي حياتي)|\b(?:i might injure|i'?ll harm|i'?ll hurt) myself\b|\b(?:ma|mesh|mish)\s+(?:3am\s+)?(?:e2dar|2ader|2dar|bi2dar|b2dar)\s+(?:etnaffas|etnafas|atnaffas)\b|\b(?:3am (?:fakker|fekker)|badde|ra7)\s+(?:enno\s+)?(?:e2ze|e2zi|2ze|2eze|2ezi|2azi|2tol)\s+(?:7ale|7ali|hale)\b/iu;
+  /(?:افكر|عم (?:فكر|بفكر)|بدي|رح|خايف)\s*(?:اني\s*)?(?:(?:ائذي|اوذي|اذي|اضر|اجرح|اقتل)\s*(?:حالي|نفسي)|انهي حياتي)|\b(?:i might injure|i'?ll harm|i'?ll hurt) myself\b|\b(?:ma|mesh|mish)\s+(?:3am\s+)?(?:e2dar|2ader|2dar|bi2dar|b2dar)\s+(?:etnaffas|etnafas|atnaffas)\b|\b(?:3am (?:fakker|fekker)|badde|ra7)\s+(?:enno\s+)?(?:e2ze|e2zi|2ze|2eze|2ezi|2a[zd]+[ei]|2tol)\s+(?:7ale|7ali|hale)\b/iu;
 const directArabicDanger =
-  /(?:ما عم (?:بقدر|اقدر|فيني) (?:اتنفس|اخد نفس)|نفسي عم ينقطع|^(?:لا (?:استطيع|اقدر) (?:التنفس|ان اتنفس)|ما (?:بقدر|فيني) (?:اتنفس|اخد نفس)|(?:اشعر|احس) ب(?:الم|ضغط) (?:في |ب)?صدري))/u;
+  /(?:ما عم (?:بقدر|اقدر|فيني) (?:اتنفس|اخد نفس)|نفسي عم ينقطع|(?:مش|ماني|مانا) قادر[ة]? (?:اخد نفس|اتنفس)|(?:صدري|قلبي) عم (?:يوجعني|يالم[ني]+)|^(?:لا (?:استطيع|اقدر) (?:التنفس|ان اتنفس)|ما (?:بقدر|فيني) (?:اتنفس|اخد نفس)|(?:اشعر|احس) ب(?:الم|ضغط) (?:في |ب)?صدري))/u;
 
 export const rulesCopy = {
   en: {
@@ -138,7 +138,7 @@ export function localRoute(message) {
   )
     return "clinical";
   if (
-    /ignore (?:all |your |previous )*(?:rules|instructions)|override|jailbreak|system prompt|(?:private|hidden|internal) instructions|(?:translate|repeat|show|reveal|paste|print) (?:all )?your (?:internal )?(?:instructions|rules)|(?:show|print|repeat|quote|reveal)\b.{0,30}\binstructions\b.{0,40}\b(?:you (?:were given|received)|before (?:this |the )?chat)|reveal.*prompt|تجاهل.*(?:تعليمات|قواعد)|(?:اكشف|اظهر|انسخ).*(?:التعليمات|القواعد)|نسيت القواعد|(?:warjine|farjine|ekteble).*(?:ta3limet|ta3limat|system prompt)/i.test(
+    /ignore (?:all |your |previous )*(?:rules|instructions)|override|jailbreak|system prompt|(?:private|hidden|internal) instructions|(?:translate|repeat|show|reveal|paste|print) (?:all )?your (?:internal )?(?:instructions|rules)|(?:show|print|repeat|quote|reveal)\b.{0,30}\binstructions\b.{0,40}\b(?:you (?:were given|received)|before (?:this |the )?chat)|\b(?:reveal|share|show|print|give me)\b.{0,25}\b(?:private|hidden|internal) rules\b|reveal.*prompt|تجاهل.*(?:تعليمات|قواعد)|(?:اكشف|اظهر|انسخ).*(?:التعليمات|القواعد)|نسيت القواعد|(?:warjine|farjine|ekteble).*(?:ta3limet|ta3limat|system prompt)/i.test(
       text,
     )
   )
@@ -147,7 +147,7 @@ export function localRoute(message) {
     /\b(?:my|i got|i have)\b.{0,50}\b(?:came back|tested|result|levels?)\b.{0,75}\b(?:what condition|what (?:do i have|is wrong with me)|what disease|what does it mean)\b|طلعت نتيجتي.*(?:شو عندي|شو يعني|ما المرض)|natijte.*(?:shu 3ande|shu ya3ne)/iu.test(
       text,
     ) ||
-    /\b(?:what (?:does|do)|interpret|explain)\b.{0,40}\b(?:my\s+)?(?:lab\s+)?results?\b.{0,20}\bmean\b|\b(?:interpret|explain) my (?:lab )?(?:results?|report)\b|شو يعني نتيجتي|ما معنى نتيجتي|نتيج[هة].{0,45}(?:عندي|تبعي).{0,45}(?:شو يعني|هل عندي|عندي مرض)|\b(?:natije|ta7lil)\b.{0,35}\b(?:3ande|taba3e)\b.{0,45}\b(?:shu ya3ne|3ande marad)\b/iu.test(
+    /\b(?:what (?:does|do)|interpret|explain)\b.{0,40}\b(?:my\s+)?(?:lab\s+)?results?\b.{0,20}\bmean\b|\b(?:interpret|explain) my (?:lab )?(?:results?|report)\b|شو (?:هي )?الجرع[هة]|(?:كم|اي) جرع[هة].{0,30}(?:اخد|اتناول)|شو يعني نتيجتي|ما معنى نتيجتي|نتيج[هة].{0,45}(?:عندي|تبعي).{0,45}(?:شو يعني|هل عندي|عندي مرض)|\b(?:natije|ta7lil)\b.{0,35}\b(?:3ande|taba3e)\b.{0,45}\b(?:shu ya3ne|3ande marad)\b/iu.test(
       text,
     )
   )
@@ -156,7 +156,7 @@ export function localRoute(message) {
     /\b(?:patient|visitor) names\b|(?:اسماء|اسامي) (?:جميع )?(?:المرضى|المراجعين)|\b(?:asame|asemi)\s+(?:el |l )?(?:marda|mar[dt]a)\b/iu.test(
       text,
     ) ||
-    /[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\b.{0,24}\b(?:appointments?|bookings?|reports?|results?|records?|password|account|requests?)\b|\b(?:my id number|patient records?|someone else.?s (?:records?|cedar account|visit history)|(?:their|another patient.?s) (?:visit history|medical records?)|reset (?:my )?password|booking status|report status)\b|\b(?:list|show|name)\b.{0,30}\bpatients\b|نتيجتي|موعدي|حجزي|تقريري|سجلي|حسابي|طلبي|كلمة السر|natijte|maw3ade|7sebe/iu.test(
+    /[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\b.{0,24}\b(?:appointments?|bookings?|reports?|results?|records?|password|account|requests?)\b|\b(?:my id number|patient records?|someone else.?s (?:records?|cedar account|visit history)|(?:their|another patient.?s) (?:lab report|test results?|visit history|medical records?|account)|\b(?:look up|pull up|retrieve|show)\b.{0,65}\b(?:lab report|test results?|visit history)\b.{0,35}\b(?:their|someone else.?s|coworker.?s)\b|reset (?:my )?password|booking status|report status)\b|\b(?:list|show|name)\b.{0,30}\bpatients\b|نتيجتي|موعدي|حجزي|تقريري|سجلي|حسابي|طلبي|كلمة السر|natijte|maw3ade|7sebe/iu.test(
       text.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ""),
     )
   )
@@ -169,7 +169,7 @@ export function localRoute(message) {
   )
     return "clinical";
   if (
-    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|(?:bicycle|bike) (?:tire|tyre)|flat (?:bicycle|bike) (?:tire|tyre)|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
+    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|graphics cards?|gaming (?:pc|computer)|(?:bicycle|bike) (?:tire|tyre)|flat (?:bicycle|bike) (?:tire|tyre)|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
       text,
     )
   )
@@ -202,6 +202,9 @@ const scheduleText = (value) =>
     .replace(/\b(?:satuday|satruday|satudray|sabet|sabt)\b/g, "saturday")
     .replace(/\bpediatrcs\b/g, "pediatrics")
     .replace(/\bgastroentrology\b/g, "gastroenterology")
+    .replace(/\bgastroentrologist\b/g, "gastroenterologist")
+    .replace(/\bfryday\b/g, "friday")
+    .replace(/\b(?:nhar l )?(?:etnen|etnein|tnen)\b/g, "monday")
     .replace(/\b(?:opthalmolgy|opthalmology|ophthalmolgy)\b/g, "ophthalmology")
     .replace(/\b(?:jom3a|jem3a|j[ou]m3a)\b/g, "friday")
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
@@ -240,10 +243,10 @@ export function scheduleSpecialty(value) {
   const colloquial = {
     gynecology: /نسائي[هة]|طبيب نسا|دكتور نسا|\b(?:nisa2iya|nisa2iyye)\b/u,
     ophthalmology:
-      /\beye (?:doctor|specialist|surgeon)\b|طبيب (?:عيون|العيون)|دكتور عيون/u,
-    urology: /مسالك بولي[هة]|\burinary specialist\b/u,
+      /\beye (?:clinic|doctor|specialist|surgeon)\b|طبيب (?:عيون|العيون)|دكتور عيون/u,
+    urology: /(?:ال)?مسالك(?: بولي[هة])?|\burinary specialist\b/u,
     dietitian: /اختصاصي[هة]? تغذي[هة]|اخصائي[هة]? تغذي[هة]|\bnutritionist\b/u,
-    ent: /\bear (?:doctor|specialist)\b|(?:انف|اذن|انف واذن) وحنجر[هة]|\b7akim wedan\b/u,
+    ent: /\bear (?:doctor|specialist)\b|(?:انف|اذن)(?:\s*و\s*(?:ال)?اذن)?\s*و?\s*حنجر[هة]|(?:ال)?انف\s*و\s*(?:ال)?اذن|\b7akim wedan\b/u,
     surgery: /\bgeneral surgeon\b|جراح عام/u,
   };
   for (const { id, label } of specialtyDefinitions)
@@ -259,6 +262,9 @@ export function scheduleTime(value) {
     )
   )
     return { after: "", before: "" };
+  const noon = /\b(after|before) noon\b/u.exec(text);
+  if (noon)
+    return { after: "", before: "", [noon[1]]: "12:00" };
   const match =
     /(?:\b(after|before|ba3d|abel|2abel)\s+|(?:بعد|قبل)\s+)(?:(?:الساعة|l|el)\s+|ال\s*)?(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?|صباحا?|مساء?)?(?![\d:])/u.exec(
       text,
@@ -296,7 +302,7 @@ export const availabilityQuestion = (value) => {
         message,
       )) &&
     (Object.keys(scheduleTime(message)).length > 0 ||
-      /\b(?:available|availability|listed|open|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|when|can i see|could i see|find|show|are there|any|next|book)\b|اليوم|بكرا|غد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعة|السبت|الاحد|متى|هل يوجد|في مواعيد|متاح|f[iy]|bukra|bokra|emta|\d{4}-\d{2}-\d{2}/iu.test(
+      /\b(?:available|availability|listed|on (?:the|.{0,20}published) schedule|open|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|when|can i see|could i see|find|show|are there|any|next|book)\b|اليوم|بكرا|غد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعة|السبت|الاحد|متى|هل يوجد|في مواعيد|متاح|f[iy]|bukra|bokra|emta|\d{4}-\d{2}-\d{2}/iu.test(
         message,
       ))
   );
@@ -336,4 +342,16 @@ export function relativeDay(value, date) {
     day.setUTCDate(day.getUTCDate() + ((which - day.getUTCDay() + 7) % 7));
   }
   return day.toISOString().slice(0, 10);
+}
+
+export function scheduleRequest(message, today) {
+  return {
+    day: relativeDay(message, today),
+    specialty: scheduleSpecialty(message),
+    time: scheduleTime(message),
+    clinician:
+      /\b(?:dr\.?|doctor)\s+([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,3}?)\s+(?:available|listed|in|on (?:the|[\p{L}'’-]+(?:’s|'s)? published) schedule)\b/iu.exec(message)?.[1] ??
+      /\b(?:surname|last name)\s+([\p{L}][\p{L}'’-]*)/iu.exec(message)?.[1],
+    availability: availabilityQuestion(message),
+  };
 }

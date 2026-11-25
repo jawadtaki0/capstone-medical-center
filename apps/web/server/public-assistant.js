@@ -15,15 +15,14 @@ import {
   publishedHourAnswer,
 } from "./public-assistant-facts.js";
 import {
-  availabilityQuestion,
   genericArabiziAvailability,
   identityQuestion,
   localRoute,
   refinementQuestion,
   relativeDay,
   rulesCopy,
+  scheduleRequest,
   scheduleSpecialty,
-  scheduleTime,
   specialtyCorrection,
 } from "./public-assistant-routing.js";
 
@@ -220,7 +219,7 @@ export function createAssistant({
         early,
         early === "private"
           ? {
-              ...(/\b(?:cancel|delete)\b.{0,30}\b(?:booking|appointment|request)\b|(?:[اأ]لغي?|احذف).*(?:موعد|حجز)/iu.test(
+              ...(/\b(?:cancel|delete)\b.{0,30}\b(?:booking|appointment|request)\b|(?:[اأ]لغي?|احذف|تشيل|شيل).*(?:موعد|حجز)/iu.test(
                 latest.replace(/[\u064b-\u065fـ]/g, ""),
               )
                 ? {
@@ -255,11 +254,11 @@ export function createAssistant({
     const parts = combinedRequestParts(latest);
     const sessionMessage = parts?.session ?? latest;
     const hoursMessage = parts?.hours ?? latest;
-    const day = relativeDay(sessionMessage, date);
-    const specialtyHint = scheduleSpecialty(sessionMessage);
+    const request = scheduleRequest(sessionMessage, date);
+    const { day, specialty: specialtyHint, clinician: namedProfessional } = request;
     const hours = hoursQuestion(hoursMessage);
     const combinedSchedule =
-      hours && specialtyHint && availabilityQuestion(sessionMessage);
+      hours && specialtyHint && request.availability;
     let hoursSummary;
     if (hours) {
       const result = await publishedHourAnswer(
@@ -297,7 +296,7 @@ export function createAssistant({
     const time =
       combinedSchedule && /plan.*morning/i.test(latest)
         ? {}
-        : scheduleTime(sessionMessage);
+        : request.time;
     const hasTime = Object.keys(time).length > 0;
     const booking =
       /\b(?:book|reserve|schedule) (?:me|that|the|it)\b|احجز لي|احجزلي/iu.test(
@@ -351,13 +350,13 @@ export function createAssistant({
         return reply("unavailable");
       }
     }
-    const directSearch = availabilityQuestion(sessionMessage);
+    const directSearch = request.availability;
     const refinement =
       !directSearch &&
       (refinementQuestion(latest) ||
         (activeSearch &&
-          day &&
-          /\b(?:switch|change|move|what about|how about)\b|طيب|والجمع[هة]/iu.test(
+          (day || hasTime) &&
+          /\b(?:actually|make that|switch|change|move|what about|how about)\b|طيب|والجمع[هة]/iu.test(
             latest,
           )) ||
         (activeSearch && specialtyHint && specialtyCorrection(latest)));
@@ -393,17 +392,12 @@ export function createAssistant({
     const requiresAppointment =
       /\brequire[s]? an? appointment\b/i.test(latest) ||
       Boolean(refinement && activeSearch?.filters?.requiresAppointment);
-    const namedProfessional =
-      /\b(?:dr\.?|doctor)\s+([\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*){0,3}?)\s+(?:available|listed|in)\b/iu.exec(
-        latest,
-      )?.[1] ??
-      /\b(?:surname|last name)\s+([\p{L}][\p{L}'’-]*)/iu.exec(latest)?.[1];
     if (
       day &&
       !specialtyHint &&
       !namedProfessional &&
       !refinement &&
-      /\b(?:[a-z]{4,}(?:ologist|ology|iatrist)|[a-z]+ specialist)\b|(?:اختصاصي|اخصائي)\s+[\p{L}]+/iu.test(
+      /\b(?:[a-z]{3,}(?:ologist|ology|iatrist)|[a-z]+ specialist)\b|(?:اختصاصي|اخصائي)\s+[\p{L}]+/iu.test(
         latest,
       )
     )
@@ -644,6 +638,7 @@ export function createAssistant({
       !validDate(through) ||
       (after && !timePattern.test(after)) ||
       (before && !timePattern.test(before)) ||
+      (before && after && before <= after) ||
       from < date ||
       through < from ||
       through > next(from, 6) ||
@@ -681,8 +676,9 @@ export function createAssistant({
             (!specialty ||
               (scheduleSpecialty(row.specialty) || specialtyWords(row.specialty)) ===
                 (scheduleSpecialty(specialty) || specialtyWords(specialty))) &&
-            (!after || row.startTime >= after) &&
-            (!before || row.endTime <= before),
+            row.startTime < row.endTime &&
+            (!after || row.endTime > after) &&
+            (!before || row.startTime < before),
         )
         .sort((a, b) =>
           (a.date + a.startTime).localeCompare(b.date + b.startTime),

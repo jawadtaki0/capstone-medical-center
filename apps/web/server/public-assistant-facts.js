@@ -99,7 +99,7 @@ export function publicServiceAnswer(value, language) {
     );
   if (
     serviceLogistics(value) ||
-    /\b(?:can i |how (?:do|can) i )?book a lab(?:oratory)? visit online\b/u.test(
+    /\b(?:can i |how (?:do|can) i )?(?:book|reserve) a lab(?:oratory)? visit (?:online|(?:directly )?(?:through|on) .{0,30}website)\b/u.test(
       text,
     )
   )
@@ -111,7 +111,7 @@ export function publicServiceAnswer(value, language) {
   if (/\bhearing test.*(?:prep(?:aration)?|prepare)\b/u.test(text))
     return library(audiometryFaqs[1][1], "/services/audiometry", true);
   if (
-    /\banything cheaper\b|\b(?:price|cost|cheaper)\b.*\b(?:panel|test)\b|\b(?:panel|tests?)\b.{0,35}\b(?:cost|price|charge)\b/u.test(
+    /\banything cheaper\b|\b(?:published|catalogue)\b.{0,45}\b(?:fee|price|cost)\b|\b(?:price|cost|cheaper)\b.*\b(?:panel|test)\b|\b(?:panel|tests?)\b.{0,35}\b(?:cost|price|charge)\b/u.test(
       text,
     )
   )
@@ -177,12 +177,14 @@ export function hoursQuestion(value) {
     /\b(?:lab(?:oratory)?|blood test|mokhtabar|moukhtabar)\b|مختبر/u.test(text);
   const audio = /\b(?:audiometry|hearing tests?)\b|فحص السمع/u.test(text);
   const clinic = /\bclinic\b|العيادة/u.test(text);
+  const center = /\bcent(?:er|re)\b|المركز/u.test(text);
   const when =
-    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|يفتح|يغلق|ساعات|السبت|بكرا/u.test(
+    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7)\b|يفتح|يغلق|مسكر|ساعات|السبت|بكرا/u.test(
       text,
     );
   if (!when && !closingQuestion.test(text) && !(lab && audio)) return null;
   if (lab || audio) return { lab, audio, center: clinic, weekend: false };
+  if (center) return { center: true, weekend: /weekend/.test(text) };
   if (
     /\bopening hours\b|\bopen this weekend\b|\b(?:centre|center|cedar)\b.{0,15}\bopen\b|ساعات (?:عمل )?المركز/u.test(
       text,
