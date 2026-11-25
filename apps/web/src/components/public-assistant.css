@@ -1,0 +1,197 @@
+.cedar-assistant-open {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 30;
+}
+.cedar-assistant {
+  border: 1px solid #c9dce8;
+  border-radius: 1rem;
+  color: #143a50;
+  background: #fff;
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(
+    var(--cedar-keyboard-inset, 0px) + max(4.5rem, env(safe-area-inset-bottom))
+  );
+  width: min(calc(100% - 2rem), 23rem);
+  max-height: min(32rem, calc(var(--cedar-visible-height, 100dvh) - 5.5rem));
+  padding: 1rem;
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  box-shadow: 0 8px 30px rgb(20 58 80 / 20%);
+  animation: cedar-assistant-enter 180ms ease-out;
+}
+.cedar-assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.cedar-assistant h2,
+.cedar-assistant h3 {
+  margin: 0;
+}
+.cedar-assistant-turns {
+  min-height: 2rem;
+  flex: 1 1 auto;
+  overflow: auto;
+  margin-block: 0.7rem;
+}
+.cedar-assistant-turns section {
+  border-block-start: 1px solid #c9dce8;
+  padding: 0.7rem 0.2rem;
+}
+.cedar-assistant-question {
+  padding: 0.5rem;
+  background: #164b5d;
+  color: white;
+  border-radius: 0.5rem;
+  margin-left: auto;
+  width: fit-content;
+  max-width: 86%;
+}
+.cedar-assistant-reply {
+  animation: cedar-assistant-enter 180ms ease-out;
+  background: #eaf4fb;
+  border-radius: 0.5rem;
+  padding: 0.6rem;
+  margin: 0.5rem auto 0 0;
+  max-width: 95%;
+}
+.cedar-assistant-question p,
+.cedar-assistant-reply p {
+  margin-block: 0.25rem;
+}
+.cedar-assistant-max {
+  width: min(calc(100% - 2rem), 48rem);
+  max-height: calc(var(--cedar-visible-height, 100dvh) - 5.5rem);
+  height: 42rem;
+}
+.cedar-assistant-controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+}
+.cedar-assistant .cedar-assistant-controls button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 0.35rem;
+}
+.cedar-assistant-controls svg {
+  width: 14px;
+  height: 14px;
+}
+.cedar-assistant a.cedar-assistant-reception {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  color: #145579;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.cedar-assistant a.cedar-assistant-reception:hover {
+  color: #143a50;
+  text-decoration-thickness: 0.14em;
+}
+.cedar-assistant form button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.cedar-assistant-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.6rem;
+  margin-block: 0.5rem;
+}
+.cedar-assistant-cards article {
+  border: 1px solid #c9dce8;
+  border-radius: 0.65rem;
+  padding: 0.65rem;
+}
+.cedar-assistant form {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+.cedar-assistant form label {
+  grid-column: 1 / -1;
+}
+.cedar-assistant input,
+.cedar-assistant select {
+  border: 1px solid #7494a8;
+  border-radius: 0.35rem;
+  padding: 0.65rem;
+  font: inherit;
+  color: inherit;
+  background: #fff;
+}
+.cedar-assistant :focus-visible {
+  outline: 2px solid #1d5878;
+  outline-offset: 2px;
+}
+.cedar-assistant-wait,
+.cedar-assistant-dots {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.cedar-assistant-dots i {
+  width: 0.36rem;
+  height: 0.36rem;
+  background: #28729d;
+  border-radius: 50%;
+  animation: cedar-assistant-dot 950ms ease-in-out infinite alternate;
+}
+.cedar-assistant-dots i:nth-child(2) {
+  animation-delay: 120ms;
+}
+.cedar-assistant-dots i:nth-child(3) {
+  animation-delay: 240ms;
+}
+@keyframes cedar-assistant-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes cedar-assistant-dot {
+  from {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@media (max-width: 480px) {
+  .cedar-assistant {
+    padding: 0.75rem;
+  }
+  .cedar-assistant input {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cedar-assistant,
+  .cedar-assistant-reply,
+  .cedar-assistant-dots i {
+    animation: none;
+  }
+}

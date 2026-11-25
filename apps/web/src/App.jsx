@@ -5,6 +5,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import LoadingStatus from "../../../shared/ui/LoadingStatus.jsx";
 import PublicPage from "./components/PublicPage.jsx";
 import PublicShell from "./components/PublicShell.jsx";
+import PublicAssistant from "./components/PublicAssistant.jsx";
 import PhoneVerificationNotice from "./components/PhoneVerificationNotice.jsx";
 import { requestSelectionUrl } from "./request-selection.js";
 import { isHomepageDemo, isHomepageDemoSession } from "./homepage-preview.js";
@@ -168,6 +169,10 @@ export default function App() {
           </PublicPage>
         )}
       </PublicShell>
+      {import.meta.env.VITE_CEDAR_PUBLIC_ASSISTANT === "1" &&
+        (onHomePage || onSchedulePage || onDoctorsPage || service) && (
+          <PublicAssistant />
+        )}
     </>
   );
 }

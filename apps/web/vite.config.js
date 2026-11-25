@@ -1,3 +1,4 @@
+import { assistantReviewPlugin } from "./server/assistant-review.js";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { createReadStream, existsSync } from "node:fs";
@@ -27,7 +28,17 @@ function localPrototypePhoto() {
 }
 
 export default defineConfig({
-  plugins: [react(), localPrototypePhoto()],
+  plugins: [
+    react(),
+    localPrototypePhoto(),
+    ...(process.env.CEDAR_ASSISTANT_ISOLATED_REVIEW === "1"
+      ? [
+          assistantReviewPlugin({
+            realModel: process.env.CEDAR_ASSISTANT_REVIEW_GEMINI === "1",
+          }),
+        ]
+      : []),
+  ],
   server: {
     port: 5173,
     proxy: {
