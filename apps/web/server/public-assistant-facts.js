@@ -61,6 +61,15 @@ export function publicServiceAnswer(value, language) {
     reception,
   });
   if (
+    /\b(?:how (?:do|can) i|how to)\s+(?:request|book)\s+(?:an?\s+)?(?:clinic|consultation)\s+(?:session|visit|appointment)\b/u.test(
+      text,
+    )
+  )
+    return library(
+      "Choose a published Clinic attendance window and submit a request. Choosing a session does not reserve an appointment. Reception confirms requests.",
+      "/services/clinic",
+    );
+  if (
     /\b(?:submit(?:ting)?|send(?:ing)?)\b.{0,36}\b(?:clinic|request) form\b.{0,30}\bconfirm\b/u.test(
       text,
     )
@@ -102,7 +111,7 @@ export function publicServiceAnswer(value, language) {
   if (/\bhearing test.*(?:prep(?:aration)?|prepare)\b/u.test(text))
     return library(audiometryFaqs[1][1], "/services/audiometry", true);
   if (
-    /\banything cheaper\b|\b(?:price|cost|cheaper)\b.*\b(?:panel|test)\b/u.test(
+    /\banything cheaper\b|\b(?:price|cost|cheaper)\b.*\b(?:panel|test)\b|\b(?:panel|tests?)\b.{0,35}\b(?:cost|price|charge)\b/u.test(
       text,
     )
   )
@@ -159,6 +168,9 @@ export function publicServiceAnswer(value, language) {
   return null;
 }
 
+const closingQuestion =
+  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|يغلق|يسكر/iu;
+
 export function hoursQuestion(value) {
   const text = normalize(value);
   const lab =
@@ -169,10 +181,10 @@ export function hoursQuestion(value) {
     /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|يفتح|يغلق|ساعات|السبت|بكرا/u.test(
       text,
     );
-  if (!when && !(lab && audio)) return null;
+  if (!when && !closingQuestion.test(text) && !(lab && audio)) return null;
   if (lab || audio) return { lab, audio, center: clinic, weekend: false };
   if (
-    /\bopening hours\b|\bopen this weekend\b|\b(?:centre|center|cedar)\b.{0,15}\bopen\b/u.test(
+    /\bopening hours\b|\bopen this weekend\b|\b(?:centre|center|cedar)\b.{0,15}\bopen\b|ساعات (?:عمل )?المركز/u.test(
       text,
     )
   )
@@ -203,13 +215,17 @@ export async function publishedHourAnswer(
   deadline,
   defaultDay = date,
 ) {
+  const comparison = /\b(?:earlier|later)\b/i.test(message)
+    ? message.match(
+        /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+      )
+    : null;
   const days = question.weekend
     ? ["Saturday", "Sunday"].map((day) => relativeDay(day, date))
-    : [relativeDay(message, date) ?? defaultDay];
-  const closingOnly =
-    /\b(?:close|closes|closing|byesakkir|byesakker|bysakkir)\b|يغلق|يسكر/iu.test(
-      message,
-    );
+    : comparison?.length === 2
+      ? [...new Set(comparison.map((day) => relativeDay(day, date)))]
+      : [relativeDay(message, date) ?? defaultDay];
+  const closingOnly = closingQuestion.test(message);
   const names =
     language === "ar"
       ? { center: "المركز", laboratory: "المختبر", audiometry: "فحوصات السمع" }

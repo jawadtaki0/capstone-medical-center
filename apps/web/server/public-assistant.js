@@ -763,8 +763,35 @@ export function createAssistant({
               ? "هذه هي الجلسات المنشورة التي تتطلب موعدًا. يؤكد الاستقبال الطلبات."
               : "These are the published doctor sessions marked as requiring an appointment. Reception confirms requests."),
         });
+      const appointmentNames = matches
+        .filter((row) => row.appointmentRequired === true)
+        .map(
+          (row) =>
+            row.professionalName +
+            " (" +
+            row.date +
+            ", " +
+            row.startTime +
+            "–" +
+            row.endTime +
+            ")",
+        );
       return cards.length
-        ? reply("sessions", { cards })
+        ? reply("sessions", {
+            cards,
+            ...(appointmentNames.length
+              ? {
+                  text:
+                    prefix +
+                    words.sessions +
+                    (lang === "ar"
+                      ? " الفترات التي تتطلب موعدًا: "
+                      : " Published windows marked as requiring an appointment: ") +
+                    appointmentNames.join(lang === "ar" ? "؛ " : "; ") +
+                    ".",
+                }
+              : {}),
+          })
         : reply(
             "empty",
             emptyText

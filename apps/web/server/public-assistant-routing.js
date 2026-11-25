@@ -22,6 +22,8 @@ const negatedSelfHarm =
   /\b(?:not|never)\s+(?:thinking|going|planning)|ما (?:عم فكر|بدي)|لا (?:افكر|اريد)|\b(?:ma|mesh|mish) (?:3am|badde|fakker)\b/iu;
 const immediateDanger =
   /(?:افكر|عم (?:فكر|بفكر)|بدي|رح|خايف)\s*(?:اني\s*)?(?:(?:ائذي|اوذي|اذي|اضر|اجرح|اقتل)\s*(?:حالي|نفسي)|انهي حياتي)|\b(?:i might injure|i'?ll harm|i'?ll hurt) myself\b|\b(?:ma|mesh|mish)\s+(?:3am\s+)?(?:e2dar|2ader|2dar|bi2dar|b2dar)\s+(?:etnaffas|etnafas|atnaffas)\b|\b(?:3am (?:fakker|fekker)|badde|ra7)\s+(?:enno\s+)?(?:e2ze|e2zi|2ezi|2azi|2tol)\s+(?:7ale|7ali|hale)\b/iu;
+const directArabicDanger =
+  /^(?:لا (?:استطيع|اقدر) (?:التنفس|ان اتنفس)|ما (?:بقدر|فيني) (?:اتنفس|اخد نفس)|(?:اشعر|احس) ب(?:الم|ضغط) (?:في |ب)?صدري)/u;
 
 export const rulesCopy = {
   en: {
@@ -84,7 +86,9 @@ export function emergencyDisclosure(value) {
       )
         return false;
       if (
-        (selfHarm.test(value) || immediateDanger.test(value)) &&
+        (selfHarm.test(value) ||
+          immediateDanger.test(value) ||
+          directArabicDanger.test(value)) &&
         !general.test(value) &&
         !/^(?:if |suppose |hypothetically |لو |اذا )/u.test(value)
       )
@@ -121,6 +125,12 @@ export function serviceLogistics(value) {
 export function localRoute(message) {
   const text = normalize(message);
   if (emergencyDisclosure(text)) return "emergency";
+  if (
+    /\b(?:ignore|disregard|bypass)\s+(?:(?:the|all|your)\s+)?(?:cedar |clinic |safety )?(?:rules|instructions|restrictions)\b/u.test(
+      text,
+    )
+  )
+    return "override";
   if (
     /\b(?:i(?:'ve| have) had|i have|my)\b.{0,40}\b(?:headache|dizziness|fever|nausea|stomachache)\b.{0,55}\b(?:what is it|what (?:could|might) it be|what (?:could|might) be causing it)\b/u.test(
       text,
@@ -159,7 +169,7 @@ export function localRoute(message) {
   )
     return "clinical";
   if (
-    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|write (?:me )?a poem|recipe)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
+    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
       text,
     )
   )
@@ -189,6 +199,8 @@ const scheduleText = (value) =>
     .replace(/\bcardiolgy\b/g, "cardiology")
     .replace(/\bsesions\b/g, "sessions")
     .replace(/\bthursdy\b/g, "thursday")
+    .replace(/\b(?:satuday|satruday|satudray|sabet|sabt)\b/g, "saturday")
+    .replace(/\bpediatrcs\b/g, "pediatrics")
     .replace(/\bgastroentrology\b/g, "gastroenterology")
     .replace(/\b(?:jom3a|jem3a|j[ou]m3a)\b/g, "friday")
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632));
