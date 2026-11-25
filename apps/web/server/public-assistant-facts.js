@@ -2,6 +2,12 @@ import {
   laboratoryTests,
   audiometryFaqs,
 } from "../src/data/labAudioContent.js";
+import {
+  canon,
+  confirmationConcept,
+  priceConcept,
+  requestedProfessional,
+} from "./public-assistant-language.js";
 import { publicContent } from "./public-assistant-content.js";
 import {
   availabilityQuestion,
@@ -110,10 +116,15 @@ export function publicServiceAnswer(value, language) {
     );
   if (/\bhearing test.*(?:prep(?:aration)?|prepare)\b/u.test(text))
     return library(audiometryFaqs[1][1], "/services/audiometry", true);
-  const priceQuestion = /\b(?:fee|price|cost|charge)\b|(?:سعر|تكلف[هة]|كلف[هة])|\b(?:se3er|se3r|sa3er)\b/iu.test(text);
+  const priceQuestion = priceConcept(value);
   if (
-    (priceQuestion && catalogueIntent(value)) ||
-    /\banything cheaper\b|\b(?:published|catalogue)\b.{0,45}\b(?:fee|price|cost)\b|\b(?:price|cost|cheaper)\b.*\b(?:panel|test)\b|\b(?:panel|tests?)\b.{0,35}\b(?:cost|price|charge)\b/u.test(
+    (priceQuestion &&
+      (catalogueIntent(value) ||
+        /\b(?:tests?|lab(?:oratory)?|panel|catalogu?e)\b|فحص|تحليل|مختبر|\b(?:fa7s|ta7lil|mokhtabar)\b/u.test(
+          canon(value),
+        ))) ||
+    /\banything cheaper\b/u.test(text) ||
+    /\b(?:published|catalogue)\b.{0,45}\b(?:fee|price|cost)\b|\b(?:price|cost|cheaper)\b.*\b(?:panel|test)\b|\b(?:panel|tests?)\b.{0,35}\b(?:cost|price|charge)\b/u.test(
       text,
     )
   )
@@ -127,6 +138,36 @@ export function publicServiceAnswer(value, language) {
       ),
       kind: "reception",
     };
+  if (
+    priceQuestion &&
+    /\b(?:consultation|appointments?|clinic|audiometry|hearing test|visits?|sessions?)\b|معاينه|كشفيه|عياده|موعد|جلسه|السمع/u.test(
+      canon(value),
+    )
+  ) {
+    return {
+      ...library(
+        language === "ar"
+          ? "التكلفة غير منشورة. تواصل مع الاستقبال للاستفسار."
+          : "Cedar has not published the cost. Contact Reception to ask about fees.",
+        "/#contact",
+        true,
+      ),
+      kind: "reception",
+    };
+  }
+  if (
+    confirmationConcept(value) &&
+    /\b(?:appointment|session|slot|window|booking|clinic|request)\b|جلسه|موعد|حجز|العياده|طلب/u.test(
+      canon(value),
+    )
+  ) {
+    return library(
+      language === "ar"
+        ? "اختيار جلسة منشورة لا يحجز موعدًا. أرسل الطلب، ويتولى الاستقبال تأكيده."
+        : "Choosing a session does not reserve an appointment. Submit a request and Reception will confirm it.",
+      "/services/clinic",
+    );
+  }
   if (
     /\bwhat the laboratory offers\b|\bwhat does the lab(?:oratory)? offer\b/u.test(
       text,
@@ -152,7 +193,11 @@ export function publicServiceAnswer(value, language) {
       "/#contact",
       true,
     );
-  if (/اطلب جلسة.*العيادة|طلب جلسة.*العيادة|(?:بطلب|اطلب|طلب).{0,22}جلسة منشورة/u.test(text))
+  if (
+    /اطلب جلسة.*العيادة|طلب جلسة.*العيادة|(?:بطلب|اطلب|طلب).{0,22}جلسة منشورة/u.test(
+      text,
+    )
+  )
     return library(
       "اختر جلسة منشورة للعيادة، ثم افتح نموذج الطلب وأرسل طلبك. يتولى الاستقبال تأكيد الطلب.",
       "/services/clinic",
@@ -173,22 +218,31 @@ export function publicServiceAnswer(value, language) {
 }
 
 const closingQuestion =
-  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|stop (?:receiving|seeing) (?:visitors|patients)|يغلق|بيسكر|يسكر|لحد اي ساع[هة]/iu;
+  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|يقفل|بيقفل|بيسكر|يسكر|لحد اي ساع[هة]/iu;
 
 export function hoursQuestion(value) {
-  const text = normalize(value);
+  const text = canon(value);
   const lab =
     /\b(?:lab(?:oratory)?|blood test|mokhtabar|moukhtabar)\b|مختبر/u.test(text);
-  const audio = /\b(?:audiometry|hearing tests?)\b|(?:فحص|قسم|اختبار) السمع/u.test(text);
-  const clinic = /\bclinic\b|العيادة/u.test(text);
+  const audio =
+    /\b(?:audiometry|hearing tests?|sama3)\b|(?:فحص|فحوصات|قسم|اختبار) السمع/u.test(
+      text,
+    );
+  const clinic = /\bclinic\b|العياده/u.test(text);
   const center = /\b(?:cent(?:er|re)|markaz)\b|المركز/u.test(text);
   const when =
-    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|fet[iy]7|fetih)\b|يفتح|فاتح|بيبلش|بيبدا|يغلق|مسكر|\bmsakkar\b|ساعات|السبت|بكرا/u.test(
+    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|what time|when|emta|aymta|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|fet[iy]7|fetih)\b|متى|امتى|ايمتى|اي ساعه|يفتح|فاتح|بيبلش|بيبدا|يغلق|مسكر|\bmsakkar\b|ساعات|السبت|بكرا/u.test(
       text,
     );
   if (!when && !closingQuestion.test(text) && !(lab && audio)) return null;
   if (lab || audio) return { lab, audio, center: clinic, weekend: false };
-  if (center) return { center: true, weekend: /weekend/.test(text) };
+  if (
+    center ||
+    (clinic &&
+      !scheduleSpecialty(value) &&
+      (closingQuestion.test(text) || /\bhours\b|دوام|ساعات|يفتح/u.test(text)))
+  )
+    return { center: true, weekend: /weekend/.test(text) };
   if (
     /\bopening hours\b|\bopen this weekend\b|\b(?:centre|center|cedar)\b.{0,15}\bopen\b|ساعات (?:عمل )?المركز/u.test(
       text,
@@ -199,9 +253,15 @@ export function hoursQuestion(value) {
 }
 
 export function combinedRequestParts(message) {
-  const clauses = message.split(/(?:,\s*)?\band\b|[?؟;؛]\s*|،\s*و?/iu);
+  const clauses = message.split(
+    /(?:,\s*)?\band\b|[?؟;؛]\s*|،\s*و?|\s+و(?=امتى|إمتى|متى|اي ساعة|أي ساعة|اللاب|المختبر)/iu,
+  );
   const session = clauses.findIndex(
-    (part) => scheduleSpecialty(part) && availabilityQuestion(part),
+    (part) =>
+      !hoursQuestion(part) &&
+      (scheduleSpecialty(part) || requestedProfessional(part)) &&
+      (availabilityQuestion(part) ||
+        /\b(?:clinic|sessions?|slots?)\b|عياد|جلسه/iu.test(part)),
   );
   const hours = clauses.findIndex((part) => hoursQuestion(part));
   if (session < 0 || hours < 0 || session === hours) return null;
@@ -233,8 +293,12 @@ export async function publishedHourAnswer(
     ? ["Saturday", "Sunday"].map((day) => relativeDay(day, date))
     : comparison?.length === 2
       ? [...new Set(comparison.map((day) => relativeDay(day, date)))]
-      : [sameDayReference(message) ? defaultDay : resolveDay(message, date).day ?? defaultDay];
-  const closingOnly = closingQuestion.test(normalize(message));
+      : [
+          sameDayReference(message)
+            ? defaultDay
+            : (resolveDay(message, date).day ?? defaultDay),
+        ];
+  const closingOnly = closingQuestion.test(canon(message));
   const names =
     language === "ar"
       ? { center: "المركز", laboratory: "المختبر", audiometry: "فحوصات السمع" }

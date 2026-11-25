@@ -58,7 +58,6 @@ const vocabulary = [
     "audiometry",
     "hearing",
     "pediatrician",
-    "pediatric",
     "children",
     "specialist",
     "doctor",
@@ -84,6 +83,8 @@ export function correctTypos(text) {
       if (d < bestDistance) {
         best = candidate;
         bestDistance = d;
+      } else if (d === bestDistance) {
+        best = null;
       }
     }
     return best ?? word;
@@ -137,7 +138,7 @@ export function skeleton(word) {
     .replace(/(?<=[a-z])h/g, "")
     .replace(/q/g, "k")
     .replace(/[^a-z]/g, "")
-    .replace(/[aeiouwy]/g, "")
+    .replace(/[aeiouw]/g, "")
     .replace(/(.)\1+/g, "$1");
   return latin;
 }
@@ -164,11 +165,15 @@ export function nameScore(requested, published) {
     let bestIndex = -1;
     available.forEach((candidate, index) => {
       if (used.has(index)) return;
+      const outline = skeleton(token);
+      const publishedOutline = skeleton(candidate);
+      const reduced = outline.replace(/y/g, "");
       const points =
         token === candidate
           ? 3
-          : skeleton(token).length >= 2 &&
-              skeleton(token) === skeleton(candidate)
+          : (outline.length >= 2 && outline === publishedOutline) ||
+              (reduced.length >= 2 &&
+                reduced === publishedOutline.replace(/y/g, ""))
             ? 2
             : /^[a-z]{5,}$/.test(token) && distance(token, candidate) <= 1
               ? 2
@@ -186,7 +191,7 @@ export function nameScore(requested, published) {
 }
 
 const nameStop =
-  /^(?:on|at|in|for|have|has|had|is|was|available|listed|published|session|sessions|window|windows|schedule|this|next|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|and|or|please|work|working|see|seeing|open|nhar|yom|يوم|نهار|بكرا|اليوم|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|الاحد|شو|متى|امتى|في|على|عند|بس|هل|وقت|موعد|مواعيد|جلسه|دوام|بيداوم|بيشتغل|بكره|غدا)$/u;
+  /^(?:on|at|in|for|have|has|had|is|was|available|listed|published|session|sessions|window|windows|schedule|this|next|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|and|or|please|work|working|see|seeing|open|slots?|appointments?|pls|bukra|bokra|emta|hours|saturday|nhar|yom|يوم|نهار|بكرا|اليوم|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|الاحد|شو|متى|امتى|في|على|عند|بس|هل|وقت|موعد|مواعيد|جلسه|دوام|بيداوم|بيشتغل|بكره|غدا)$/u;
 
 // A clinician named after a title, e.g. "Dr. Zeinab Mkahhel" or "الدكتور غازي سرغاني".
 export function requestedProfessional(message) {
@@ -211,7 +216,7 @@ export function requestedProfessional(message) {
 }
 
 const notGeneral = (text) =>
-  !/^(?:what (?:is|are|does|causes)|why |define |explain |ما (?:هو|هي|معنى|اسباب)|شو يعني|شو هو|شو هي)/u.test(
+  !/^(?:what (?:is|are|does|causes|should (?:someone|a person))|why |define |explain |ما (?:هو|هي|معنى|اسباب)|شو يعني|شو هو|شو هي)/u.test(
     text,
   ) && !/^(?:if |suppose |hypothetically |لو )/u.test(text);
 
@@ -221,7 +226,7 @@ function breathingDistress(clause) {
     /\b(?:can'?t|cannot|could ?n'?t|unable to|struggling to|hard to|trouble|difficulty|not able to)\s+(?:\w+\s+){0,2}(?:breath\w*|get (?:enough )?air)\b|\b(?:short(?:ness)? of breath|gasping|choking|suffocat\w*|not getting (?:enough )?air|out of breath)\b/u.test(
       clause,
     ) ||
-    /(?:(?:اخد|اخذ|اسحب|اتنفس|تنفس|التنفس)\s*(?:نفس)?.{0,40}(?:مش|ما|ما عم|صعب|عم يضيق|ضيق|ما بيكفي|مش عم)|(?:مش|ما|ما عم|ما عاد|صعب)\s*(?:عم\s*)?(?:بقدر|قادر|قادره|فيني|اقدر|يقدر)?\s*(?:اتنفس|اخد نفس|اخذ نفس)|(?:الهوا|هوا|الهواء)\s*(?:مش|ما)\s*(?:عم\s*)?(?:يكفي|يكفيني|بيكفي|بيكفيني|يفوت|يدخل|يوصل)|ضيق (?:ب|في )?(?:ال)?(?:نفس|تنفس)|(?:نفسي|النفس) (?:مقطوع|عم ينقطع|عم يضيق|ضايق)|عم اختنق|مخنوق|بختنق)/u.test(
+    /(?:(?:(?:اخد|اخذ|اسحب)\s+(?:ال)?نفس|اتنفس|التنفس)(?:\s+(?:كتير|منيح|بسهولة))?\s+(?:صعب|عم يضيق|ما بيكفي|مش ممكن)|(?:مش|ما|ما عم|ما عاد|صعب)\s*(?:عم\s*)?(?:بقدر|قادر|قادره|فيني|اقدر|يقدر)?\s*(?:اتنفس|اخد نفس|اخذ نفس)|(?:الهوا|هوا|الهواء)\s*(?:مش|ما)\s*(?:عم\s*)?(?:يكفي|يكفيني|بيكفي|بيكفيني|يفوت|يدخل|يوصل)|ضيق (?:ب|في )?(?:ال)?(?:نفس|تنفس)|(?:نفسي|النفس) (?:مقطوع|عم ينقطع|عم يضيق|ضايق)|عم اختنق|مخنوق|بختنق)/u.test(
       clause,
     ) ||
     /\b(?:mesh|mish|ma|mana|ma3am|ma 3am|sa3eb|sa3b)\b.{0,25}\b(?:etnaffas|etnafas|atnaffas|tnaffas|nafas|nafass|hawa)\b|\b(?:nafas|nafase|nafasi)\b.{0,15}\b(?:ma2tou3|2ate3|dayye2|da2)\b|\bhawa\b.{0,15}\b(?:mesh|ma)\b/u.test(
@@ -233,7 +238,7 @@ function breathingDistress(clause) {
 // Present thoughts of self-harm or not feeling safe, worded freely.
 function selfHarmRisk(clause) {
   if (
-    /\b(?:not|never|no longer|don'?t)\s+(?:thinking|going|planning|want)\b.{0,30}\b(?:hurt|harm|kill|suicide)|ما عم فكر|ما بدي ا?(?:اذي|ءذي)|\bma (?:3am fakker|badde)\b/u.test(
+    /\b(?:not|never|no longer|don'?t)\s+(?:thinking|going|planning|want)\b.{0,30}\b(?:hurt|harm|kill|suicide)|\b(?:no|without) (?:any )?(?:thoughts?|intent|plans?) (?:of|to) (?:suicide|self[- ]harm|harm|hurt)|\bnot suicid\w*|ما عم فكر|ما بدي ا?(?:اذي|ءذي)|\bma (?:3am fakker|badde)\b/u.test(
       clause,
     )
   )
@@ -289,8 +294,8 @@ export function cancellationConcept(value) {
   const bookingMatch = booking.exec(text);
   return Boolean(
     verbMatch &&
-      bookingMatch &&
-      Math.abs(verbMatch.index - bookingMatch.index) <= 60,
+    bookingMatch &&
+    Math.abs(verbMatch.index - bookingMatch.index) <= 60,
   );
 }
 
@@ -334,9 +339,9 @@ export function unrelatedConcept(value) {
 export function clinicalConcept(value) {
   const text = canon(value);
   const medicine =
-    /\b(?:medicines?|medications?|meds|drugs?|pills?|tablets?|antibiotics?|supplements?|vitamins?|doses?|dosage|painkillers?|treat(?:ment)?|cure)\b|دوا|الدوا|دواء|ادويه|حبوب|حبه|علاج|مضاد|فيتامين|مكمل|جرعه|مسكن|\b(?:dawa|edwye|7bub|7obob|3ilaj|3elej|dawe)\b/u;
+    /\b(?:medicines?|medications?|meds|drugs?|pills?|tablets?|antibiotics?|supplements?|vitamins?|doses?|dosage|painkillers?|treat(?:ment)?|cure)\b|(?<!\p{L})(?:هال|ال)?دوا(?:ء)?(?!\p{L})|ادويه|حبوب|حبه|علاج|مضاد|فيتامين|مكمل|جرعه|مسكن|\b(?:dawa|edwye|7bub|7obob|3ilaj|3elej|dawe)\b/u;
   const advice =
-    /\b(?:should|which|what|do i|need|take|use|start|stop|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
+    /\b(?:should|which|what|do i|need|take|use|start|stop|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|فيني|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
   const result =
     /\b(?:results?|levels?|readings?|values?|counts?|numbers?)\b|نتيجه|نتيجتي|تحليل|نسبه|معدل|مستوى|\b(?:natije|ta7lil|nesbe)\b/u;
   const abnormal =

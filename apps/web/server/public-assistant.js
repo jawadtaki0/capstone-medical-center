@@ -1,3 +1,4 @@
+import { nameScore } from "./public-assistant-language.js";
 import { laboratoryTests } from "../src/data/labAudioContent.js";
 import { requestSelectionUrl } from "../src/request-selection.js";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -255,18 +256,34 @@ export function createAssistant({
     const sessionMessage = parts?.session ?? latest;
     const hoursMessage = parts?.hours ?? latest;
     const request = scheduleRequest(sessionMessage, date);
-    const { day, specialty: specialtyHint, clinician: namedProfessional } = request;
-    const hours = hoursQuestion(hoursMessage);
     const hoursDay = resolveDay(hoursMessage, date);
-    const referencedDay = parts ? day : activeSearch?.filters.from === activeSearch?.filters.through ? activeSearch?.filters.from : null;
-    if ((hours && sameDayReference(hoursMessage) && !referencedDay) ||
-        (hours && hoursDay.specified && !hoursDay.day) ||
-        (request.specified && !day && (request.availability || activeSearch)))
+    if (parts && !request.specified && hoursDay.day) request.day = hoursDay.day;
+    const {
+      day,
+      specialty: specialtyHint,
+      clinician: namedProfessional,
+    } = request;
+    const hours = hoursQuestion(hoursMessage);
+    const referencedDay = parts
+      ? day
+      : activeSearch?.filters.from === activeSearch?.filters.through
+        ? activeSearch?.filters.from
+        : null;
+    if (
+      (hours && sameDayReference(hoursMessage) && !referencedDay) ||
+      (hours && hoursDay.specified && !hoursDay.day) ||
+      (!hours &&
+        request.specified &&
+        !day &&
+        (request.availability || activeSearch)) ||
+      (parts && request.specified && !day)
+    )
       return reply("clarify", {
         text: lang === "ar" ? "أي تاريخ تقصد؟" : "Which date do you mean?",
       });
-    const combinedSchedule =
-      Boolean(parts && hours && specialtyHint && request.availability);
+    const combinedSchedule = Boolean(
+      parts && hours && (specialtyHint || namedProfessional),
+    );
     let hoursSummary;
     if (hours) {
       const result = await publishedHourAnswer(
@@ -276,7 +293,9 @@ export function createAssistant({
         lang,
         readHours,
         deadline,
-        sameDayReference(hoursMessage) ? referencedDay : day ?? hoursDay.day ?? date,
+        sameDayReference(hoursMessage)
+          ? referencedDay
+          : (day ?? hoursDay.day ?? date),
       );
       if (!combinedSchedule)
         return reply(result.complete ? "library" : "reception", {
@@ -302,10 +321,19 @@ export function createAssistant({
         reception: true,
       });
     const time =
-      combinedSchedule && /plan.*morning/i.test(latest)
-        ? {}
-        : request.time;
+      combinedSchedule && /plan.*morning/i.test(latest) ? {} : request.time;
     const hasTime = Object.keys(time).length > 0;
+    const nameClarification =
+      activeSearch?.awaitingProfessional &&
+      !hours &&
+      !specialtyHint &&
+      !day &&
+      !hasTime &&
+      /^(?:(?:dr\.?|doctor|دكتور|الدكتور)\s+)?[\p{L}][\p{L}'’-]+(?:\s+[\p{L}][\p{L}'’-]+){1,2}[.?!؟]?$/iu.test(
+        latest.trim(),
+      )
+        ? latest.trim()
+        : "";
     const booking =
       /\b(?:book|reserve|schedule) (?:me|that|the|it)\b|احجز لي|احجزلي/iu.test(
         latest,
@@ -358,16 +386,25 @@ export function createAssistant({
         return reply("unavailable");
       }
     }
-    const directSearch = request.availability;
+    const directSearch = request.availability || combinedSchedule;
     const refinement =
       !directSearch &&
-      ((refinementQuestion(latest) && (!activeSearch || day || hasTime || specialtyHint)) ||
+      (nameClarification ||
+        (refinementQuestion(latest) &&
+          (!activeSearch || day || hasTime || specialtyHint)) ||
         (activeSearch &&
           (day || hasTime) &&
           /\b(?:actually|make that|switch|change|move|what about|how about)\b|طيب|والجمع[هة]/iu.test(
             latest,
           )) ||
-        (activeSearch && specialtyHint && specialtyCorrection(latest)));
+        (activeSearch && specialtyHint && specialtyCorrection(latest)) ||
+        (activeSearch &&
+          (day || hasTime) &&
+          !specialtyHint &&
+          !namedProfessional &&
+          !/\b(?:lab(?:oratory)?|audiometry|hearing|sama3|test|price)\b|مختبر|السمع|فحص|تحليل|سعر/iu.test(
+            latest,
+          )));
     if (identityQuestion(latest)) {
       if (!directSearch) {
         if (activeSearch)
@@ -396,7 +433,7 @@ export function createAssistant({
       maySearch &&
       (specialtyHint ||
         genericArabiziAvailability(latest) ||
-        (refinement && (day || Object.keys(time).length)));
+        (refinement && (day || Object.keys(time).length || nameClarification)));
     const requiresAppointment =
       /\brequire[s]? an? appointment\b/i.test(latest) ||
       Boolean(refinement && activeSearch?.filters?.requiresAppointment);
@@ -598,7 +635,8 @@ export function createAssistant({
       !refinement &&
       typeof intent.professional === "string" &&
       (scheduleSpecialty(intent.professional) ||
-        !norm(latest).includes(norm(intent.professional)))
+        (!namedProfessional &&
+          !norm(latest).includes(norm(intent.professional))))
     )
       intent = { ...intent, professional: "" };
     if (
@@ -611,7 +649,13 @@ export function createAssistant({
       intent = { ...intent, specialty: "" };
     if (refinement && activeSearch)
       intent = { ...activeSearch.filters, ...intent };
-    if (specialtyHint) intent = { ...intent, specialty: specialtyHint };
+    if (specialtyHint)
+      intent = { ...intent, specialty: specialtyHint, professional: "" };
+    if (namedProfessional || nameClarification)
+      intent = {
+        ...intent,
+        professional: namedProfessional || nameClarification,
+      };
     if (day) intent = { ...intent, from: day, through: day };
     if (!day && currentWeek) {
       const weekday = new Date(date + "T12:00:00Z").getUTCDay();
@@ -666,26 +710,76 @@ export function createAssistant({
           }),
         )
       ).flat();
-      const matches = records
+      const eligible = records.filter(
+        (row) =>
+          typeof row.professionalName === "string" &&
+          typeof row.specialty === "string" &&
+          typeof row.professionalId === "string" &&
+          typeof row.sourceSessionId === "string" &&
+          row.published !== false &&
+          row.available !== false &&
+          (!requiresAppointment ||
+            (row.appointmentRequired === true && row.kind === "doctor")) &&
+          timePattern.test(row.startTime) &&
+          timePattern.test(row.endTime) &&
+          (!specialty ||
+            (scheduleSpecialty(row.specialty) ||
+              specialtyWords(row.specialty)) ===
+              (scheduleSpecialty(specialty) || specialtyWords(specialty))) &&
+          row.startTime < row.endTime,
+      );
+      const afternoonOnly = hasTime
+        ? /\b(?:only (?:in the )?afternoon|afternoon only)\b/iu.test(latest)
+        : Boolean(refinement && activeSearch.filters.afternoonOnly);
+      const filters = {
+        professional,
+        specialty,
+        from,
+        through,
+        after,
+        before,
+        ...(requiresAppointment ? { requiresAppointment: true } : {}),
+        ...(afternoonOnly ? { afternoonOnly: true } : {}),
+      };
+      const remaining = refinement ? activeSearch.remaining - 1 : 3;
+      const searchStarted = refinement ? activeSearch.at : at;
+      let matchingProfessionals = eligible;
+      if (professional) {
+        const scored = eligible.map((row) => ({
+          row,
+          score: nameScore(professional, row.professionalName),
+        }));
+        const bestScore = scored.reduce(
+          (best, { score }) => Math.max(best, score),
+          0,
+        );
+        matchingProfessionals = scored
+          .filter(({ score }) => score > 0 && score === bestScore)
+          .map(({ row }) => row);
+        if (
+          new Set(
+            matchingProfessionals.map(({ professionalId }) => professionalId),
+          ).size > 1
+        ) {
+          carried = {
+            remaining,
+            at: searchStarted,
+            filters,
+            awaitingProfessional: true,
+          };
+          return reply("clarify", {
+            text:
+              lang === "ar"
+                ? "وجدت أكثر من اختصاصي بهذا الاسم. ما الاسم الكامل للاختصاصي الذي تقصده؟"
+                : "More than one clinician matches that name. What is the clinician’s full name?",
+          });
+        }
+      }
+      const matches = matchingProfessionals
         .filter(
           (row) =>
-            typeof row.professionalName === "string" &&
-            typeof row.specialty === "string" &&
-            typeof row.professionalId === "string" &&
-            typeof row.sourceSessionId === "string" &&
-            row.published !== false &&
-            row.available !== false &&
-            (!requiresAppointment ||
-              (row.appointmentRequired === true && row.kind === "doctor")) &&
-            timePattern.test(row.startTime) &&
-            timePattern.test(row.endTime) &&
-            (!professional ||
-              norm(row.professionalName).includes(norm(professional))) &&
-            (!specialty ||
-              (scheduleSpecialty(row.specialty) || specialtyWords(row.specialty)) ===
-                (scheduleSpecialty(specialty) || specialtyWords(specialty))) &&
-            row.startTime < row.endTime &&
-            (!after || row.endTime > after) &&
+            (!after ||
+              (afternoonOnly ? row.startTime >= after : row.endTime > after)) &&
             (!before || row.startTime < before),
         )
         .sort((a, b) =>
@@ -694,17 +788,9 @@ export function createAssistant({
         .slice(0, nextSession ? 1 : 6);
       const cards = matches.map(sessionCard);
       carried = {
-        remaining: refinement ? activeSearch.remaining - 1 : 3,
-        at: refinement ? activeSearch.at : at,
-        filters: {
-          professional,
-          specialty,
-          from,
-          through,
-          after,
-          before,
-          ...(requiresAppointment ? { requiresAppointment } : {}),
-        },
+        remaining,
+        at: searchStarted,
+        filters,
         choices: matches.map(
           ({ date, sourceSessionId, professionalId, startTime }) => [
             date,
