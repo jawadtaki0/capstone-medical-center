@@ -110,14 +110,18 @@ export function publicServiceAnswer(value, language) {
     );
   if (/\bhearing test.*(?:prep(?:aration)?|prepare)\b/u.test(text))
     return library(audiometryFaqs[1][1], "/services/audiometry", true);
+  const priceQuestion = /\b(?:fee|price|cost|charge)\b|(?:سعر|تكلف[هة]|كلف[هة])|\b(?:se3er|se3r|sa3er)\b/iu.test(text);
   if (
+    (priceQuestion && catalogueIntent(value)) ||
     /\banything cheaper\b|\b(?:published|catalogue)\b.{0,45}\b(?:fee|price|cost)\b|\b(?:price|cost|cheaper)\b.*\b(?:panel|test)\b|\b(?:panel|tests?)\b.{0,35}\b(?:cost|price|charge)\b/u.test(
       text,
     )
   )
     return {
       ...library(
-        "Cedar has not published prices for these tests. Contact Reception to ask about costs.",
+        language === "ar"
+          ? "سعر الفحص غير منشور. تواصل مع الاستقبال للاستفسار عن التكلفة."
+          : "Cedar has not published prices for these tests. Contact Reception to ask about costs.",
         "/services/laboratory",
         true,
       ),
@@ -148,7 +152,7 @@ export function publicServiceAnswer(value, language) {
       "/#contact",
       true,
     );
-  if (/اطلب جلسة.*العيادة|طلب جلسة.*العيادة/u.test(text))
+  if (/اطلب جلسة.*العيادة|طلب جلسة.*العيادة|(?:بطلب|اطلب|طلب).{0,22}جلسة منشورة/u.test(text))
     return library(
       "اختر جلسة منشورة للعيادة، ثم افتح نموذج الطلب وأرسل طلبك. يتولى الاستقبال تأكيد الطلب.",
       "/services/clinic",
@@ -175,11 +179,11 @@ export function hoursQuestion(value) {
   const text = normalize(value);
   const lab =
     /\b(?:lab(?:oratory)?|blood test|mokhtabar|moukhtabar)\b|مختبر/u.test(text);
-  const audio = /\b(?:audiometry|hearing tests?)\b|فحص السمع/u.test(text);
+  const audio = /\b(?:audiometry|hearing tests?)\b|(?:فحص|قسم|اختبار) السمع/u.test(text);
   const clinic = /\bclinic\b|العيادة/u.test(text);
-  const center = /\bcent(?:er|re)\b|المركز/u.test(text);
+  const center = /\b(?:cent(?:er|re)|markaz)\b|المركز/u.test(text);
   const when =
-    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|fet[iy]7|fetih)\b|يفتح|فاتح|يغلق|مسكر|ساعات|السبت|بكرا/u.test(
+    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|fet[iy]7|fetih)\b|يفتح|فاتح|بيبلش|بيبدا|يغلق|مسكر|\bmsakkar\b|ساعات|السبت|بكرا/u.test(
       text,
     );
   if (!when && !closingQuestion.test(text) && !(lab && audio)) return null;
@@ -208,6 +212,9 @@ export function combinedRequestParts(message) {
   };
 }
 
+export const sameDayReference = (message) =>
+  /\bsame day\b|نفس اليوم/iu.test(normalize(message));
+
 export async function publishedHourAnswer(
   question,
   message,
@@ -226,8 +233,8 @@ export async function publishedHourAnswer(
     ? ["Saturday", "Sunday"].map((day) => relativeDay(day, date))
     : comparison?.length === 2
       ? [...new Set(comparison.map((day) => relativeDay(day, date)))]
-      : [/\b(?:the )?same day\b|نفس اليوم/iu.test(message) ? defaultDay : resolveDay(message, date).day ?? defaultDay];
-  const closingOnly = closingQuestion.test(message);
+      : [sameDayReference(message) ? defaultDay : resolveDay(message, date).day ?? defaultDay];
+  const closingOnly = closingQuestion.test(normalize(message));
   const names =
     language === "ar"
       ? { center: "المركز", laboratory: "المختبر", audiometry: "فحوصات السمع" }

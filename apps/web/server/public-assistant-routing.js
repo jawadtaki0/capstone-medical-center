@@ -19,11 +19,11 @@ const reported =
 const selfHarm =
   /\b(?:i am|i'm|i) (?:thinking (?:about|of)|want to|might|going to|plan(?:ning)? to) (?:(?:hurt(?:ing)?|harm(?:ing)?|kill(?:ing)?) myself|suicide|ending my life)\b|(?:افكر|اريد|انوي|بدي|رح|عم فكر)\s*(?:(?:ب|في |ان )?(?:ايذاء|اوذي|ااذي|اذي|اقتل) نفسي|انتحر|اقتل حالي)|\b(?:3am (?:fakker|fekker)|badde|ra7) (?:2eze|2azi|azi|eze|2tol|2u2tol|2ezi|e2zi) (?:7ale|7ali|hale)\b/iu;
 const negatedSelfHarm =
-  /\b(?:not|never)\s+(?:thinking|going|planning)|ما (?:عم فكر|بدي)|لا (?:افكر|اريد)|\b(?:ma|mesh|mish) (?:3am|badde|fakker)\b/iu;
+  /\b(?:not|never)\s+(?:thinking|going|planning)|ما (?:عم فكر|بدي)|لا (?:افكر|اريد)|\b(?:ma|mesh|mish) (?:3am|badde|fakker|khay[ef]+[ef]?[ae]?)\b/iu;
 const immediateDanger =
-  /(?:افكر|عم (?:فكر|بفكر)|بدي|رح|خايف)\s*(?:اني\s*)?(?:(?:ائذي|اوذي|اذي|اضر|اجرح|اقتل)\s*(?:حالي|نفسي)|انهي حياتي)|\b(?:i might injure|i'?ll harm|i'?ll hurt) myself\b|\b(?:ma|mesh|mish)\s+(?:3am\s+)?(?:e2dar|2ader|2dar|bi2dar|b2dar)\s+(?:etnaffas|etnafas|atnaffas)\b|\b(?:3am (?:fakker|fekker)|badde|ra7)\s+(?:enno\s+)?(?:e2ze|e2zi|2ze|2eze|2ezi|2a[zd]+[ei]|2tol)\s+(?:7ale|7ali|hale)\b/iu;
+  /(?:افكر|عم (?:فكر|بفكر)|بدي|رح|خايف)\s*(?:اني\s*)?(?:(?:ائذي|اوذي|اذي|اضر|اجرح|اقتل)\s*(?:حالي|نفسي)|انهي حياتي)|\b(?:i might injure|i'?ll harm|i'?ll hurt) myself\b|\b(?:ma|mesh|mish)\s+(?:3am\s+)?(?:e2dar|2ader|2dar|bi2dar|b2dar)\s+(?:etnaffas|etnafas|atnaffas)\b|\bkhay[ef]+[ef]?[ae]?\s+(?:enne|enno|inni)\s+(?:2eze|2azi|2azzi|e2zi)\s+(?:nafse|nafsi|7ale|7ali)\b|\b(?:3am (?:fakker|fekker)|badde|ra7)\s+(?:enno\s+)?(?:e2ze|e2zi|2ze|2eze|2ezi|2a[zd]+[ei]|2tol)\s+(?:7ale|7ali|hale)\b/iu;
 const directArabicDanger =
-  /(?:ما عم (?:بقدر|اقدر|فيني) (?:اتنفس|اخد نفس)|نفسي عم ينقطع|(?:مش|ماني|مانا) قادر[ة]? (?:اخد نفس|اتنفس)|(?:صدري|قلبي) عم (?:يوجعني|يالم[ني]+)|^(?:لا (?:استطيع|اقدر) (?:التنفس|ان اتنفس)|ما (?:بقدر|فيني) (?:اتنفس|اخد نفس)|(?:اشعر|احس) ب(?:الم|ضغط) (?:في |ب)?صدري))/u;
+  /(?:ما عم (?:بقدر|اقدر|فيني) (?:اتنفس|اخد نفس)|نفسي عم ينقطع|نفسي عم يضيق|مش عم يوصلني هوا|ما عم يدخل هوا|(?:مش|ماني|مانا) قادر[ة]? (?:اخد نفس|اتنفس)|(?:صدري|قلبي) عم (?:يوجعني|يالم[ني]+)|^(?:لا (?:استطيع|اقدر) (?:التنفس|ان اتنفس)|ما (?:بقدر|فيني) (?:اتنفس|اخد نفس)|(?:اشعر|احس) ب(?:الم|ضغط) (?:في |ب)?صدري))/u;
 
 export const rulesCopy = {
   en: {
@@ -82,7 +82,7 @@ export function emergencyDisclosure(value) {
       const value = clause.trim();
       if (
         negatedSelfHarm.test(value) &&
-        /myself|نفسي|حالي|7ale|7ali|hale/u.test(value)
+        /myself|نفسي|حالي|7ale|7ali|hale|nafse|nafsi/u.test(value)
       )
         return false;
       if (
@@ -122,9 +122,13 @@ export function serviceLogistics(value) {
   );
 }
 
+export const cancellationRequest = (message) =>
+  /\b(?:cancel|delete|remove)\b.{0,30}\b(?:booking|appointment|request)\b|(?:الغي?|تلغيلي|احذف|تشيل|شيل).{0,40}(?:موعد|حجز)/iu.test(normalize(message));
+
 export function localRoute(message) {
   const text = normalize(message);
   if (emergencyDisclosure(text)) return "emergency";
+  if (cancellationRequest(text)) return "private";
   if (
     /\b(?:ignore|disregard|bypass)\s+(?:(?:the|all|your)\s+)?(?:cedar |clinic |safety )?(?:rules|instructions|restrictions)\b/u.test(
       text,
@@ -138,7 +142,7 @@ export function localRoute(message) {
   )
     return "clinical";
   if (
-    /ignore (?:all |your |previous )*(?:rules|instructions)|override|jailbreak|system prompt|(?:private|hidden|internal) instructions|(?:translate|repeat|show|reveal|paste|print) (?:all )?your (?:internal )?(?:instructions|rules)|(?:show|print|repeat|quote|reveal)\b.{0,30}\binstructions\b.{0,40}\b(?:you (?:were given|received)|before (?:this |the )?chat)|\b(?:reveal|share|show|print|give me)\b.{0,25}\b(?:private|hidden|internal) rules\b|reveal.*prompt|تجاهل.*(?:تعليمات|قواعد)|(?:اكشف|اظهر|انسخ).*(?:التعليمات|القواعد)|نسيت القواعد|(?:warjine|farjine|ekteble).*(?:ta3limet|ta3limat|system prompt)/i.test(
+    /ignore (?:all |your |previous )*(?:rules|instructions)|override|jailbreak|system prompt|(?:private|hidden|internal) (?:operating |setup )?(?:instructions|rules)|(?:translate|repeat|show|reveal|paste|print) (?:all )?your (?:internal )?(?:instructions|rules)|(?:show|print|repeat|quote|reveal)\b.{0,30}\binstructions\b.{0,40}\b(?:you (?:were given|received)|before (?:this |the )?chat)|\b(?:reveal|share|show|print|give me)\b.{0,25}\b(?:private|hidden|internal) rules\b|reveal.*prompt|تجاهل.*(?:تعليمات|قواعد)|(?:اكشف|اظهر|انسخ).*(?:التعليمات|القواعد)|نسيت القواعد|(?:warjine|farjine|ekteble).*(?:ta3limet|ta3limat|system prompt)/i.test(
       text,
     )
   )
@@ -169,7 +173,7 @@ export function localRoute(message) {
   )
     return "clinical";
   if (
-    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|graphics cards?|gaming (?:pc|computer)|packing list|camping trip|(?:bicycle|bike) (?:tire|tyre)|flat (?:bicycle|bike) (?:tire|tyre)|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
+    /\b(?:weather|forecast|football (?:score|match)|bitcoin price|graphics cards?|gaming (?:pc|computer)|packing list|camping trip|birthday party|playlist for (?:a |my )?party|(?:bicycle|bike) (?:tire|tyre)|flat (?:bicycle|bike) (?:tire|tyre)|write (?:me )?a poem|recipe)\b|\b(?:recommend|find|suggest|where)\b.{0,50}\b(?:restaurants?|cafes?)\b|الطقس|حالة الجو|كيف الجو|جو بكرا|kif.*ta2es/iu.test(
       text,
     )
   )
@@ -204,6 +208,9 @@ const scheduleText = (value) =>
     .replace(/\bgastroentrology\b/g, "gastroenterology")
     .replace(/\bgastroentrologist\b/g, "gastroenterologist")
     .replace(/\bfryday\b/g, "friday")
+    .replace(/\bgynecolgy\b/g, "gynecology")
+    .replace(/\bwindw\b/g, "window")
+    .replace(/\b(?:nhar l )?ahad\b/g, "sunday")
     .replace(/\btuesdy\b/g, "tuesday")
     .replace(/\burolojy\b/g, "urology")
     .replace(/(?:الثلاثا(?![ء\p{L}])|التلات[اه](?!\p{L}))/gu, "الثلاثاء")
@@ -248,7 +255,7 @@ export function scheduleSpecialty(value) {
     ophthalmology:
       /\beye (?:clinic|doctor|specialist|surgeon)\b|طبيب (?:عيون|العيون)|دكتور عيون/u,
     urology: /(?:ال)?مسالك(?: بولي[هة])?|\burinary specialist\b/u,
-    dietitian: /اختصاصي[هة]? تغذي[هة]|اخصائي[هة]? تغذي[هة]|\bnutritionist\b/u,
+    dietitian: /اختصاصي[هة]? (?:ال)?تغذي[هة]|اخصائي[هة]? (?:ال)?تغذي[هة]|\bnutritionist\b/u,
     ent: /\bear (?:doctor|specialist)\b|(?:انف|اذن)(?:\s*و\s*(?:ال)?اذن)?\s*و?\s*حنجر[هة]|(?:ال)?انف\s*و\s*(?:ال)?اذن|\b7akim wedan\b/u,
     surgery: /\bgeneral surgeon\b|جراح عام|جراح[هة] (?:ال)?عام[هة]/u,
     gastroenterology: /\bgastro (?:doctor|clinic|specialist)\b|(?:طبيب|دكتور) جهاز هضمي/u,
@@ -314,7 +321,7 @@ export const availabilityQuestion = (value) => {
   );
 };
 export const refinementQuestion = (value) =>
-  /^(?:(?:actually|instead|and|what about|how about|could i go|can i come)[,\s]+)?(?:only|after|before|any later|(?:in the )?(?:afternoon|morning)|tomorrow|today|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|later|بس|فقط|بعد|قبل|الصبح|بكرا|غدا|هل يوجد وقت|وقتا|ba3d|bas|bokra|bukra)/iu.test(
+  /^(?:(?:actually|instead|and|what about|how about|could i go|can i come|anything)[,\s]+)?(?:only|after|before|any later|(?:in the )?(?:afternoon|morning)|tomorrow|today|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|later|بس|فقط|بعد|قبل|الصبح|بكرا|غدا|هل يوجد وقت|وقتا|ba3d|bas|bokra|bukra)/iu.test(
     scheduleText(value),
   );
 export const specialtyCorrection = (value) =>
@@ -366,7 +373,7 @@ export function resolveDay(value, date) {
       return { day: null, specified: true };
     return { day: candidate.toISOString().slice(0, 10), specified: true };
   }
-  if (/\btoday\b|اليوم|lyom/.test(text)) return { day: date, specified: true };
+  if (/\btoday\b|اليوم|lyom/.test(text.replace(/نفس اليوم/gu, ""))) return { day: date, specified: true };
   if (
     /\btomorrow\b|بكرا|(?<!\p{L})غدا?(?!\p{L})|\b(?:bokra|bukra)\b/u.test(text)
   )

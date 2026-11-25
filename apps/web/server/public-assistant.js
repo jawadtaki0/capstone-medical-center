@@ -11,12 +11,14 @@ import {
   catalogueIntent,
   combinedRequestParts,
   hoursQuestion,
+  sameDayReference,
   publicServiceAnswer,
   publishedHourAnswer,
 } from "./public-assistant-facts.js";
 import {
   genericArabiziAvailability,
   identityQuestion,
+  cancellationRequest,
   localRoute,
   refinementQuestion,
   resolveDay,
@@ -219,9 +221,7 @@ export function createAssistant({
         early,
         early === "private"
           ? {
-              ...(/\b(?:cancel|delete)\b.{0,30}\b(?:booking|appointment|request)\b|(?:[اأ]لغي?|تلغيلي|احذف|تشيل|شيل).*(?:موعد|حجز)/iu.test(
-                latest.replace(/[\u064b-\u065fـ]/g, ""),
-              )
+              ...(cancellationRequest(latest)
                 ? {
                     text:
                       lang === "ar"
@@ -258,13 +258,15 @@ export function createAssistant({
     const { day, specialty: specialtyHint, clinician: namedProfessional } = request;
     const hours = hoursQuestion(hoursMessage);
     const hoursDay = resolveDay(hoursMessage, date);
-    if ((hours && hoursDay.specified && !hoursDay.day) ||
+    const referencedDay = parts ? day : activeSearch?.filters.from === activeSearch?.filters.through ? activeSearch?.filters.from : null;
+    if ((hours && sameDayReference(hoursMessage) && !referencedDay) ||
+        (hours && hoursDay.specified && !hoursDay.day) ||
         (request.specified && !day && (request.availability || activeSearch)))
       return reply("clarify", {
         text: lang === "ar" ? "أي تاريخ تقصد؟" : "Which date do you mean?",
       });
     const combinedSchedule =
-      hours && specialtyHint && request.availability;
+      Boolean(parts && hours && specialtyHint && request.availability);
     let hoursSummary;
     if (hours) {
       const result = await publishedHourAnswer(
@@ -274,7 +276,7 @@ export function createAssistant({
         lang,
         readHours,
         deadline,
-        day ?? hoursDay.day ?? date,
+        sameDayReference(hoursMessage) ? referencedDay : day ?? hoursDay.day ?? date,
       );
       if (!combinedSchedule)
         return reply(result.complete ? "library" : "reception", {
@@ -359,7 +361,7 @@ export function createAssistant({
     const directSearch = request.availability;
     const refinement =
       !directSearch &&
-      (refinementQuestion(latest) ||
+      ((refinementQuestion(latest) && (!activeSearch || day || hasTime || specialtyHint)) ||
         (activeSearch &&
           (day || hasTime) &&
           /\b(?:actually|make that|switch|change|move|what about|how about)\b|طيب|والجمع[هة]/iu.test(
