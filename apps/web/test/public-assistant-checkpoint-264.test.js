@@ -9,7 +9,11 @@ test("fail-safe · an uncertain immediate safety signal escalates when the provi
     "I am not sure I can stay safe on my own tonight.",
   );
   assert.equal(reply.kind, "emergency");
-  assert.equal(reply.text, rulesCopy.en.emergency);
+  assert.equal(
+    reply.text,
+    rulesCopy.en.emergency +
+      " If this is an emergency, call the Lebanese Red Cross ambulance at 140 in Lebanon or go to the nearest emergency department. For non-emergency help, contact Cedar Reception.",
+  );
   assert.deepEqual(reply.cards, []);
   assert.equal(reply.calls, 1);
 });
@@ -349,8 +353,8 @@ test("facts 4 · unmatched full name cannot select a published clinician", async
   const reply = await session(t)(
     "Is there a Thursday opening for Dr. Jad Khalil?",
   );
-  assert.equal(reply.kind, "empty");
-  assert.match(reply.text, /2026-11-26/);
+  assert.equal(reply.kind, "clarify");
+  assert.match(reply.text, /full name/);
   assert.deepEqual(reply.cards, []);
 });
 for (const [i, [message, language]] of [
@@ -362,7 +366,12 @@ for (const [i, [message, language]] of [
     async (t) => {
       const reply = await session(t)(message, language);
       assert.equal(reply.kind, "labs");
-      assert.match(reply.text, /instructed collection method and supplied kit/);
+      assert.match(
+        reply.text,
+        language === "ar"
+          ? /طريقة الجمع.*الوعاء/u
+          : /instructed collection method and supplied kit/,
+      );
       assert.match(reply.text, /Reception|الاستقبال/u);
       assert.deepEqual(reply.cards, []);
       assert.equal(reply.calls, 0);

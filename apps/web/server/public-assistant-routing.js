@@ -30,7 +30,7 @@ const reported =
 const selfHarm =
   /\b(?:i am|i'm|i) (?:thinking (?:about|of)|want to|might|going to|plan(?:ning)? to) (?:(?:hurt(?:ing)?|harm(?:ing)?|kill(?:ing)?) myself|suicide|ending my life)\b|(?:افكر|اريد|انوي|بدي|رح|عم فكر)\s*(?:(?:ب|في |ان )?(?:ايذاء|اوذي|ااذي|اذي|اقتل) نفسي|انتحر|اقتل حالي)|\b(?:3am (?:fakker|fekker)|badde|ra7) (?:2eze|2azi|azi|eze|2tol|2u2tol|2ezi|e2zi) (?:7ale|7ali|hale)\b/iu;
 const negatedSelfHarm =
-  /\b(?:not|never)\s+(?:thinking|going|planning)|ما (?:عم فكر|بدي)|لا (?:افكر|اريد)|\b(?:ma|mesh|mish) (?:3am|badde|fakker|khay[ef]+[ef]?[ae]?)\b/iu;
+  /\b(?:not|never)\s+(?:thinking|going|planning)|ما (?:عم فكر|بدي)|لا (?:افكر|اريد)|\b(?:ma|mesh|mish) (?:3am )?(?:badde|fakker|fekker|khay[ef]+[ef]?[ae]?)\b/iu;
 const immediateDanger =
   /(?:افكر|عم (?:فكر|بفكر)|بدي|رح|خايف)\s*(?:اني\s*)?(?:(?:ائذي|اوذي|اذي|اضر|اجرح|اقتل)\s*(?:حالي|نفسي)|انهي حياتي)|\b(?:i might injure|i'?ll harm|i'?ll hurt) myself\b|\b(?:ma|mesh|mish)\s+(?:3am\s+)?(?:e2dar|2ader|2dar|bi2dar|b2dar)\s+(?:etnaffas|etnafas|atnaffas)\b|\bkhay[ef]+[ef]?[ae]?\s+(?:enne|enno|inni)\s+(?:2eze|2azi|2azzi|e2zi)\s+(?:nafse|nafsi|7ale|7ali)\b|\b(?:3am (?:fakker|fekker)|badde|ra7)\s+(?:enno\s+)?(?:e2ze|e2zi|2ze|2eze|2ezi|2a[zd]+[ei]|2tol)\s+(?:7ale|7ali|hale)\b/iu;
 const directArabicDanger =
@@ -97,7 +97,9 @@ export function emergencyDisclosure(value, { includeUncertain = false } = {}) {
     return true;
   return text
     .replace(quotes, "")
-    .split(/[.!?؟؛;,،]|\bbut\b|\band\s+(?=(?:i|my|he|she|they)\b)|لكن|بس /u)
+    .split(
+      /[.!?؟؛;,،]|\bbut\b|\band\s+(?=(?:i|my|he|she|they)\b)|\bw\s+(?=3am\b)|لكن|بس /u,
+    )
     .some((clause) => {
       const value = clause.trim();
       if (
@@ -162,6 +164,10 @@ export const cancellationRequest = (message) =>
 
 export function localRoute(message) {
   const text = normalize(message);
+  const clinicalText = text.replace(
+    /(?:\b(?:no diagnosis|not (?:asking|looking) for (?:a )?diagnos\w*|don'?t (?:want|need) (?:a )?diagnos\w*)\b|(?:مش|ما)\s+(?:عم\s+)?(?:اطلب|طالب|بدي|اريد)\s+(?:اي\s+)?تشخيص)/giu,
+    "",
+  );
   if (emergencyDisclosure(text)) return "emergency";
   if (cancellationRequest(text) || privateResultRequest(text)) return "private";
   if (instructionConcept(text)) return "override";
@@ -192,6 +198,7 @@ export function localRoute(message) {
     )
   )
     return "clinical";
+  if (clinicalConcept(clinicalText)) return "clinical";
   if (
     /\b(?:patient|visitor) names\b|(?:اسماء|اسامي) (?:جميع )?(?:المرضى|المراجعين)|\b(?:asame|asemi)\s+(?:el |l )?(?:marda|mar[dt]a)\b/iu.test(
       text,
@@ -202,10 +209,10 @@ export function localRoute(message) {
   )
     return "private";
   if (
-    clinicalConcept(text) ||
-    (/\bshould i do\b/u.test(text) && !serviceLogistics(text)) ||
+    (/\bshould i do\b/u.test(clinicalText) &&
+      !serviceLogistics(clinicalText)) ||
     /\b(?:diagnos\w*|prescri\w*|dosage|symptom\w*|treatment|what dose|should i (?:take|stop|get|fast)|interpret\w*|what causes|what is (?:chest pain|a seizure)|can chest pain)\b|تشخيص|جرعة|اعراض|هل اتناول|هل اصوم|علاج|ما معنى الم الصدر|شو يعني وجع|adde.*(?:dose|dawa)|shu.*dawa/iu.test(
-      text,
+      clinicalText,
     )
   )
     return "clinical";
@@ -367,6 +374,16 @@ export function scheduleTime(value) {
       /\b(?:earlier in the day|earlier (?:please|if possible))\b/g,
       "before noon",
     )
+    .replace(
+      /\b(?:start(?:s|ing)? at|starts? from)\s+(\d{1,2}(?::[0-5]\d)?)(?:\s+(?:(?:in the )?afternoon|p\.?m\.?))?\s+or later\b/g,
+      (_, clock) =>
+        "start after " +
+        clock +
+        (/\b(?:afternoon|p\.?m\.?)/u.test(value) &&
+        Number(clock.split(":")[0]) < 12
+          ? " pm"
+          : ""),
+    )
     .replace(/\b(?:later than|not before)\b/g, "after")
     .replace(/\b(?:earlier than|no later than)\b/g, "before");
   if (
@@ -396,6 +413,7 @@ export function scheduleTime(value) {
       after: "",
       before: "",
       [direction]: String(hour).padStart(2, "0") + ":" + minutes,
+      ...(/\bstart after\b/u.test(text) ? { startsAtOrAfter: true } : {}),
     };
   }
   if (
@@ -434,7 +452,7 @@ export const genericArabiziAvailability = (value) =>
     scheduleText(value),
   );
 const sameDayWords =
-  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar)|(?:el ?|l ?)?(?:yom|nhar) nafs[ouh]+)\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})|\b(?:that (?:very )?(?:same )?(?:day|afternoon|morning)|hal nhar|bhal nhar)\b|(?:اليوم|النهار|التاريخ)\s+نفسه(?!\p{L})|(?:بهالنهار|بهداك (?:اليوم|النهار)|وقتها)(?!\p{L})/gu;
+  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar)|(?:el ?|l ?)?(?:yom|nhar) nafs[ouh]+)\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})|\b(?:that (?:very )?(?:same )?(?:day|afternoon|morning)|hal nhar|bhal nhar)\b|(?:اليوم|النهار|التاريخ)\s+نفسه(?!\p{L})|\b(?:the date of (?:that|the) visit|that (?:visit )?date)\b|(?:بهالنهار|بهداك (?:اليوم|النهار)|وقتها)(?!\p{L})|(?:ب?(?:تاريخ|موعد)|نهار) (?:الزياره|الموعد) نفسه(?!\p{L})/gu;
 
 export function sameDayReference(value) {
   const text = canon(value);
@@ -442,7 +460,23 @@ export function sameDayReference(value) {
 }
 
 export function resolveDay(value, date) {
-  const text = scheduleText(canon(value).replace(sameDayWords, ""));
+  const text = scheduleText(canon(value).replace(sameDayWords, "")).replace(
+    /\b(?:jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\.?(?=\s+\d|\s*$)/g,
+    (short) =>
+      ({
+        jan: "january",
+        feb: "february",
+        mar: "march",
+        apr: "april",
+        jun: "june",
+        jul: "july",
+        aug: "august",
+        sep: "september",
+        oct: "october",
+        nov: "november",
+        dec: "december",
+      })[short.replace(".", "")],
+  );
   const weekdays = [
     /sunday|الاحد/,
     /monday|الاثنين/,
@@ -491,7 +525,12 @@ export function resolveDay(value, date) {
     "thirtieth",
     "thirty first",
   ];
-  const beforeMonth = month ? text.slice(0, month.index).trimEnd() : "";
+  const beforeMonth = month
+    ? text
+        .slice(0, month.index)
+        .trimEnd()
+        .replace(/\bday of$/u, "of")
+    : "";
   const spokenDay =
     spokenOrdinals.findLastIndex(
       (word) =>
@@ -609,6 +648,12 @@ export function scheduleRequest(message, today) {
         message,
       )?.[1] ||
       /\b(?:surname|last name)\s+([\p{L}][\p{L}'’-]*)/iu.exec(message)?.[1],
-    availability: availabilityQuestion(message),
+    availability:
+      availabilityQuestion(message) ||
+      (Boolean(resolveDay(message, today).day) &&
+        Boolean(scheduleSpecialty(message)) &&
+        /\b(?:schedule|windows?|sessions?|slots?|list|include|appointments?)\b|جلس[هة]|مواعيد|عياد/u.test(
+          scheduleText(message),
+        )),
   };
 }

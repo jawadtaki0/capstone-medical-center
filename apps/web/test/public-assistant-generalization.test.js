@@ -174,7 +174,12 @@ test("named specimen requests use published preparation, with a local handoff wh
   ]) {
     const answer = await ask(message, language);
     assert.equal(answer.kind, "labs");
-    assert.match(answer.text, /collection method and container/);
+    assert.match(
+      answer.text,
+      language === "ar"
+        ? /طريقة جمع.*الوعاء/u
+        : /collection method and container/,
+    );
     assert.match(answer.text, /Reception|الاستقبال/);
     assert.equal(answer.cards, undefined);
   }
@@ -254,7 +259,10 @@ test("clinician name matching uses complete tokens, asks about ties, and keeps a
     ),
     ["13:00"],
   );
-  assert.equal((await ask("Can I see Dr. Maya Rahim tomorrow?")).kind, "empty");
+  assert.equal(
+    (await ask("Can I see Dr. Maya Rahim tomorrow?")).kind,
+    "clarify",
+  );
   assert.deepEqual(
     (await ask("Is Dr. Maya Slaim available tomorrow?")).cards.map(
       ({ start }) => start,

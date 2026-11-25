@@ -1,5 +1,6 @@
 import { nameScore } from "./public-assistant-language.js";
 import { laboratoryTests } from "../src/data/labAudioContent.js";
+import { arabicLabContent } from "../src/data/publicLabArabic.js";
 import { requestSelectionUrl } from "../src/request-selection.js";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
@@ -106,16 +107,8 @@ const copy = {
   },
 };
 
-const arabicLabs = {
-  cbc: {
-    name: "تعداد الدم الكامل (CBC)",
-    description: "يقيس عدة أنواع وخصائص لخلايا الدم.",
-  },
-  esr: {
-    name: "معدل ترسيب كريات الدم الحمراء (ESR)",
-    description: "يقيس سرعة ترسّب كريات الدم الحمراء، وهي أحد مؤشرات الالتهاب.",
-  },
-};
+const localLab = (test, language) =>
+  language === "ar" ? { ...test, ...arabicLabContent[test.id] } : test;
 
 const blocked =
   /(?:[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\s+(?:appointment|booking|report|result|record|test|symptom|password|dose)|\b(?:diagnos\w*|prescri\w*|dosage|symptom\w*|should i (?:take|stop|get|do|fast)|interpret\w*|patient records?)\b|نتيجتي|موعدي|تقـ?ريري|سجلي|تشخيص|جرعة|أعراض|هل أتناول|هل أصوم)/iu;
@@ -130,6 +123,10 @@ const validDate = (value) => {
 const blockedMessage = (value) =>
   blocked.test(value.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ""));
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+const fallbackSafety = {
+  en: "If this is an emergency, call the Lebanese Red Cross ambulance at 140 in Lebanon or go to the nearest emergency department. For non-emergency help, contact Cedar Reception.",
+  ar: "إذا كانت الحالة طارئة، اتصل بإسعاف الصليب الأحمر اللبناني على الرقم 140 في لبنان أو توجّه إلى أقرب قسم طوارئ. للمساعدة في الحالات غير الطارئة، تواصل مع استقبال سيدر.",
+};
 const labPair = ["fasting-glucose", "hba1c"];
 const sessionCard = (row) => ({
   professional: row.professionalName,
@@ -192,14 +189,26 @@ export function createAssistant({
       unavailable: "published_schedule_unavailable",
       reception: "insufficient_public_facts",
     };
+    const safeFallback = (result) => ({
+      ...result,
+      text: result.text.endsWith(fallbackSafety[lang])
+        ? result.text
+        : result.text + " " + fallbackSafety[lang],
+      reception: true,
+      fallback: true,
+    });
+    let providerFallback = false;
     const reply = (key, extra = {}) => {
       trace(routeReasons[key] ?? "conversation_route");
-      return {
+      const result = {
         kind: key,
         text: prefix + (words[key] ?? fixed[key]),
         searchContext: tokens.encode(carried),
         ...extra,
       };
+      return providerFallback || extra.fallback === true
+        ? safeFallback(result)
+        : result;
     };
     if (
       !Array.isArray(messages) ||
@@ -511,8 +520,8 @@ export function createAssistant({
         if (result?.supported === false) {
           observe({ stage: "composition", outcome: "unsupported" });
           return kind === "library" || supplied.length
-            ? { ...fallback, fallback: true }
-            : { ...reply("reception"), fallback: true };
+            ? safeFallback(fallback)
+            : safeFallback(reply("reception"));
         }
         const text = typeof result?.text === "string" ? result.text.trim() : "";
         if (
@@ -540,7 +549,7 @@ export function createAssistant({
       } catch {
         observe({ stage: "composition", outcome: "fallback" });
       }
-      return { ...fallback, fallback: true };
+      return safeFallback(fallback);
     }
     let intent = catalogueIntent(latest);
     if ((comparison || preparation) && !intent?.preparation)
@@ -555,23 +564,23 @@ export function createAssistant({
             }
           : await interpret(conversation, { deadline, observe });
     } catch {
+      providerFallback = true;
       if (!knownSearch)
-        return {
-          ...reply(
-            emergencyDisclosure(latest, { includeUncertain: true })
-              ? "emergency"
-              : "reception",
-          ),
-          fallback: true,
-        };
+        return reply(
+          emergencyDisclosure(latest, { includeUncertain: true })
+            ? "emergency"
+            : "reception",
+        );
     }
-    if (knownSearch && (!intent || intent.kind === "reception"))
+    if (knownSearch && (!intent || intent.kind === "reception")) {
+      providerFallback = true;
       intent = { kind: "sessions" };
+    }
     if (intent?.kind === "library") {
       const record = publicContent.find(
         ({ id, language }) => id === intent.entryId && language === lang,
       );
-      if (!record) return reply("reception");
+      if (!record) return reply("reception", { fallback: true });
       if (!compose) return library(record);
       return grounded("library", {
         text: prefix + record.answer,
@@ -580,16 +589,18 @@ export function createAssistant({
         facts: [record.answer],
       });
     }
-    if (intent?.kind === "unrelated") return reply("unrelated");
+    if (intent?.kind === "unrelated")
+      return reply("unrelated", { fallback: true });
     if (intent?.kind === "labs") {
       const ids = Array.isArray(intent.tests) ? intent.tests.slice(0, 3) : [];
-      const tests = laboratoryTests.filter((test) => ids.includes(test.id));
+      const tests = laboratoryTests
+        .filter((test) => ids.includes(test.id))
+        .map((test) => localLab(test, lang));
       const cards = tests.map(({ id, name, sample, description, sources }) => ({
         id,
         name,
         sample: lang === "ar" && sample === "blood" ? "دم" : sample,
         description,
-        ...(lang === "ar" ? arabicLabs[id] : {}),
         source: sources[0]?.url,
       }));
       if (
@@ -597,7 +608,7 @@ export function createAssistant({
         cards.length !== new Set(ids).size ||
         (intent.compare === true && cards.length < 2)
       )
-        return reply("reception");
+        return reply("reception", { fallback: true });
       if (intent.preparation && !intent.description)
         return reply("labs", {
           text:
@@ -612,7 +623,9 @@ export function createAssistant({
         });
       if (comparison || preparation) {
         carried = { at, remaining: 2, labPair: true };
-        const tests = laboratoryTests.filter(({ id }) => labPair.includes(id));
+        const tests = laboratoryTests
+          .filter(({ id }) => labPair.includes(id))
+          .map((test) => localLab(test, lang));
         const descriptions = tests.map(
           ({ name, description }) => name + ": " + description,
         );
@@ -640,7 +653,9 @@ export function createAssistant({
         text:
           facts.join(" ") +
           (intent.preparation
-            ? " Contact Reception to confirm the instructions for your order."
+            ? lang === "ar"
+              ? " تواصل مع الاستقبال لتأكيد تعليمات طلبك."
+              : " Contact Reception to confirm the instructions for your order."
             : ""),
         cards,
         page: "/services/laboratory",
@@ -648,7 +663,8 @@ export function createAssistant({
         facts,
       });
     }
-    if (intent?.kind !== "sessions" || !maySearch) return reply("reception");
+    if (intent?.kind !== "sessions" || !maySearch)
+      return reply("reception", { fallback: true });
     if (
       !refinement &&
       typeof intent.professional === "string" &&
@@ -697,6 +713,7 @@ export function createAssistant({
       through = next(from, 6),
       after = "",
       before = "",
+      startsAtOrAfter = false,
     } = {
       ...intent,
       from: intent.from ?? date,
@@ -728,13 +745,16 @@ export function createAssistant({
           }),
         )
       ).flat();
-      const eligible = records.filter(
+      const published = records.filter(
         (row) =>
           typeof row.professionalName === "string" &&
           typeof row.specialty === "string" &&
           typeof row.professionalId === "string" &&
           typeof row.sourceSessionId === "string" &&
-          row.published !== false &&
+          row.published !== false,
+      );
+      const eligible = published.filter(
+        (row) =>
           row.available !== false &&
           (!requiresAppointment ||
             (row.appointmentRequired === true && row.kind === "doctor")) &&
@@ -758,12 +778,13 @@ export function createAssistant({
         before,
         ...(requiresAppointment ? { requiresAppointment: true } : {}),
         ...(afternoonOnly ? { afternoonOnly: true } : {}),
+        ...(startsAtOrAfter ? { startsAtOrAfter: true } : {}),
       };
       const remaining = refinement ? activeSearch.remaining - 1 : 3;
       const searchStarted = refinement ? activeSearch.at : at;
       let matchingProfessionals = eligible;
       if (professional) {
-        const scored = eligible.map((row) => ({
+        const scored = published.map((row) => ({
           row,
           score: nameScore(professional, row.professionalName),
         }));
@@ -771,14 +792,12 @@ export function createAssistant({
           (best, { score }) => Math.max(best, score),
           0,
         );
-        matchingProfessionals = scored
-          .filter(({ score }) => score > 0 && score === bestScore)
-          .map(({ row }) => row);
-        if (
-          new Set(
-            matchingProfessionals.map(({ professionalId }) => professionalId),
-          ).size > 1
-        ) {
+        const identified = new Set(
+          scored
+            .filter(({ score }) => score > 0 && score === bestScore)
+            .map(({ row }) => row.professionalId),
+        );
+        if (identified.size !== 1) {
           carried = {
             remaining,
             at: searchStarted,
@@ -787,17 +806,26 @@ export function createAssistant({
           };
           return reply("clarify", {
             text:
-              lang === "ar"
-                ? "وجدت أكثر من اختصاصي بهذا الاسم. ما الاسم الكامل للاختصاصي الذي تقصده؟"
-                : "More than one clinician matches that name. What is the clinician’s full name?",
+              identified.size === 0
+                ? lang === "ar"
+                  ? "ما الاسم الكامل للاختصاصي الذي تقصده؟"
+                  : "Which clinician do you mean? Please give the full name."
+                : lang === "ar"
+                  ? "وجدت أكثر من اختصاصي بهذا الاسم. ما الاسم الكامل للاختصاصي الذي تقصده؟"
+                  : "More than one clinician matches that name. What is the clinician’s full name?",
           });
         }
+        matchingProfessionals = eligible.filter((row) =>
+          identified.has(row.professionalId),
+        );
       }
       const matches = matchingProfessionals
         .filter(
           (row) =>
             (!after ||
-              (afternoonOnly ? row.startTime >= after : row.endTime > after)) &&
+              (afternoonOnly || startsAtOrAfter
+                ? row.startTime >= after
+                : row.endTime > after)) &&
             (!before || row.startTime < before),
         )
         .sort((a, b) =>

@@ -157,6 +157,31 @@ export const nameTokens = (name) =>
 export function nameScore(requested, published) {
   const wanted = nameTokens(requested);
   const available = nameTokens(published);
+  const exact = scoreNameTokens(wanted, available);
+  if (exact) return exact;
+  // A surname may be joined in one script and written as two words in another.
+  const mergeAdjacent = (tokens, i) => [
+    ...tokens.slice(0, i),
+    tokens[i] + tokens[i + 1],
+    ...tokens.slice(i + 2),
+  ];
+  if (wanted.length === available.length + 1)
+    return Math.max(
+      0,
+      ...wanted
+        .slice(0, -1)
+        .map((_, i) => scoreNameTokens(mergeAdjacent(wanted, i), available)),
+    );
+  if (available.length === wanted.length + 1)
+    return Math.max(
+      0,
+      ...available
+        .slice(0, -1)
+        .map((_, i) => scoreNameTokens(wanted, mergeAdjacent(available, i))),
+    );
+  return 0;
+}
+function scoreNameTokens(wanted, available) {
   if (!wanted.length) return 0;
   let score = 0;
   const used = new Set();
@@ -250,7 +275,7 @@ function selfHarmRisk(clause) {
     /(?:اذي|ااذي|اءذي|اوذي|ايذاء|اضر|اجرح|اقتل|انهي|اموت)\s*(?:حالي|نفسي|حياتي)|(?:اعمل|ساوي)\s+(?:اذي|اذى|شي)\s*(?:ل|ب)(?:حالي|نفسي)|(?:مش|ماني) ضامن(?:ه)? (?:حالي|نفسي)|انتحر|انتحار|بدي موت|بدي اموت|ما بدي عيش|(?:مش|ما) (?:حاسس|حاسه|حاس) (?:حالي|نفسي) (?:بامان|امان|بأمان)/u.test(
       clause,
     ) ||
-    /\b(?:2?a?2?z+[aei]|2?e?2?z+[aei]|2o?ze|2?azzi|2?a2zi|2?tol|a2tol|2otol|2?2?ezi)\s+(?:nafs[aei]?|7al[aei]?h?|hal[aei]|7ayat[iey])\b|\b(?:y2azz[ei]|y2az[ei]|y2ez[ei]|e?3mol (?:aza[ae]?|2aza))\s+(?:la\s+)?(?:7al[aei]|nafs[aei])\b|\b(?:enta7er|ente7er|nta7er|ent7er|entehar|enti7ar)\b|\b(?:mesh|mish|ma)\s+(?:7ases|7assa|7ass|7ese)\w*\s+(?:(?:7al[aei]|nafs[aei])\s+)?(?:b?aman)\b|\bbadde? mout\b/u.test(
+    /\b(?:2?a?2?z+[aei]|2?e?2?z+[aei]|2o?ze|2?azzi|2?a2zi|2?tol|a2tol|2otol|2?2?ezi)\s+(?:nafs[aei]?|7al[aei]?h?|hal[aei]|7ayat[iey])\b|\b(?:y2azz[ei]|y2az[ei]|y2ez[ei]|eze|ezi|2azz[ei]|eze|ezi|2azz[ei]|e?3mol (?:aza[ae]?|2aza))\s+(?:la\s+)?(?:7al[aei]|nafs[aei])\b|\b(?:enta7er|ente7er|nta7er|ent7er|entehar|enti7ar)\b|\b(?:mesh|mish|ma)\s+(?:7ases|7assa|7ass|7ese)\w*\s+(?:(?:7al[aei]|nafs[aei])\s+)?(?:b?aman)\b|\bbadde? mout\b|\b(?:ma 3am|mesh|mish) (?:2dar|2ader|2adra|fine) (?:dammen|damen|edman) (?:salemte|salemti|2amene|amene|amane)\b/u.test(
       clause,
     )
   );
@@ -259,7 +284,7 @@ function selfHarmRisk(clause) {
 // Other present-tense emergencies described in Arabic or Arabizi.
 function otherEmergency(clause) {
   return (
-    /(?:(?:صدري|قلبي) (?:عم )?(?:يوجعني|بيوجعني|يالمني|عم يضغط)|وجع (?:قوي |كتير )?(?:ب|في )?(?:صدري|الصدر)|ضغط (?:على|ع) صدري|(?:عم|ما عم) (?:ينزف|نزف) (?:كتير|كثير|بقوه)|ما (?:عم )?(?:يوقف|بيوقف) (?:ال)?نزيف|(?:غايب|فاقد|فاقده) (?:عن )?(?:ال)?وعي|ما عم (?:يفيق|يرد|يتنفس)|(?:عم )?(?:يتشنج|بيتشنج)|جلطه (?:هلق|هلا|الان))/u.test(
+    /(?:(?:صدري|قلبي) (?:عم )?(?:يوجعني|بيوجعني|يالمني|عم يضغط)|وجع (?:قوي |كتير )?(?:ب|في )?(?:صدري|الصدر)|ضغط (?:على|ع) صدري|(?:عم|ما عم) (?:ينزف|نزف) (?:كتير|كثير|بقوه)|ما (?:عم )?(?:يوقف|بيوقف) (?:ال)?نزيف|(?:غايب|فاقد|فاقده) (?:عن )?(?:ال)?وعي|ما عم (?:يفيق|تفيق|يفوق|تفوق|يصح[ىي]|تصح[ىي]|يرد|ترد|(?:بي|بت)?جاوب(?:ني)?|يتنفس|تتنفس)|(?:عم )?(?:يتشنج|بيتشنج)|جلطه (?:هلق|هلا|الان))/u.test(
       clause,
     ) ||
     /\b(?:waja3|wje3)\s+(?:b|bi|fi)?\s*(?:sadre|sadri|sedre)\b|\b(?:sadre|sadri)\s+(?:3am\s+)?(?:yewja3ne|byewja3ne|wej3ne)\b|\b(?:fainted|collapsed|not responding|won'?t wake up|unresponsive|turning blue|seizing)\b/u.test(
@@ -287,9 +312,9 @@ export function urgentConcept(value) {
 export function cancellationConcept(value) {
   const text = canon(value);
   const verb =
-    /\b(?:cancel\w*|call off|delete|remove|withdraw|drop)\b|(?:الغي|الغاء|بلغي|لغي|يلغي|تلغي|تلغو(?:ه|ها)?|تلغيلي|بشطب|اشطب|شطب|تشطب|امسح|بمسح|تمسح|احذف|بحذف|تحذف|شيل|بشيل|تشيل)|\b(?:l8i|elghe|ilghe|2elghe|bl8i|shatb|ashtob|bshtob|emsa7|bemsa7|telghi(?:ha|h)?|telgho(?:ha|h)?|tel8i(?:ha|h)?)\b|\btake (?:it|that) off (?:the |my )?(?:schedule|calendar)\b/u;
+    /\b(?:cancel\w*|call off|delete|remove|withdraw|drop)\b|(?:الغي|الغاء|بلغي|لغي|يلغي|تلغي|تلغو(?:ه|ها)?|تلغيلي|بشطب|اشطب|شطب|تشطب|امسح|بمسح|تمسح|احذف|بحذف|تحذف|شيل|بشيل|تشيل)|\b(?:l8i|elghe|ilghe|2elghe|bl8i|shatb|ashtob|bshtob|emsa7|bemsa7|telghi(?:ha|h)?|telgho(?:ha|h)?|tel8i(?:ha|h)?|tshil(?:o|a|ha)?)\b|\b(?:take|strike) (?:it|that) (?:off|from) (?:the |my )?(?:schedule|calendar|bookings?|reservations?)\b/u;
   const booking =
-    /\b(?:booking|appointment|reservation|visit|session|request|slot)s?\b|موعد|مواعيد|حجز|زياره|طلب|جلسه|\b(?:maw3ad|maw3ed|mow3ad|7ajz|7ajez)\b/u;
+    /\b(?:booking|appointment|reservation|visit|session|request|slot)s?\b|موعد|مواعيد|حجز|زياره|طلب|جلسه|\b(?:maw3ad|maw3ed|mow3ad|7ajz|7ajez|7ajazt|7ajazet)\b/u;
   const verbMatch = verb.exec(text);
   const bookingMatch = booking.exec(text);
   return Boolean(
@@ -322,7 +347,7 @@ export function privateResultRequest(value) {
   const retrieval =
     /\b(?:pull|fetch|get|send|show|display|look up|retrieve|share|access|download)\b|جيب|ابعث|ابعت|ارسل|اعرض|فرجي|ورجي|طلع|\b(?:jib\w*|tjib\w*|b3at\w*|farji\w*|warji\w*)\b/u;
   const owner =
-    /\b(?:my|our|another|their|his|her|patient'?s|someone else)\b|تبع|ل(?:بيي|امي|خيي|اختي|مرتي|جوزي|زوجي|زوجتي)|(?:مرت|زوج|ابن|بنت|والد)\p{L}*|\b(?:taba3|ta3|ekhte|ekhti|khayye|bayye|emme|mart[ei])\b/u;
+    /\b(?:my|our|another|their|his|her|patient'?s|someone else)\b|تبع|ل(?:بيي|امي|خيي|اختي|مرتي|جوزي|زوجي|زوجتي)|(?:مرت|زوج|ابن|بنت|والد|خال|عم|اخ|اخت|رفيق|رفيق[ته])\p{L}*|\b(?:taba3|ta3|ekhte|ekhti|khayye|bayye|emme|mart[ei])\b/u;
   return result.test(text) && retrieval.test(text) && owner.test(text);
 }
 
@@ -351,7 +376,7 @@ export function unrelatedConcept(value) {
   return (
     offTopic.test(text) ||
     contentTask.test(request) ||
-    /^(?:تكتب|تعمل|تالف|تجهز|تصيغ|تترجم)|^(?:tekteb|tektob|tiktob|tiktib|kteb|ekteb|ta3mel|t3mel|t2allif|tarjem)/u.test(
+    /^(?:تكتب|تعمل|تالف|تجهز|تصيغ|تترجم)|^(?:tekteb|tektob|tiktob|tiktib|kteb|ekteb|ta3mel|t3mel|t2allif|tsigh|tsegh|tarjem)/u.test(
       request,
     )
   );
@@ -369,7 +394,7 @@ export function clinicalConcept(value) {
     )
     .replace(/(?:فحص|تحليل)\s+(?:ال)?فيتامين\s+[\p{L}\p{N}]+/gu, "");
   const advice =
-    /\b(?:should|which|what|do i|need|take|use|start|stop|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|فيني|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
+    /\b(?:should|which|what|do i|need|take|use|start|stop|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|فيني|بوقف|بغير|بضاعف|بخفف|بزيد|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
   const result =
     /\b(?:results?|levels?|readings?|values?|counts?|numbers?)\b|نتيجه|نتيجتي|تحليل|نسبه|معدل|مستوى|\b(?:natije|ta7lil|nesbe)\b/u;
   const abnormal =

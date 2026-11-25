@@ -264,7 +264,7 @@ export function publicServiceAnswer(value, language) {
 }
 
 const closingQuestion =
-  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|يقفل|بيقفل|بيسكر|يسكر|بخلص|بيخلص|بيضل شغال|لحد اي ساع[هة]/iu;
+  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|\b(?:la|la7ad) ay(?:ya)? se3a\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|يقفل|بيقفل|بيسكر|يسكر|بخلص|بيخلص|بيضل شغال|لحد اي ساع[هة]/iu;
 
 export function hoursQuestion(value) {
   const text = canon(value);
@@ -272,9 +272,12 @@ export function hoursQuestion(value) {
     /\b(?:lab(?:oratory)?|blood test|mokhtabar|moukhtabar)\b|مختبر/u.test(text);
   const audio = audiometryTopic.test(text);
   const clinic = /\bclinic\b|العياده/u.test(text);
-  const center = /\b(?:cent(?:er|re)|markaz)\b|المركز/u.test(text);
+  const center =
+    /\b(?:cent(?:er|re)|main building|markaz)\b|المركز|المبنى الرئيسي/u.test(
+      text,
+    );
   const when =
-    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|what time|when|emta|aymta|dawam|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|fet[iy]7|fetih)\b|متى|امتى|ايمتى|اي ساعه|يفتح|فاتح|بيبلش|بيبدا|يغلق|مسكر|\bmsakkar\b|دوام|ساعات|السبت|بكرا/u.test(
+    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|what time|when|emta|aymta|dawam|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|maftou7|maftu7|fet[iy]7|fetih)\b|متى|امتى|ايمتى|اي ساعه|يفتح|فاتح|بيبلش|بيبدا|يغلق|مسكر|\bmsakkar\b|دوام|ساعات|(?:ب?تشتغل|شغال)|السبت|بكرا/u.test(
       text,
     );
   if (!when && !closingQuestion.test(text) && !(lab && audio)) return null;
