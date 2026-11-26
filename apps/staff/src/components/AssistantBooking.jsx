@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import AssistantPatient from "./AssistantPatient.jsx";
+import AssistantSessions from "./AssistantSessions.jsx";
 import { BookingNoticeButton } from "./RequestNoticeDialog.jsx";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import { createBookingRun } from "../lib/assistantBooking.js";
@@ -17,50 +18,25 @@ export default function AssistantBooking({
   onError,
 }) {
   const t = TEXT[language],
-    id = useId(),
     run = useRef(null);
   const task = useTask(onError);
   const [patient, setPatient] = useState(null),
     [registration, setRegistration] = useState(null),
-    [date, setDate] = useState(prefill.date >= today ? prefill.date : today),
-    [sessions, setSessions] = useState(null),
-    [professional, setProfessional] = useState(prefill.professionalId ?? ""),
     [selected, setSelected] = useState(null),
-    [alternatives, setAlternatives] = useState(null),
     [review, setReview] = useState(null),
     [noticeLanguage, setNoticeLanguage] = useState(language),
     [receipt, setReceipt] = useState(null),
-    [note, setNote] = useState("");
+    [note, setNote] = useState(""),
+    [picker, setPicker] = useState(0);
 
   function reset() {
     run.current = null;
     setReview(null);
     setNote("");
   }
-  async function load(day = date) {
-    reset();
-    setSelected(null);
-    setAlternatives(null);
-    const result = await task.run(() => api.bookingSessions({ date: day }));
-    if (result) setSessions(result.sessions.filter((s) => s.canBook));
-  }
-  useEffect(() => {
-    if (prefill.date || prefill.professionalId) load();
-  }, []);
-
   function choose(session) {
     reset();
     setSelected(session);
-  }
-  async function other(session, specialty) {
-    const result = await task.run(() =>
-      api.assistantAlternatives({
-        professionalId: session.professionalId,
-        date,
-        ...(specialty ? { specialty: session.specialty } : {}),
-      }),
-    );
-    if (result) setAlternatives({ ...result, session, specialty });
   }
   async function openReview() {
     let overlaps = [];
@@ -97,7 +73,7 @@ export default function AssistantBooking({
           setPatient(error.patientSaved);
           setRegistration(null);
           setSelected(null);
-          setSessions(null);
+          setPicker((n) => n + 1);
           setReview(null);
           run.current = null;
           setNote(t.partly(error.patientSaved.patientNumber));
@@ -135,45 +111,6 @@ export default function AssistantBooking({
     );
 
   const person = patient ?? registration?.record;
-  const professionals = [
-    ...new Map(
-      (sessions ?? []).map((s) => [s.professionalId, s.professionalName]),
-    ),
-  ];
-  // A pre-filled doctor who is not on this date must not hide everyone else.
-  const filter = professionals.some(([key]) => key === professional)
-    ? professional
-    : "";
-  const shown = (sessions ?? []).filter(
-    (s) => !filter || s.professionalId === filter,
-  );
-  const places = (s) =>
-    s.capacity === null
-      ? t.unset
-      : s.remaining
-        ? t.remaining(s.remaining, s.capacity)
-        : t.full;
-  const row = (s) => (
-    <label className="booking-session" key={s.id}>
-      <input
-        type="radio"
-        name={`${id}-session`}
-        checked={selected?.id === s.id}
-        disabled={task.busy || !s.remaining}
-        onChange={() => choose(s)}
-      />
-      <span>
-        <strong>
-          <bdi>{s.professionalName}</bdi> · <bdi>{s.date}</bdi> ·{" "}
-          <bdi>
-            {s.startTime}–{s.endTime}
-          </bdi>
-        </strong>
-        <br />
-        <bdi>{s.clinicName}</bdi> · {places(s)}
-      </span>
-    </label>
-  );
 
   return (
     <div className="assistant-task">
@@ -221,78 +158,18 @@ export default function AssistantBooking({
         />
       )}
 
-      <h2>{t.session}</h2>
-      <div className="staff-form-grid booking-fields">
-        <label className="staff-field">
-          {t.date}
-          <input
-            type="date"
-            min={today}
-            value={date}
-            disabled={task.busy}
-            onChange={(e) => {
-              reset();
-              setDate(e.target.value);
-              setSessions(null);
-              setSelected(null);
-              setAlternatives(null);
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          className="staff-button"
-          disabled={task.busy || !date}
-          onClick={() => load()}
-        >
-          {t.load}
-        </button>
-      </div>
-      {sessions && !shown.length && <p role="status">{t.noSessions}</p>}
-      <div className="booking-list">{shown.map(row)}</div>
-      {filter && professionals.length > 1 && (
-        <button
-          type="button"
-          className="staff-button"
-          onClick={() => setProfessional("")}
-        >
-          {t.allProfessionals}
-        </button>
-      )}
-      <div className="staff-actions">
-        {shown
-          .filter((s) => s.capacity !== null && !s.remaining)
-          .map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className="staff-button"
-              disabled={task.busy}
-              onClick={() => other(s, false)}
-            >
-              {t.otherDates(s.professionalName)}
-            </button>
-          ))}
-      </div>
-      {alternatives && (
-        <>
-          {alternatives.sessions.length ? (
-            <div className="booking-list">{alternatives.sessions.map(row)}</div>
-          ) : (
-            <p role="status">{t.noAlternatives(alternatives.days)}</p>
-          )}
-          {!alternatives.specialty && !alternatives.sessions.length && (
-            <button
-              type="button"
-              className="staff-button"
-              disabled={task.busy}
-              onClick={() => other(alternatives.session, true)}
-            >
-              {t.otherDoctors(alternatives.session.specialty)}
-            </button>
-          )}
-        </>
-      )}
+      <AssistantSessions
+        key={picker}
+        api={api}
+        language={language}
+        today={today}
+        initialDate={prefill.date >= today ? prefill.date : today}
+        initialProfessional={prefill.professionalId}
+        autoLoad={Boolean(prefill.date || prefill.professionalId || picker)}
+        selected={selected}
+        onSelect={choose}
+        onError={onError}
+      />
 
       {task.busy && <LoadingStatus label="Checking…" />}
       {task.error && (

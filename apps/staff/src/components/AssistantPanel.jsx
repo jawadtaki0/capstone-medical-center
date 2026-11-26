@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import { isAccessError } from "../lib/staffManagement.js";
 import AssistantBooking from "./AssistantBooking.jsx";
+import AssistantChange from "./AssistantChange.jsx";
 import { TEXT } from "./assistantText.js";
 import "./assistant.css";
 
@@ -10,7 +11,11 @@ const SCREEN = {
   ar: "فتح هذه الصفحة",
 };
 
-const TASKS = { book: AssistantBooking };
+const TASKS = {
+  book: AssistantBooking,
+  cancel: AssistantChange,
+  reschedule: AssistantChange,
+};
 
 // A form opens straight away when the question carried details, else on request.
 function Task({ api, language, task, onError }) {
@@ -19,6 +24,7 @@ function Task({ api, language, task, onError }) {
   return open ? (
     <Card
       api={api}
+      type={task.type}
       language={language}
       prefill={task.prefill}
       today={task.today}
