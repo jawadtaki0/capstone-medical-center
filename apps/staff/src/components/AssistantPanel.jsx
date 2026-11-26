@@ -3,6 +3,7 @@ import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import { isAccessError } from "../lib/staffManagement.js";
 import AssistantBooking from "./AssistantBooking.jsx";
 import AssistantChange from "./AssistantChange.jsx";
+import AssistantLab from "./AssistantLab.jsx";
 import { TEXT } from "./assistantText.js";
 import "./assistant.css";
 
@@ -15,10 +16,14 @@ const TASKS = {
   book: AssistantBooking,
   cancel: AssistantChange,
   reschedule: AssistantChange,
+  labCreate: AssistantLab,
+  collect: AssistantLab,
+  labCancel: AssistantLab,
+  release: AssistantLab,
 };
 
 // A form opens straight away when the question carried details, else on request.
-function Task({ api, language, task, onError }) {
+function Task({ api, language, task, roles, onError }) {
   const [open, setOpen] = useState(task.open);
   const Card = TASKS[task.type];
   return open ? (
@@ -28,6 +33,7 @@ function Task({ api, language, task, onError }) {
       language={language}
       prefill={task.prefill}
       today={task.today}
+      roles={roles}
       onError={onError}
     />
   ) : (
@@ -69,7 +75,13 @@ function Sessions({ language, sessions }) {
   );
 }
 
-export default function AssistantPanel({ api, lab, onError, onNavigate }) {
+export default function AssistantPanel({
+  api,
+  lab,
+  roles,
+  onError,
+  onNavigate,
+}) {
   const id = useId(),
     generation = useRef(0),
     pending = useRef(false),
@@ -178,6 +190,7 @@ export default function AssistantPanel({ api, lab, onError, onNavigate }) {
                     api={api}
                     language={reply.language}
                     task={reply.task}
+                    roles={roles}
                     onError={onError}
                   />
                 )}

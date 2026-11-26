@@ -241,14 +241,16 @@ export default function AssistantPatient({
         >
           {t.find}
         </button>
-        <button
-          type="button"
-          className="staff-button"
-          disabled={busy}
-          onClick={startRegistration}
-        >
-          {t.register}
-        </button>
+        {onRegister && (
+          <button
+            type="button"
+            className="staff-button"
+            disabled={busy}
+            onClick={startRegistration}
+          >
+            {t.register}
+          </button>
+        )}
       </div>
       {error && (
         <p className="staff-error" role="alert">

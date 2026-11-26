@@ -340,6 +340,7 @@ export default function Workspace({
           <AssistantPanel
             api={api}
             lab={labAllowed}
+            roles={roles}
             onError={onError}
             onNavigate={navigate}
           />

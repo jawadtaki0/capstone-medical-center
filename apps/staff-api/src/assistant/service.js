@@ -14,6 +14,10 @@ const TASKS = {
   book_help: "book",
   cancel_booking_help: "cancel",
   reschedule_help: "reschedule",
+  lab_order_help: "labCreate",
+  lab_collect_help: "collect",
+  lab_cancel_help: "labCancel",
+  lab_release_help: "release",
 };
 const WINDOW_DAYS = 28;
 const addDays = (day, count) => {

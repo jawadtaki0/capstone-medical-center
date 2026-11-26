@@ -1,0 +1,47 @@
+import { hasLabCollection } from "../../shared/lab-collection.js";
+
+// Which orders a Lab card offers. The server checks every action again.
+export function eligibleOrders(orders, task, roles) {
+  const lab = roles.includes("Lab Admin"),
+    reception = roles.includes("Receptionist");
+  return orders.filter((order) => {
+    if (task === "collect")
+      return (lab || reception) && order.status === "Registered";
+    if (task === "release") return releasableReport(order) !== null;
+    return (
+      (lab && ["Registered", "Sample collected"].includes(order.status)) ||
+      (reception && order.status === "Registered" && !hasLabCollection(order))
+    );
+  });
+}
+
+export function releasableReport(order) {
+  const current = order.reportVersions?.at(-1);
+  return order.status === "Ready to release" && current?.status === "Finalized"
+    ? current
+    : null;
+}
+
+export function requiredSpecimens(order) {
+  return order.specimens.filter((row) =>
+    row.testIds.some((id) =>
+      order.tests.some((test) => test._id === id && !test.cancelled),
+    ),
+  );
+}
+
+// One confirmation: tick what is still unticked, then mark the order collected.
+// Each step carries the latest revision, so a changed order stops it.
+export async function collectOrder(api, order) {
+  let latest = order;
+  const send = async (action, extra = {}) =>
+    (latest = await api.lab({
+      action,
+      id: order._id,
+      revision: latest.revision,
+      ...extra,
+    }));
+  for (const row of requiredSpecimens(order))
+    if (!row.checked) await send("check", { target: row.id, checked: true });
+  return send("collect");
+}

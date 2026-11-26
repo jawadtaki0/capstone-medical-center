@@ -6,6 +6,7 @@ import { readDate, westernDigits } from "./dates.js";
 const ANCHORS = new Set(
   [
     "for",
+    "of",
     "book",
     "patient",
     "register",
@@ -99,6 +100,11 @@ export function withoutDetails(message) {
 export function readPrefill(message, today) {
   const found = {};
   let text = westernDigits(message.normalize("NFKC"));
+  const order = /\bLAB-[\da-f-]{36}\b/i.exec(text)?.[0];
+  if (order) {
+    found.orderNumber = "LAB-" + order.slice(4).toLowerCase();
+    text = text.replace(order, " ");
+  }
   const number = (pattern) => pattern.exec(text)?.[0].toUpperCase();
   const booking = number(/\bB-\d{8,16}\b/i),
     patient = number(/\bP-\d{8,16}\b/i);
