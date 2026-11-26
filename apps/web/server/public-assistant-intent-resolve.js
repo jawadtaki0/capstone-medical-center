@@ -144,6 +144,10 @@ function unavailableDate(intent, filters, unread = false) {
   return { kind: "unavailableDate", intent, filters, unread };
 }
 
+// "When do you close?" asks Cedar itself, so it means the Center.
+const asksCedar =
+  /\b(?:do|are|will) you (?:\w+ )?(?:open\w*|clos\w*)\b|\byou (?:open|close)\b|\byour (?:opening )?hours\b|دوامكن|دوامكم|بتسكرو|بتفتحو|فاتحين|بتقفلو/u;
+
 function hoursRequest(
   intent,
   message,
@@ -160,7 +164,11 @@ function hoursRequest(
     labWords.test(text) && "labHours",
     audioWords.test(text) && "audioHours",
   ].filter(Boolean);
-  if (!services.length && centerWords.test(text)) services = ["centerHours"];
+  if (
+    !services.length &&
+    (centerWords.test(text) || (demo && asksCedar.test(text)))
+  )
+    services = ["centerHours"];
   // A visitor's own choice may name the service; a similarity score may not.
   if (!services.length && picked) services = [intent];
   if (!services.includes(intent)) return null;

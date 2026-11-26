@@ -46,6 +46,10 @@ export function catalogueIntent(message) {
         [id, name, name.replace(/\s*\(.*\)/, ""), ...aliases].some((term) =>
           query.includes(words(term)),
         ) ||
+        (id === "lipid-panel" &&
+          /\b(?:lipids?(?: test| panel)?|cholesterol panel)\b|(?<!\p{L})(?:ال)?(?:دهنيات|دهون|كوليسترول)(?!\p{L})/u.test(
+            query,
+          )) ||
         (id === "vitamin-d" &&
           /(?<!\p{L})(?:ال|ل)?فيتامين (?:د|دال)(?!\p{L})/u.test(query)) ||
         (id === "cbc" &&
