@@ -31,8 +31,10 @@ export function BookingSummary({ record, profile, ar, confirmation = false }) {
         <strong dir="auto">{record.professional}</strong>
         {record.specialty && <div dir="auto">{record.specialty}</div>}
         <div>
-          <bdi>
-            {day} · {record.startTime}–{record.endTime}
+          <bdi>{day}</bdi>
+          {" · "}
+          <bdi dir="ltr">
+            {record.startTime}–{record.endTime}
           </bdi>
           {confirmation && (ar ? " · بتوقيت بيروت" : " · Beirut time")}
         </div>
