@@ -76,3 +76,17 @@ test("tomorrow and hearing follow-ups, open-until and request wording", () => {
     "register",
   );
 });
+
+for (const [word, date] of [
+  ["frdy", "2026-11-27"],
+  ["fridy", "2026-11-27"],
+  ["thrsday", "2026-11-26"],
+  ["mondy", "2026-11-30"],
+  ["saterday", "2026-11-28"],
+])
+  test("a misspelled day is not read as today: " + word, () =>
+    assert.equal(
+      request("opening hours of the lab " + word, null, today)?.date,
+      date,
+    ),
+  );
