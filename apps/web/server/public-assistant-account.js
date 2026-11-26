@@ -11,6 +11,15 @@ const family =
   /\b(?:mom|mother|father|dad|wife|husband|sister|brother|aunt|uncle|cousin|friend|someone else|their|his|her)\b|(?<!\p{L})(?:امي|والدتي|ابي|والدي|اخي|اختي|زوجتي|خالتي|عمتي|صديقي)(?!\p{L})/u;
 const booking =
   /\b(?:bookings?|appointments?|requests?|visits?)\b|موعد|مواعيد|حجز|حجوز|طلبات/u;
+const recordAcquisition =
+  /\b(?:pull up|look up|retrieve|download|access|show|send|see|view|print|open|get|copy)\b|(?:بدي|اريد|فرجيني|اعرض|ارسل|ابعث|ابعت|نزل|شوف|نسخه)/u;
+const recordArtifact =
+  /\b(?:printouts?|attachments?|sheets?|paper|copies|copy|report|record)\b|ورقه|نسخه|مرفق|تقرير|مستند/u;
+const pastClinicalSource =
+  /\b(?:blood|urine|swab|samples?|specimens?|tests?|nurse|lab)\b|مختبر|عينه|مسحه|الدم|البول|الممرض/u;
+const personalCollection =
+  /\b(?:from me|you (?:sent|gave|collected|took)|(?:i|we) (?:gave|provided|submitted|had|took))\b|(?:سحبتلي|سحبولي|اخدولي|اخدوا مني|عطيتكن|قدمتها|عملت[هو]|وصلتني|خصني)/u;
+
 const results =
   /\b(?:results?|reports?|(?:lab(?:oratory)?|blood) (?:files?|documents?|tests?)|(?:files?|documents?) (?:cedar )?(?:issued|released|sent))\b|نتايج|نتائج|نتيج|تقارير|تقرير|تحاليل|فحوصات|ورقه (?:تبع )?(?:الفحص|فحص|تحليل)/u;
 
@@ -23,6 +32,13 @@ export function containsPrivateAccountText(message) {
     /\b[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\b|\b(?:wr|lab|b)-[a-f0-9]{8,}\b|[\w.+-]+@[\w.-]+\.[a-z]{2,}/u.test(
       text,
     )
+  )
+    return true;
+  if (
+    recordAcquisition.test(text) &&
+    recordArtifact.test(text) &&
+    pastClinicalSource.test(text) &&
+    (personalRecordOwner(text) || personalCollection.test(text))
   )
     return true;
   const record =

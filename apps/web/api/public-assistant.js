@@ -11,15 +11,41 @@ import {
   validPublicContext,
 } from "../server/public-assistant-context.js";
 
-const publicOrigin =
-  process.env.CEDAR_ASSISTANT_PUBLIC_ORIGIN ??
-  "https://cedar-cmc-api.onrender.com";
-const assistant = createPublicAssistant({
-  demo: true,
-  matchIntent: createLocalIntentMatcher(),
-  readSessions: publishedSessions(publicOrigin),
-  readHours: publishedHours(publicOrigin),
-});
+export function createHostedAssistant({
+  environment = process.env,
+  ...options
+} = {}) {
+  const encoded = environment.CEDAR_ASSISTANT_CONTEXT_KEY;
+  const contextKey =
+    typeof encoded === "string" && /^[A-Za-z0-9_-]{43}$/u.test(encoded)
+      ? Buffer.from(encoded, "base64url")
+      : null;
+  if (
+    (encoded !== undefined ||
+      environment.VERCEL ||
+      environment.NODE_ENV === "production") &&
+    (!contextKey || contextKey.toString("base64url") !== encoded)
+  )
+    return (_request, response) => {
+      response.setHeader("Cache-Control", "private, no-store");
+      response.setHeader("Content-Type", "application/json; charset=utf-8");
+      response.statusCode = 503;
+      response.end("{}");
+    };
+  const origin =
+    environment.CEDAR_ASSISTANT_PUBLIC_ORIGIN ??
+    "https://cedar-cmc-api.onrender.com";
+  return assistantHandler(
+    createPublicAssistant({
+      demo: true,
+      matchIntent: createLocalIntentMatcher(environment.CEDAR_INTENT_MODEL_DIR),
+      readSessions: publishedSessions(origin),
+      readHours: publishedHours(origin),
+      ...options,
+      contextKey: contextKey ?? undefined,
+    }),
+  );
+}
 
 export function assistantHandler(answer) {
   let calls = 0;
@@ -114,4 +140,4 @@ export function assistantHandler(answer) {
   };
 }
 
-export default assistantHandler(assistant);
+export default createHostedAssistant();

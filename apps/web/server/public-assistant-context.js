@@ -1,5 +1,11 @@
 import { specialtyDefinitions } from "../src/data/specialties.js";
-import { validDate, addDays, shownDateFor } from "./public-assistant-dates.js";
+import { canon } from "./public-assistant-language.js";
+import {
+  validDate,
+  addDays,
+  shownDateFor,
+  resolveBeirutDate,
+} from "./public-assistant-dates.js";
 import { guidedTopic } from "./public-assistant-gate.js";
 
 const services = new Set(["center", "laboratory", "audiometry", "clinic"]);
@@ -111,4 +117,55 @@ export function publicReplyContext(reply, service, relativeDate) {
       clinicianId: null,
     };
   return null;
+}
+
+const weekdays =
+  /^(?:(?:on|for) )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|(?:(?:the|that) )?(?:same )?(?:day|date))$|^(?:(?:نهار|يوم) )?(?:اليوم|بكرا|الاحد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|بهالنهار|بنفس النهار|بهداك النهار)$/u;
+const serviceNames = [
+  ["laboratory", /\b(?:lab|laboratory)\b|(?<!\p{L})ب?المختبر(?!\p{L})/gu],
+  [
+    "audiometry",
+    /\b(?:audiometry|hearing tests?)\b|(?<!\p{L})(?:فحوصات السمع|قياس السمع)(?!\p{L})/gu,
+  ],
+  [
+    "center",
+    /\b(?:center|centre|clinic)\b|(?<!\p{L})ب?(?:المركز|العياده)(?!\p{L})/gu,
+  ],
+];
+
+export function resolvePublicFollowup(message, previous, today) {
+  if (!previous) return null;
+  // Remove conversational framing; the remainder must be a day or service,
+  // so a date mentioned inside an unrelated request cannot trigger a lookup.
+  let query = canon(message)
+    .replace(/[؟?!.,]+$/gu, "")
+    .trim()
+    .replace(
+      /^(?:(?:could|can) (?:you|we) (?:check|make it)|how about|what about|and|طيب|وكمان|كمان|وعندن)\s+|^و(?=(?:نهار|يوم|ال))/u,
+      "",
+    )
+    .replace(/\s+(?:instead of|rather than|بدل)\s+.*$/u, "")
+    .replace(
+      /\s+(?:instead|as well|too|please|لو سمحت|شو الوضع|كيف بيكون الدوام|كيف الدوام)$/u,
+      "",
+    )
+    .trim();
+  const serviceMatches = serviceNames.filter(
+    ([, pattern]) => query.replace(pattern, "") !== query,
+  );
+  if (serviceMatches.length > 1) return null;
+  const [service, pattern] = serviceMatches[0] ?? [];
+  if (pattern) {
+    query = query
+      .replace(pattern, "")
+      .replace(/^(?:the )?|\b(?:hours|دوام)\b/gu, "")
+      .replace(/^\s*(?:for|on)\s*$/u, "")
+      .trim();
+  }
+  if ((!service && !query) || (query && !weekdays.test(query))) return null;
+  const date = query
+    ? resolveBeirutDate(query, today, { shownDate: previous.date }).day
+    : previous.date;
+  if (!date) return null;
+  return { date, service: service ?? previous.service };
 }

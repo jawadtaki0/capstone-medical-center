@@ -31,6 +31,7 @@ import {
 } from "./public-assistant-intent-resolve.js";
 import {
   publicReplyContext,
+  resolvePublicFollowup,
   usablePublicContext,
 } from "./public-assistant-context.js";
 import { guidedMenu } from "./public-assistant-guided-menu.js";
@@ -160,7 +161,7 @@ export function createAssistant({
   observe: defaultObserve = () => {},
   today = cedarToday,
   now = Date.now,
-  contextKey = process.env.GEMINI_API_KEY || localContextKey,
+  contextKey = localContextKey,
 }) {
   const tokens = searchTokens(contextKey);
   return async function answer(
@@ -506,24 +507,13 @@ export function createAssistant({
         text: lang === "ar" ? "أي تاريخ تقصد؟" : "Which date do you mean?",
       });
     let dateFollowup;
-    if (
-      previous &&
-      /^(?:(?:and|what about|how about)\s+)?(?:(?:on|for)\s+)?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|that (?:same )?(?:day|date)|same (?:day|date)|\d{4}-\d{2}-\d{2})[?.!\s]*$|^(?:و\s*)?(?:(?:نهار|يوم)\s+)?(?:اليوم|بكرا|الاحد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|بهالنهار|بنفس النهار)[؟?.!\s]*$/u.test(
-        canon(latest),
-      )
-    ) {
-      const followDate = resolveBeirutDate(latest, today(), context).day;
-      if (followDate && previous.lastIntent === "hours")
-        latest =
-          { center: "Center", laboratory: "Lab", audiometry: "Audiometry" }[
-            previous.service
-          ] +
-          " hours " +
-          followDate;
-      else if (followDate)
+    const refinementDate =
+      !category && resolvePublicFollowup(latest, previous, today());
+    if (refinementDate) {
+      if (refinementDate.service === "clinic")
         dateFollowup = {
           kind: "sessions",
-          day: followDate,
+          day: refinementDate.date,
           specialtyHint: previous.specialty,
           clinicianId: previous.clinicianId,
           time: {},
@@ -532,21 +522,13 @@ export function createAssistant({
           maySearch: true,
           knownSearch: true,
         };
-    }
-    if (previous?.date) {
-      const short =
-        /^(?:(?:and|what about|how about)\s+(?:the\s+)?(lab(?:oratory)?|audiometry|clinic|center)|و\s*(المختبر|العياده|المركز|فحوصات السمع))[?.!؟ ]*$/u.exec(
-          canon(latest),
-        );
-      if (short) {
-        const service = short[1] ?? short[2];
-        const label = /lab|المختبر/u.test(service)
-          ? "Lab"
-          : /audiometry|السمع/u.test(service)
-            ? "Audiometry"
-            : "Center";
-        latest = label + " hours " + previous.date;
-      }
+      else
+        latest =
+          { center: "Center", laboratory: "Lab", audiometry: "Audiometry" }[
+            refinementDate.service
+          ] +
+          " hours " +
+          refinementDate.date;
     }
     const demoPublic =
       demoTurn &&
