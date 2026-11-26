@@ -322,7 +322,7 @@ export function urgentConcept(value) {
 export function cancellationConcept(value) {
   const text = canon(value);
   const verb =
-    /\b(?:cancel\w*|call off|delete|remove|withdraw|drop)\b|(?:الغي|الغاء|بلغي|لغي|يلغي|تلغي|تلغو(?:ه|ها)?|تلغيلي|بشطب|اشطب|شطب|تشطب|(?:ين|تن)شال|امسح|بمسح|تمسح|احذف|بحذف|تحذف|شيل|بشيل|تشيل)|\b(?:l8i|elghe|ilghe|2elghe|bl8i|shatb|ashtob|bshtob|emsa7|bemsa7|telghi(?:ha|h)?|telgho(?:ha|h)?|tel8i(?:ha|h)?|tshil(?:o|a|ha)?)\b|\b(?:take|strike) (?:it|that) (?:off|from) (?:the |my )?(?:schedule|calendar|bookings?|reservations?)\b/u;
+    /\b(?:cancel\w*|call off|delete|remove|withdraw|drop)\b|(?:الغي|الغاء|الغو|كنسل|بلغي|لغي|يلغي|تلغي|تلغو(?:ه|ها)?|تلغيلي|بشطب|اشطب|شطب|تشطب|(?:ين|تن)شال|امسح|بمسح|تمسح|احذف|بحذف|تحذف|شيل|بشيل|تشيل)|\b(?:l8i|elghe|ilghe|2elghe|bl8i|shatb|ashtob|bshtob|emsa7|bemsa7|telghi(?:ha|h)?|telgho(?:ha|h)?|tel8i(?:ha|h)?|tshil(?:o|a|ha)?)\b|\b(?:take|strike) (?:it|that) (?:off|from) (?:the |my )?(?:schedule|calendar|bookings?|reservations?)\b/u;
   const booking =
     /\b(?:booking|appointment|reservation|visit|session|request|slot)s?\b|موعد|مواعيد|حجز|زياره|طلب|جلسه|\b(?:maw3ad|maw3ed|mow3ad|7ajz|7ajez|7ajazt|7ajazet)\b/u;
   const verbMatch = verb.exec(text);
@@ -417,7 +417,7 @@ export function unrelatedConcept(value) {
 export function clinicalConcept(value) {
   const text = canon(value);
   const medicine =
-    /\b(?:medicines?|medications?|meds|drugs?|pills?|tablets?|antibiotics?|supplements?|vitamins?|doses?|dosage|painkillers?|treat(?:ment)?|cure)\b|(?<!\p{L})(?:هال|ال)?دوا(?:ء)?(?!\p{L})|ادويه|حبوب|حبه|علاج|مضاد|فيتامين|مكمل|جرعه|مسكن|\b(?:dawa|edwye|7bub|7obob|3ilaj|3elej|dawe)\b/u;
+    /\b(?:medicines?|medications?|meds|drugs?|pills?|tablets?|antibiotics?|supplements?|vitamins?|doses?|dosage|painkillers?|ibuprofen|paracetamol|panadol|aspirin|treat(?:ment)?|cure)\b|(?<!\p{L})(?:هال|ال)?دوا(?:ء)?(?!\p{L})|ادويه|حبوب|حبه|علاج|مضاد|فيتامين|مكمل|جرعه|مسكن|\b(?:dawa|edwye|7bub|7obob|3ilaj|3elej|dawe)\b/u;
   const medicationText = text
     .replace(
       /\bvitamin\s+[a-z]\d*\s+(?:(?:blood|lab|serum)\s+)?(?:tests?|panels?|screening)\b|\b(?:tests?|panel|screening)\s+(?:for|of)\s+vitamin\s+[a-z]\d*\b/gu,

@@ -1,20 +1,41 @@
 import AssistantAccountCards from "./AssistantAccountCards.jsx";
-import {
-  privateAccountIntent,
-  containsPrivateAccountText,
-  cancelChatCopy,
-} from "../../server/public-assistant-account.js";
+import { cancelChatCopy } from "../../server/public-assistant-account.js";
 import {
   protectedGate,
   rulesCopy,
 } from "../../server/public-assistant-gate.js";
-import { canon } from "../../server/public-assistant-language.js";
-import { isExactPublicPreparation } from "../../server/public-assistant-confidence.js";
-import { isNamedTestPreparation } from "../../server/public-assistant-intent-resolve.js";
+import {
+  browserPublicRequest,
+  localRoute,
+} from "../../server/public-assistant-context.js";
+import {
+  addDays,
+  cedarToday,
+  resolveBeirutDate,
+} from "../../server/public-assistant-dates.js";
+import { intentLabels } from "../../server/public-assistant-intent-labels.js";
+import {
+  symptomRequest,
+  standaloneArabizi,
+} from "../../server/public-assistant-demo.js";
+import { questionLanguage } from "../../server/public-assistant-demo-turns.js";
+import { createRequestClient } from "../website-request-client.js";
+import {
+  canon,
+  requestedProfessional,
+} from "../../server/public-assistant-language.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emergencyLine, receptionHandoff } from "../public-assistant-safety.js";
 import "./public-assistant.css";
 
+const publicCatalogue = createRequestClient({
+  apiOrigin:
+    import.meta.env.VITE_HOSTED_CAPSTONE === "1"
+      ? import.meta.env.VITE_CAPSTONE_API_ORIGIN
+      : import.meta.env.VITE_HOSTED_REVIEW === "1"
+        ? import.meta.env.VITE_REVIEW_API_ORIGIN
+        : "",
+});
 const labels = {
   en: {
     open: "Ask Cedar",
@@ -55,8 +76,10 @@ const labels = {
     reception: "Contact Reception",
     details: "See public information",
     account: "Open My account",
-    signedInAccount: "You’re signed in. Open My account to manage your records.",
-    signedInResults: "View released Lab reports for yourself or a linked child.",
+    signedInAccount:
+      "You’re signed in. Open My account to manage your records.",
+    signedInResults:
+      "View released Lab reports for yourself or a linked child.",
     signedInBookings: "View booking requests for yourself or a linked child.",
     labResults: "Open secure Lab results",
     choose: "Open request form",
@@ -105,7 +128,8 @@ const labels = {
     details: "عرض المعلومات العامة",
     account: "افتح حسابي",
     signedInAccount: "أنت مسجّل الدخول. افتح حسابي لإدارة سجلاتك.",
-    signedInResults: "اعرض نتائج المختبر الصادرة لك أو لأحد أطفالك المرتبطين بحسابك.",
+    signedInResults:
+      "اعرض نتائج المختبر الصادرة لك أو لأحد أطفالك المرتبطين بحسابك.",
     signedInBookings: "اعرض طلبات المواعيد لك أو لأحد أطفالك المرتبطين بحسابك.",
     labResults: "افتح نتائج المختبر الآمنة",
     choose: "افتح نموذج الطلب",
@@ -152,14 +176,15 @@ export default function PublicAssistant({ account, onAccount }) {
     const { intent, language: panelLanguage } = privatePanel;
     const panelCopy = labels[panelLanguage];
     if (account) {
-      privateText = {
-        my_results: panelCopy.signedInResults,
-        where_results: panelCopy.signedInResults,
-        my_bookings: panelCopy.signedInBookings,
-        booking_status: panelCopy.signedInBookings,
-        cancel_request: cancelChatCopy[panelLanguage],
-        sign_in: panelCopy.signedInAccount,
-      }[intent] ?? privateText;
+      privateText =
+        {
+          my_results: panelCopy.signedInResults,
+          where_results: panelCopy.signedInResults,
+          my_bookings: panelCopy.signedInBookings,
+          booking_status: panelCopy.signedInBookings,
+          cancel_request: cancelChatCopy[panelLanguage],
+          sign_in: panelCopy.signedInAccount,
+        }[intent] ?? privateText;
     } else if (account === undefined) {
       privateText = panelCopy.busy;
     } else {
@@ -223,20 +248,14 @@ export default function PublicAssistant({ account, onAccount }) {
     const generation = ++requestGeneration.current;
     setPrivatePanel(null);
     if (!control) {
-      const detected = protectedGate(value);
-      const sensitive = containsPrivateAccountText(value);
-      const category =
-        detected === "clinical" &&
-        (isExactPublicPreparation(value) || isNamedTestPreparation(value))
-          ? null
-          : detected;
-      if (category) publicContext.current = null;
-      const intent = privateAccountIntent(value, category);
+      const route = localRoute(value);
       if (
-        intent ||
-        sensitive ||
-        ["private", "cancel", "clinical", "emergency"].includes(category)
-      ) {
+        route?.category ||
+        ["override", "unrelated"].includes(protectedGate(value))
+      )
+        publicContext.current = null;
+      if (route) {
+        const { category, intent } = route;
         const replyLanguage = /\p{Script=Arabic}/u.test(value)
           ? "ar"
           : language;
@@ -250,11 +269,7 @@ export default function PublicAssistant({ account, onAccount }) {
         setQuestion("");
         setPrivatePanel({
           generation,
-          intent:
-            intent ??
-            (sensitive || category === "private" || category === "cancel"
-              ? "sign_in"
-              : null),
+          intent,
           language: replyLanguage,
           urgent: category === "emergency",
           profileId: candidates.length === 1 ? candidates[0].id : undefined,
@@ -278,14 +293,57 @@ export default function PublicAssistant({ account, onAccount }) {
     const context =
       saved && Date.now() - saved.at < 600_000 ? saved.value : null;
     setBusy(true);
+    const replyLanguage = control
+      ? language
+      : questionLanguage(value, language);
     let answer;
+    let label = control ? value : "";
+    let request = control;
     try {
+      if (!control && !standaloneArabizi(value) && !symptomRequest(value)) {
+        const today = cedarToday();
+        request = browserPublicRequest(value, context, today);
+        if (!request && requestedProfessional(value)) {
+          const day = resolveBeirutDate(value, today, {
+            shownDate: context?.date,
+          }).day;
+          const validDay = day && day >= today && day <= addDays(today, 6);
+          const days = validDay
+            ? [day]
+            : Array.from({ length: 7 }, (_, i) => addDays(today, i));
+          const published = (
+            await Promise.all(
+              days.map((date) =>
+                publicCatalogue("sessions?date=" + date).catch(() => []),
+              ),
+            )
+          ).flat();
+          request = browserPublicRequest(value, context, today, published);
+        }
+        const intent =
+          request?.intent === "schedule"
+            ? "clinicSchedule"
+            : request?.intent === "hours"
+              ? {
+                  center: "centerHours",
+                  laboratory: "labHours",
+                  audiometry: "audioHours",
+                }[request.service]
+              : request?.intent;
+        label = intentLabels[intent]?.[replyLanguage] ?? "";
+      }
+      if (!request) throw Error();
+      if (generation !== requestGeneration.current) return;
       const res = await fetch("/api/public-assistant", {
         method: "POST",
         credentials: "omit",
         redirect: "error",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language, message: control ?? value, context }),
+        body: JSON.stringify({
+          language: replyLanguage,
+          message: request,
+          context,
+        }),
         signal: AbortSignal.timeout(55_000),
       });
       if (!res.ok) throw Error();
@@ -300,7 +358,7 @@ export default function PublicAssistant({ account, onAccount }) {
       publicContext.current = null;
       answer = control?.topic
         ? { kind: "failure", text: copy.failed }
-        : { kind: "failure", text: receptionHandoff[language] };
+        : { kind: "failure", text: receptionHandoff[replyLanguage] };
     }
     if (answer.accountIntent) {
       setPrivatePanel({
@@ -318,9 +376,9 @@ export default function PublicAssistant({ account, onAccount }) {
     setTurns((current) => [
       ...current,
       {
-        question: answer.fallback || answer.kind === "failure" ? "" : value,
+        question: answer.fallback || answer.kind === "failure" ? "" : label,
         answer,
-        replyLanguage: answer.language ?? language,
+        replyLanguage: answer.language ?? replyLanguage,
       },
     ]);
     setBusy(false);
@@ -331,7 +389,16 @@ export default function PublicAssistant({ account, onAccount }) {
   const topicButton = ([topic, label], className, onClick) => (
     <button
       key={topic}
-      data-selected={Boolean(privatePanel && ({private: "my_results", bookings: "my_bookings", cancel: "cancel_request"})[topic] === privatePanel.intent) || undefined}
+      data-selected={
+        Boolean(
+          privatePanel &&
+            {
+              private: "my_results",
+              bookings: "my_bookings",
+              cancel: "cancel_request",
+            }[topic] === privatePanel.intent,
+        ) || undefined
+      }
       type="button"
       className={"button " + className}
       disabled={busy}
@@ -679,29 +746,40 @@ export default function PublicAssistant({ account, onAccount }) {
                 {copy.busy}
               </div>
             )}
-          {privatePanel && (
-            <div
-              className="cedar-assistant-private"
-              lang={privatePanel.language}
-              dir={privatePanel.language === "ar" ? "rtl" : "ltr"}
-            >
-              <p className={account && ["my_results", "my_bookings", "booking_status"].includes(privatePanel.intent) ? "cedar-assistant-hidden" : undefined}>{privateText}</p>
-              {privatePanel.intent && account !== undefined && (
-                <AssistantAccountCards
-                  key={
-                    privatePanel.generation +
-                    ":" +
-                    (accountEmail ?? "signed-out")
+            {privatePanel && (
+              <div
+                className="cedar-assistant-private"
+                lang={privatePanel.language}
+                dir={privatePanel.language === "ar" ? "rtl" : "ltr"}
+              >
+                <p
+                  className={
+                    account &&
+                    ["my_results", "my_bookings", "booking_status"].includes(
+                      privatePanel.intent,
+                    )
+                      ? "cedar-assistant-hidden"
+                      : undefined
                   }
-                  intent={privatePanel.intent}
-                  account={account}
-                  preferredProfileId={privatePanel.profileId}
-                  language={privatePanel.language}
-                  onExpire={invalidateAccount}
-                />
-              )}
-            </div>
-          )}
+                >
+                  {privateText}
+                </p>
+                {privatePanel.intent && account !== undefined && (
+                  <AssistantAccountCards
+                    key={
+                      privatePanel.generation +
+                      ":" +
+                      (accountEmail ?? "signed-out")
+                    }
+                    intent={privatePanel.intent}
+                    account={account}
+                    preferredProfileId={privatePanel.profileId}
+                    language={privatePanel.language}
+                    onExpire={invalidateAccount}
+                  />
+                )}
+              </div>
+            )}
           </div>
           <div className="cedar-assistant-bar">
             {turns.length > 0 && (
@@ -720,7 +798,8 @@ export default function PublicAssistant({ account, onAccount }) {
               (topic, label) => send(label, { topic }),
             )}
           </div>
-          <form className="cedar-assistant-composer"
+          <form
+            className="cedar-assistant-composer"
             onSubmit={(event) => {
               event.preventDefault();
               send(question.trim());

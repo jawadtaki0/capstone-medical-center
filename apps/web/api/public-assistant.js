@@ -1,11 +1,9 @@
-import { createLocalIntentMatcher } from "../server/public-assistant-local-match.js";
 import {
   createPublicAssistant,
   publishedHours,
   publishedSessions,
 } from "../server/public-assistant.js";
 import { randomUUID } from "node:crypto";
-import { containsPrivateAccountText } from "../server/public-assistant-account.js";
 import {
   validCurrentMessage,
   validPublicContext,
@@ -38,7 +36,6 @@ export function createHostedAssistant({
   return assistantHandler(
     createPublicAssistant({
       demo: true,
-      matchIntent: createLocalIntentMatcher(environment.CEDAR_INTENT_MODEL_DIR),
       readSessions: publishedSessions(origin),
       readHours: publishedHours(origin),
       ...options,
@@ -84,13 +81,13 @@ export function assistantHandler(answer) {
         Object.keys(body).length !== 3 ||
         !["en", "ar"].includes(body.language) ||
         !validCurrentMessage(body.message) ||
-        !validPublicContext(body.context) ||
-        containsPrivateAccountText(body.message)
+        !validPublicContext(body.context)
       )
         return send(400, {});
       const message = body.message;
-      const input =
-        typeof message === "string" ? { messages: [message] } : message;
+      const input = Object.hasOwn(message, "intent")
+        ? { publicRequest: message }
+        : message;
       const started = Date.now();
       const provider = [];
       let routeReason;

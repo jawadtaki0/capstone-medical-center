@@ -175,6 +175,7 @@ export function createAssistant({
       partIndex,
       menu,
       publicTurnContext,
+      publicRequest,
       action,
       date: actionDate,
     },
@@ -300,9 +301,24 @@ export function createAssistant({
         : result;
     };
     const handoff = () => reply("reception", { fallback: true });
+    if (
+      publicRequest?.intent === "identity" ||
+      publicRequest?.intent === "creator"
+    ) {
+      const key = publicRequest.intent;
+      return reply(key === "identity" ? "demoIdentity" : "demoCreator", {
+        text: demoCopy[lang][key],
+      });
+    }
+    if (publicRequest?.intent === "offTopic")
+      return reply("demoOffTopic", {
+        text: demoCopy[lang].offTopic,
+        topicOptions: ["urgent", "private", "cancel", "clinical"],
+      });
     const authorizedAction =
       structured && action ? tokens.decode(action, at) : null;
     if (action && !authorizedAction?.plan) return handoff();
+    if (publicRequest) messages = ["Cedar"];
     if (authorizedAction) {
       const dates = authorizedAction.options;
       if (dates ? !dates.includes(actionDate) : actionDate !== undefined)
@@ -584,7 +600,7 @@ export function createAssistant({
       const specialty = value.specialtyHint ?? value.filters?.specialty;
       const professional =
         value.namedProfessional ?? value.filters?.professional;
-      let clinicianId;
+      let clinicianId = value.filters?.clinicianId;
       if (professional) {
         const days = value.day
           ? [value.day]
@@ -659,6 +675,54 @@ export function createAssistant({
       });
     };
     let classified = classifyPublicTurn(latest, publicContext);
+    if (publicRequest) {
+      const { intent, service, specialty, clinicianId } = publicRequest;
+      const day = publicRequest.date;
+      const validDay = day && sessionDays({ from: day, through: day }, date);
+      const hourIntent = {
+        center: "centerHours",
+        laboratory: "labHours",
+        audiometry: "audioHours",
+      }[service];
+      if (intent === "bookingPolicy") {
+        const plan = resolvePublicIntent(
+          "bookingPolicy",
+          { clinic: "Clinic", laboratory: "Lab", audiometry: "Audiometry" }[
+            service
+          ] + " online booking",
+          publicContext,
+        );
+        return plan ? reply(plan.route, plan.fields) : handoff();
+      }
+      if (!validDay)
+        return dateOptions(
+          hourIntent ?? "clinicSchedule",
+          { specialty, clinicianId },
+          !day,
+        );
+      if (intent === "hours")
+        classified = {
+          kind: "hours",
+          hourDays: [day],
+          hours: {
+            center: service === "center",
+            lab: service === "laboratory",
+            audio: service === "audiometry",
+          },
+        };
+      else
+        classified = {
+          kind: "sessions",
+          day,
+          specialtyHint: specialty,
+          clinicianId,
+          time: {},
+          directSearch: true,
+          fixedSearch: true,
+          maySearch: true,
+          knownSearch: true,
+        };
+    }
     if (freeTextPolicy) {
       if (authorizedAction) {
         const plan = authorizedAction.plan;
@@ -686,6 +750,8 @@ export function createAssistant({
               },
             };
         } else classified = plan;
+      } else if (publicRequest) {
+        // Already classified from validated public fields.
       } else if (selectedDate) {
         classified = resolvePublicIntent(
           context.datePicker.intent,
