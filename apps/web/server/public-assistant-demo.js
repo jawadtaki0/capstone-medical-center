@@ -58,7 +58,7 @@ const assistantSubject =
 const creator =
   /\b(?:who|author|creator|developer|behind)\b.{0,75}\b(?:built|coded|programmed|made|created|developed|designed|wrote|behind|creator|developer|author)\b|\b(?:creator|developer|author)\s+(?:of|behind)\b|(?:مين|من|الشخص).{0,35}(?:طور|صمم|برمج|عمل|صنع|كتب|مبرمج)|(?:كيف|وين).{0,30}(?:تواصل|لاقي).{0,30}(?:طور|صمم|برمج)|(?:مطور|مصمم|مبرمج) (?:هال)?(?:مساعد|دردشه|اداه|برنامج)/u;
 const identity =
-  /\b(?:who are you|what are you|who am i (?:talking|speaking|chatting) (?:to|with)|introduce yourself|(?:your|assistant'?s) name|what (?:kind of )?assistant|which (?:cedar )?(?:assistant|helper)|what should i call|what (?:can|do) you (?:do|help))\b|(?:مين|من) (?:انت|حضرتك|هالمساعد)|حضرتك مين|(?:تعرف|عرفني) (?:عن نفسك|عن حالك|مين)|شو (?:اسمك|اسم المساعد|دورك|منسميك)/u;
+  /\b(?:are you (?:a |an )?(?:real )?(?:person|human|robot|bot)|who are you|what are you|who am i (?:talking|speaking|chatting) (?:to|with)|introduce yourself|(?:your|assistant'?s) name|what (?:kind of )?assistant|which (?:cedar )?(?:assistant|helper)|what should i call|what (?:can|do) you (?:do|help))\b|انت (?:انسان|روبوت|شخص حقيقي)|(?:مين|من) (?:انت|حضرتك|هالمساعد)|حضرتك مين|(?:تعرف|عرفني) (?:عن نفسك|عن حالك|مين)|شو (?:اسمك|اسم المساعد|دورك|منسميك)/u;
 const unrelated =
   /\b(?:capital of|wedding playlist|sandwich recipe|home renovation)\b|عاصمه|تذكر[هة] الطيار[هة]|تزيين الصالون|اقتراح فيلم|اقترح فيلم/u;
 

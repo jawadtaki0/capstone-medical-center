@@ -42,7 +42,7 @@ const unreadDate =
 
 const labWords =
   /\b(?:lab|laboratory|labortory|mokhtabar|moukhtabar|mo5tabar|blood draw)\b|مختبر|اللاب|(?<!\p{L})لاب(?!\p{L})/u;
-const audioWords = /\b(?:audiometry|hearing|sama3)\b|السمع/u;
+const audioWords = /\b(?:audiometry|hearing|sama3)\b|السمع|(?:فحص|قياس) سمع/u;
 const centerWords =
   /\b(?:cent(?:er|re)|building|clinic|cedar|markaz|mabna|entrance|doors)\b|مركز|المبني|مبني|عياده|سيدر|بوابه المركز/u;
 const clinicPolicy =
@@ -311,7 +311,7 @@ function bookingRequest(text, lang) {
 const clearClinicRequest =
   /\b(?:windows?|slots?|sessions?|appointments?|availability|available|roster|visits?|schedule|listed|published)\b|جلس|مواعيد|موعد|وقت|الفتره|جدول|منشور|متاح|(?:فيني|بدي) شوف/u;
 const hoursRequestCue =
-  /\b(?:hours?|hrs|open\w*|clos\w*|first and last|timetable|timings?)\b|دو+ام|ساعات|وقت فتح|بتفتح|افتح|يفتح|بيفتح|سكر/u;
+  /\b(?:hours?|hrs|open\w*|clos\w*|shut\w*|first and last|timetable|timings?)\b|دو+ام|ساعات|وقت فتح|بتفتح|افتح|يفتح|بيفتح|سكر/u;
 
 export function exactDemoPublicRequest(message, turn) {
   const text = canon(message);

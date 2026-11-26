@@ -294,10 +294,10 @@ function selfHarmRisk(clause) {
 // Other present-tense emergencies described in Arabic or Arabizi.
 function otherEmergency(clause) {
   return (
-    /(?:(?:صدري|قلبي) (?:عم )?(?:يوجعني|بيوجعني|يالمني|عم يضغط)|وجع (?:قوي |كتير )?(?:ب|في )?(?:صدري|الصدر)|ضغط (?:على|ع) صدري|(?:عم|ما عم) (?:ينزف|نزف) (?:كتير|كثير|بقوه)|ما (?:عم )?(?:يوقف|بيوقف) (?:ال)?نزيف|(?:غايب|فاقد|فاقده) (?:عن )?(?:ال)?وعي|ما عم (?:يفيق|تفيق|يفوق|تفوق|يصح[ىي]|تصح[ىي]|يرد|ترد|(?:بي|بت)?جاوب(?:ني)?|يتنفس|تتنفس)|(?:عم )?(?:يتشنج|بيتشنج)|جلطه (?:هلق|هلا|الان))/u.test(
+    /(?:(?:صدري|قلبي) (?:عم )?(?:يوجعني|بيوجعني|يالمني|عم يضغط)|وجع (?:قوي |كتير )?(?:ب|في )?(?:صدري|الصدر)|ضغط (?:على|ع) صدري|(?:عم|ما عم) (?:ينزف|نزف) (?:كتير|كثير|بقوه)|ما (?:عم )?(?:يوقف|بيوقف) (?:ال)?نزيف|(?:غايب|فاقد|فاقده) (?:عن )?(?:ال)?وعي|ما عم (?:يفيق|تفيق|يفوق|تفوق|يصح[ىي]|تصح[ىي]|يرد|ترد|(?:بي|بت)?جاوب(?:ني)?|يتنفس|تتنفس)|(?:عم )?(?:يتشنج|بيتشنج)|جلطه (?:هلق|هلا|الان)|(?:مش|ما) عم (?:ي|ت)تنفس|(?:غاب|غابت) عن (?:ال)?وعي|اغمي علي)/u.test(
       clause,
     ) ||
-    /\b(?:waja3|wje3)\s+(?:b|bi|fi)?\s*(?:sadre|sadri|sedre)\b|\b(?:sadre|sadri)\s+(?:3am\s+)?(?:yewja3ne|byewja3ne|wej3ne)\b|\b(?:fainted|collapsed|not responding|won'?t wake up|unresponsive|turning blue|seizing)\b/u.test(
+    /\b(?:waja3|wje3)\s+(?:b|bi|fi)?\s*(?:sadre|sadri|sedre)\b|\b(?:sadre|sadri)\s+(?:3am\s+)?(?:yewja3ne|byewja3ne|wej3ne)\b|\b(?:fainted|passed out|collapsed|unconscious|(?:not|stopped|isn'?t) breathing|not responding|won'?t wake up|unresponsive|turning blue|seizing)\b/u.test(
       clause,
     )
   );
@@ -417,7 +417,7 @@ export function unrelatedConcept(value) {
 export function clinicalConcept(value) {
   const text = canon(value);
   const medicine =
-    /\b(?:medicines?|medications?|meds|drugs?|pills?|tablets?|antibiotics?|supplements?|vitamins?|doses?|dosage|painkillers?|ibuprofen|paracetamol|panadol|aspirin|treat(?:ment)?|cure)\b|(?<!\p{L})(?:هال|ال)?دوا(?:ء)?(?!\p{L})|ادويه|حبوب|حبه|علاج|مضاد|فيتامين|مكمل|جرعه|مسكن|\b(?:dawa|edwye|7bub|7obob|3ilaj|3elej|dawe)\b/u;
+    /\b(?:medicines?|medications?|meds|drugs?|pills?|tablets?|antibiotics?|supplements?|vitamins?|doses?|dosage|painkillers?|ibuprofen|paracetamol|panadol|aspirin|insulin|blood thinners?|treat(?:ment)?|cure)\b|(?<!\p{L})(?:هال|ال)?دوا(?:ء)?(?!\p{L})|ادويه|مميع|انسولين|حبوب|حبه|علاج|مضاد|فيتامين|مكمل|جرعه|مسكن|\b(?:dawa|edwye|7bub|7obob|3ilaj|3elej|dawe)\b/u;
   const medicationText = text
     .replace(
       /\bvitamin\s+[a-z]\d*\s+(?:(?:blood|lab|serum)\s+)?(?:tests?|panels?|screening)\b|\b(?:tests?|panel|screening)\s+(?:for|of)\s+vitamin\s+[a-z]\d*\b/gu,
@@ -425,14 +425,17 @@ export function clinicalConcept(value) {
     )
     .replace(/(?:فحص|تحليل)\s+(?:ال)?فيتامين\s+[\p{L}\p{N}]+/gu, "");
   const advice =
-    /\b(?:should|which|what|do i|need|take|use|start|stop|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|فيني|بوقف|بغير|بضاعف|بخفف|بزيد|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
+    /\b(?:should|which|what|do i|need|take|use|start|stop|skip|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|فيني|بوقف|بغير|بضاعف|بخفف|بزيد|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
   const result =
     /\b(?:results?|levels?|readings?|values?|counts?|numbers?)\b|نتيجه|نتيجتي|تحليل|نسبه|معدل|مستوى|\b(?:natije|ta7lil|nesbe)\b/u;
   const abnormal =
     /\b(?:low|high|elevated|abnormal|positive|borderline|out of range|raised)\b|واطي|واطيه|منخفض|منخفضه|عالي|عاليه|مرتفع|مرتفعه|طالع|طالعه|نازل|نازله|ناقص|\b(?:wa6e|wati|3ali|3alye|nezle|tal3a)\b/u;
   const meaning =
     /\b(?:mean|means|worried|serious|dangerous|bad|normal|what should|what do i)\b|شو يعني|يعني شي|خطير|خطر|طبيعي|شو بعمل|شو لازم|\b(?:shu ya3ne|khatir)\b/u;
+  const reading =
+    /\b(?:sugar|glucose|blood pressure|cholesterol|h(?:a)?emoglobin)\b|سكر|ضغط|كوليسترول/u;
   return (
+    (reading.test(text) && /\d{2,}/u.test(text) && meaning.test(text)) ||
     (medicine.test(medicationText) && advice.test(text)) ||
     (result.test(text) &&
       abnormal.test(text) &&

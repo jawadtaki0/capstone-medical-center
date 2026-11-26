@@ -195,7 +195,7 @@ export function resolvePublicFollowup(message, previous, today) {
     .replace(/[؟?!.,]+$/gu, "")
     .trim()
     .replace(
-      /^(?:(?:could|can) (?:you|we) (?:check|make it)|how about|what about|and|طيب|وكمان|كمان|وعندن)\s+|^و(?=(?:نهار|يوم|ال))/u,
+      /^(?:(?:could|can) (?:you|we) (?:check|make it)|how about|what about|and|طيب|وكمان|كمان|وعندن)\s+|^و(?=(?:نهار|يوم|ال|فحوصات|قياس))/u,
       "",
     )
     .replace(/\s+(?:instead of|rather than|بدل)\s+.*$/u, "")
@@ -204,7 +204,9 @@ export function resolvePublicFollowup(message, previous, today) {
       "",
     )
     .trim()
-    .replace(/^و(?=ال)/u, "");
+    .replace(/^و(?=ال)/u, "")
+    .replace(/\s+after today$/u, "")
+    .replace(/^the (?=\w+day$)/u, "");
   const serviceMatches = serviceNames.filter(
     ([, pattern]) => query.replace(pattern, "") !== query,
   );
@@ -214,7 +216,8 @@ export function resolvePublicFollowup(message, previous, today) {
     query = query
       .replace(pattern, "")
       .replace(/^(?:the )?|\b(?:hours|دوام)\b/gu, "")
-      .replace(/^\s*(?:for|on)\s*$/u, "")
+      .trim()
+      .replace(/(?:^|\s+)(?:for|on)$/u, "")
       .trim();
   }
   if ((!service && !query) || (query && !weekdays.test(query))) return null;
@@ -305,7 +308,12 @@ export function browserPublicRequest(input, previous, today, published = []) {
     };
 
   const everyday = everydayRequest(message, today);
+  const who = /\b(?:which|who)\b|(?<!\p{L})مين(?!\p{L})/u.test(canon(message))
+    ? resolvePublicIntent("clinicSchedule", message, turn)
+    : null;
+  const asked = who?.specialtyHint ? who : null;
   if (
+    asked ||
     request?.kind === "sessions" ||
     request?.intent === "clinicSchedule" ||
     everyday?.kind === "clinician"
@@ -314,9 +322,14 @@ export function browserPublicRequest(input, previous, today, published = []) {
       request?.namedProfessional ??
       request?.filters?.professional ??
       everyday?.clinician;
-    const specialty = request?.specialtyHint ?? request?.filters?.specialty;
+    const specialty =
+      request?.specialtyHint ??
+      request?.filters?.specialty ??
+      asked?.specialtyHint;
     const date =
-      request?.day ?? (request?.intent === "clinicSchedule" ? null : today);
+      request?.day ??
+      asked?.day ??
+      (request?.intent === "clinicSchedule" ? null : today);
     let clinicianId = null;
     if (named) {
       const scores = published.map((row) => ({

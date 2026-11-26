@@ -23,11 +23,16 @@ const personalCollection =
 const results =
   /\b(?:results?|reports?|(?:lab(?:oratory)?|blood) (?:files?|documents?|tests?)|(?:files?|documents?) (?:cedar )?(?:issued|released|sent))\b|نتايج|نتائج|نتيج|تقارير|تقرير|تحاليل|فحوصات|ورقه (?:تبع )?(?:الفحص|فحص|تحليل)/u;
 
+// Indirect wording about the visitor's own sample, request or test.
+const indirectOwn =
+  /\b(?:time|slot) i (?:asked|requested)\b|\bwhat did my (?:\w+ )?(?:test|scan) (?:show|say)\b|(?:سحبوه|سحبوها|اخدوه|اخدوها|اخذوه|اخذوها) مني|وين صار (?:طلبي|طلب (?:ابني|بنتي))/u;
+
 // The privacy check is deliberately wider than the account intent lookup.
 // For example, a personal document can be identifiable without naming a supported action.
 export function containsPrivateAccountText(message) {
   if (typeof message !== "string") return false;
   const text = canon(message);
+  if (indirectOwn.test(text)) return true;
   if (
     /\b[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\b|\b(?:wr|lab|b)-[a-f0-9]{8,}\b|[\w.+-]+@[\w.-]+\.[a-z]{2,}/u.test(
       text,
