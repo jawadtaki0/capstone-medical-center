@@ -104,3 +104,39 @@ for (const message of [
   test("public education stays public: " + message, () =>
     assert.notEqual(protectedGate(message), "private"),
   );
+
+for (const message of [
+  "في دكتور أسنان يوم الجمعة؟",
+  "Is there a doctor for dentistry on Friday?",
+])
+  test(
+    "a specialty is never searched as a clinician name: " + message,
+    async () => {
+      const answer = createPublicAssistant({
+        demo: true,
+        today: () => today,
+        matchIntent: async () => ({
+          band: "high",
+          intents: ["clinicSchedule"],
+        }),
+        readHours: async (date) => ({ date, publicationStatus: "published" }),
+        readSessions: async (date) => [
+          {
+            date,
+            professionalName: "Dr. Test Teeth",
+            professionalId: "teeth",
+            sourceSessionId: "s1",
+            specialty: "Dentistry",
+            startTime: "10:00",
+            endTime: "12:00",
+          },
+        ],
+      });
+      const result = await answer({
+        language: /[\u0600-\u06ff]/u.test(message) ? "ar" : "en",
+        messages: [message],
+      });
+      assert.equal(result.kind, "sessions");
+      assert.equal(result.cards.length, 1);
+    },
+  );
