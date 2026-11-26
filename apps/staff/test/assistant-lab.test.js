@@ -50,7 +50,11 @@ test("each Lab task lists only eligible orders for the role", () => {
     "started",
     "collected",
   ]);
-  assert.deepEqual(ids("labCancel", ["Admin"]), []);
+  assert.deepEqual(ids("labCancel", ["Admin"]), [
+    "registered",
+    "started",
+    "collected",
+  ]);
   assert.deepEqual(ids("release", ["Admin"]), ["ready"]);
 });
 

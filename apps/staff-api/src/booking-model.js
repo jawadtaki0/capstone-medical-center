@@ -55,9 +55,10 @@ export function beirutClock(at) {
 export function bookingAccess(roles, grantIds, scope) {
   return Boolean(
     scope?.kind === "clinic" &&
-    scope.active &&
-    (roles.includes("Admin") ||
-      (roles.includes("Receptionist") && grantIds.includes(scope.id))),
+      scope.active &&
+      (roles.includes("Admin") ||
+        ((roles.includes("Clinic Admin") || roles.includes("Receptionist")) &&
+          grantIds.includes(scope.id))),
   );
 }
 // Capacity is private live policy. Only that field is read from drafts: unpublished

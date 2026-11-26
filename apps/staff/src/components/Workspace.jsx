@@ -43,6 +43,7 @@ export default function Workspace({
   const [intakeError, setIntakeError] = useState("");
   const [phoneQueue, setPhoneQueue] = useState(null);
   const phoneRefresh = useRef(0);
+  const intakePoll = useRef(null);
   const summaryPoll = useRef(null),
     summaryGeneration = useRef(0),
     live = useRef(false);
@@ -54,6 +55,10 @@ export default function Workspace({
     import.meta.env.VITE_CEDAR_LAB_REVIEW === "1" &&
     roles.some((role) => ["Admin", "Lab Admin", "Receptionist"].includes(role));
   const capabilities = summary?.capabilities ?? {};
+  const missingClinic =
+    summary &&
+    !capabilities.requests &&
+    roles.some((role) => ["Clinic Admin", "Receptionist"].includes(role));
   const directoryAllowed = capabilities.directory === true;
   const patientsAllowed = capabilities.patients === true;
   const bookingsAllowed = capabilities.bookingView === true;
@@ -146,7 +151,7 @@ export default function Workspace({
         summaryPoll.current?.refresh();
       },
       onError: (error) => {
-        setIntakeError(error.message);
+        setIntakeError("Request sync unavailable.");
         if (error.code === "requests_disabled") suspended = true;
         if (
           /expired|revoked|auth_required|authentication_failed|permission_denied|request_forbidden/i.test(
@@ -159,12 +164,17 @@ export default function Workspace({
         }
       },
     });
+    intakePoll.current = () => {
+      suspended = false;
+      return intake.refresh();
+    };
     const visible = () => {
       if (!document.hidden) void intake.refresh();
     };
     document.addEventListener("visibilitychange", visible);
     return () => {
       intake.stop();
+      intakePoll.current = null;
       document.removeEventListener("visibilitychange", visible);
     };
   }, [api, capabilities.requests, timing.expired]);
@@ -274,6 +284,11 @@ export default function Workspace({
             )}
           </button>
         ))}
+        {missingClinic && (
+          <p className="staff-help">
+            No Clinic assignment. Ask an Admin to check your access.
+          </p>
+        )}
         <p className="staff-sidebar-label">Assigned roles</p>
         {summaryError && (
           <p className="staff-help" role="status">
@@ -282,10 +297,21 @@ export default function Workspace({
           </p>
         )}
         {intakeError && (
-          <p className="staff-help" role="status">
-            Request synchronization unavailable. Open Website requests for
-            details; existing work is retained.
-          </p>
+          <div>
+            <p className="staff-help" role="status">
+              Request sync unavailable.
+            </p>
+            <button
+              className="staff-button"
+              type="button"
+              onClick={() => {
+                void intakePoll.current?.();
+                navigate({ view: "requests" });
+              }}
+            >
+              Retry
+            </button>
+          </div>
         )}
         <ul>
           {roles.map((role) => (

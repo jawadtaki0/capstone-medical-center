@@ -19,8 +19,7 @@ const steps = [
 const personName = (p) => [p.firstName, p.lastName].join(" ");
 
 export default function LabPanel({ api, roles, onError }) {
-  const lab = roles.includes("Lab Admin");
-  const manage = lab || roles.includes("Admin");
+  const lab = roles.includes("Admin") || roles.includes("Lab Admin");
   const reception = roles.includes("Receptionist");
   const [data, setData] = useState({ catalogue: [], orders: [] });
   const [view, setView] = useState("worklist");
@@ -187,7 +186,7 @@ export default function LabPanel({ api, roles, onError }) {
                 )}
               </div>
               <div>
-                {manage && (
+                {lab && (
                   <button
                     className="staff-button"
                     onClick={() => setView("catalogue")}
@@ -662,7 +661,7 @@ export default function LabPanel({ api, roles, onError }) {
             </button>
           </section>
         )}
-        {view === "catalogue" && manage && (
+        {view === "catalogue" && lab && (
           <section className="lab-card">
             <h1>Catalogue</h1>
             {lab && (
@@ -684,7 +683,7 @@ export default function LabPanel({ api, roles, onError }) {
                     : test.approval
                       ? "Approved"
                       : "Awaiting approval"}
-                  {manage && (
+                  {lab && (
                     <button
                       className="staff-button"
                       onClick={() =>
@@ -703,7 +702,7 @@ export default function LabPanel({ api, roles, onError }) {
                       Edit
                     </button>
                   )}
-                  {manage && test.active && (
+                  {lab && test.active && (
                     <button
                       className="staff-button"
                       onClick={() => save("retire", test)}
@@ -725,7 +724,7 @@ export default function LabPanel({ api, roles, onError }) {
                 </li>
               ))}
             </ul>
-            {manage && (
+            {lab && (
               <form
                 onSubmit={(event) => {
                   event.preventDefault();

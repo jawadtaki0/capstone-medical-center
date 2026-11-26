@@ -649,10 +649,10 @@ export function capabilitiesFor(roles, summary, labEnabled) {
     directory: summary.directory === true,
     schedules: summary.schedules === true,
     clinicEdit: summary.professionals === true,
-    labOrder: labEnabled && has("Lab Admin", "Receptionist"),
+    labOrder: labEnabled && has("Admin", "Lab Admin", "Receptionist"),
     labRelease: labEnabled && has("Admin", "Lab Admin", "Receptionist"),
-    labPrepare: labEnabled && has("Lab Admin"),
-    labManage: labEnabled && has("Lab Admin"),
+    labPrepare: labEnabled && has("Admin", "Lab Admin"),
+    labManage: labEnabled && has("Admin", "Lab Admin"),
     labWithdraw: labEnabled && has("Admin", "Lab Admin"),
     walkIn: summary.queue === true && summary.book === true,
   };

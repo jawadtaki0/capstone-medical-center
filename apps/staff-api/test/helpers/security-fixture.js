@@ -127,6 +127,9 @@ export async function createSecurityFixture({
 } = {}) {
   if (typeof hostedReview !== "boolean")
     throw new Error("Hosted review fixture selection must be explicit.");
+  const collections = collectionPrefix?.startsWith("closeout_review_")
+    ? [...STAFF_COLLECTIONS, "patient_account_access_audit"]
+    : STAFF_COLLECTIONS;
   async function connectFixture() {
     const next = await connectStaffDatabase({
       database: TEST_DATABASE,
@@ -137,7 +140,7 @@ export async function createSecurityFixture({
       assertIsolatedTestTarget(next);
       if (collectionPrefix) {
         if (
-          !/^(?:patient_phone|lab)_review_[a-f0-9]{32}_$/.test(
+          !/^(?:patient_phone|lab|closeout)_review_[a-f0-9]{32}_$/.test(
             collectionPrefix,
           ) ||
           hostedReview
@@ -150,7 +153,7 @@ export async function createSecurityFixture({
             command: (...args) => next.db.command(...args),
             collection(name) {
               assertIsolatedTestTarget(next);
-              if (!STAFF_COLLECTIONS.includes(name))
+              if (!collections.includes(name))
                 throw Error("Unrecognized staff fixture collection.");
               return next.db.collection(collectionPrefix + name);
             },
@@ -254,7 +257,7 @@ export async function createSecurityFixture({
     async reset() {
       await stopHttp();
       assertIsolatedTestTarget(connection); // Rechecked immediately before cleanup.
-      for (const name of STAFF_COLLECTIONS)
+      for (const name of collections)
         await connection.db.collection(name).deleteMany({});
       await connection.db.collection("staff_management_state").insertOne({
         _id: "staff-controls",
@@ -280,7 +283,7 @@ export async function createSecurityFixture({
     async close() {
       await stopHttp();
       if (collectionPrefix)
-        for (const name of STAFF_COLLECTIONS)
+        for (const name of collections)
           await connection.db
             .collection(name)
             .drop()

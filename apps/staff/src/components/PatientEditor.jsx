@@ -36,6 +36,7 @@ export default function PatientEditor({
     [busy, setBusy] = useState(false),
     [review, setReview] = useState(null),
     [ack, setAck] = useState(false),
+    [samePerson, setSamePerson] = useState(false),
     [reason, setReason] = useState(""),
     [discard, setDiscard] = useState(false);
   const initial = useRef(JSON.stringify(record)),
@@ -54,6 +55,7 @@ export default function PatientEditor({
     setRecord({ ...record, [field]: value });
     setReview(null);
     setAck(false);
+    setSamePerson(false);
     setReason("");
     setErrors({});
     setError("");
@@ -68,7 +70,7 @@ export default function PatientEditor({
   }
   async function submit(event) {
     event.preventDefault();
-    if (pending.current) return;
+    if (pending.current || samePerson) return;
     const checked = patientInput(record, patientToday());
     setErrors(checked.errors);
     if (Object.keys(checked.errors).length) {
@@ -302,29 +304,55 @@ export default function PatientEditor({
                     </li>
                   ))}
                 </ul>
-                <label className="patient-ack">
-                  <input
-                    type="checkbox"
-                    checked={ack}
-                    disabled={busy}
-                    onChange={(e) => setAck(e.target.checked)}
-                  />
-                  I compared the possible matches and confirm this is a distinct
-                  patient.
-                </label>
-                <div className="staff-field">
-                  <label htmlFor={`${id}-reason`}>
-                    Reason for continuing with this patient record
-                  </label>
-                  <textarea
-                    id={`${id}-reason`}
-                    rows={3}
-                    maxLength={500}
-                    value={reason}
-                    disabled={busy}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                </div>
+                <button
+                  type="button"
+                  className="staff-button staff-button-secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setSamePerson(!samePerson);
+                    setAck(false);
+                    setReason("");
+                    setError("");
+                  }}
+                >
+                  {samePerson
+                    ? "Return to comparison"
+                    : "These may be the same person"}
+                </button>
+                {samePerson ? (
+                  <p role="status">
+                    {
+                      "Leave both records as they are. Ask an Admin for authorized registry review and share the patient numbers through your internal Staff channel. Use Open existing record to inspect a candidate."
+                    }
+                  </p>
+                ) : (
+                  <>
+                    <label className="patient-ack">
+                      <input
+                        type="checkbox"
+                        checked={ack}
+                        disabled={busy}
+                        onChange={(e) => setAck(e.target.checked)}
+                      />
+                      {
+                        "I compared the possible matches and confirm this is a distinct patient."
+                      }
+                    </label>
+                    <div className="staff-field">
+                      <label htmlFor={`${id}-reason`}>
+                        Reason for continuing with this patient record
+                      </label>
+                      <textarea
+                        id={`${id}-reason`}
+                        rows={3}
+                        maxLength={500}
+                        value={reason}
+                        disabled={busy}
+                        onChange={(e) => setReason(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
               </>
             )}
           </section>
@@ -366,7 +394,7 @@ export default function PatientEditor({
             <button
               type="submit"
               className="staff-button staff-button-primary"
-              disabled={busy}
+              disabled={busy || samePerson}
             >
               {busy
                 ? "Checking…"

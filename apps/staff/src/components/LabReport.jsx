@@ -123,10 +123,9 @@ function ResultTest({ test, newer, change }) {
 }
 
 export default function LabReport({ order, catalogue, roles, change }) {
-  const lab = roles.includes("Lab Admin");
-  const manage = lab || roles.includes("Admin");
+  const lab = roles.includes("Admin") || roles.includes("Lab Admin");
   const reception = roles.includes("Receptionist");
-  const canRelease = reception || manage;
+  const canRelease = reception || lab;
   const [reason, setReason] = useState("");
   const [patientNumber, setPatientNumber] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
@@ -281,7 +280,7 @@ export default function LabReport({ order, catalogue, roles, change }) {
               provider outcome before sending another notice.
             </p>
           )}
-          {((ready && lab) || (released && manage)) && (
+          {((ready && lab) || (released && lab)) && (
             <>
               <label>
                 Report action reason{" "}
