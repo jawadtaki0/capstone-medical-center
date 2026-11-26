@@ -57,6 +57,13 @@ export async function routeMessage(message, matcher) {
     return result("topic", "staff_create");
   if (new RegExp(`${OPENING}(check[ -]?in |سجل وصول )`).test(text))
     return result("topic", "checkin_help");
+  // "Update <someone>'s phone": a patient record, not my own account.
+  if (
+    new RegExp(
+      `${OPENING}(update|edit|change|correct) (?!.*\\b(my|password|doctor|dr|limit|schedule|hours|session)\\b).*\\b(phone|details|record|date of birth)\\b`,
+    ).test(text)
+  )
+    return result("topic", "patient_update");
   const command =
     !LAB_WORDS.test(text) && COMMANDS.find(([, pattern]) => pattern.test(text));
   if (command) return result("topic", command[0]);

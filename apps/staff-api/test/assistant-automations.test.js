@@ -104,6 +104,17 @@ test("each automation is offered only to roles that may do it", async () => {
   assert.deepEqual(wrong, []);
 });
 
+test("plain update requests open the right record form", async () => {
+  const body = await ask("Receptionist", "update Lina Khoury phone number");
+  assert.equal(body.task?.type, "patientUpdate");
+  assert.equal(body.task.prefill.firstName, "Lina");
+  assert.equal(body.task.prefill.lastName, "Khoury");
+  assert.equal(
+    (await ask("Receptionist", "change my phone number")).task,
+    undefined,
+  );
+});
+
 test("asking about an automation changes nothing", async () => {
   const names = [
     "patients",

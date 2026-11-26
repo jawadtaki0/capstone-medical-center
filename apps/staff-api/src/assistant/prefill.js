@@ -9,6 +9,8 @@ const ANCHORS = new Set(
     "of",
     "book",
     "in",
+    "update",
+    "edit",
     "patient",
     "register",
     "account",
@@ -36,6 +38,9 @@ const ANCHORS = new Set(
 const SKIPPED = new Set(["patient", "the", "mr", "mrs", "ms"]);
 const STOP = new Set(
   [
+    ..."phone number details record name address update edit change correct my".split(
+      " ",
+    ),
     ..."as account staff employee receptionist reception admin administrator clinic role موظف موظفه استقبال حساب مدير".split(
       " ",
     ),
