@@ -218,3 +218,32 @@ for (const message of [
     assert.deepEqual(result.cards ?? [], []);
     assert.equal(result.menuOptions, undefined);
   });
+
+for (const [message, day] of [
+  ["I'm coming Friday. When do you close?", "2026-11-27"],
+  ["Are you open on Saturday?", "2026-11-28"],
+  ["What time do you close tomorrow?", "2026-11-27"],
+  ["شو دوامكن يوم السبت؟", "2026-11-28"],
+])
+  test("asking when 'you' open means the Center: " + message, async () => {
+    const result = await ask(message);
+    assert.equal(result.kind, "library");
+    assert.match(result.text, new RegExp("(?:Center|المركز) " + day, "u"));
+  });
+
+test("a named service still wins over 'you'", async () => {
+  const result = await ask("When do you close the lab tomorrow?");
+  assert.match(result.text, /Laboratory 2026-11-27/u);
+  assert.doesNotMatch(result.text, /Center 2026/u);
+});
+
+for (const message of [
+  "Do I need to fast before a lipid test?",
+  "Should I fast for a cholesterol panel?",
+  "هل لازم صوم قبل فحص الدهنيات؟",
+])
+  test("everyday lipid wording finds the Lipid panel: " + message, async () => {
+    const result = await ask(message);
+    assert.equal(result.kind, "labs");
+    assert.match(result.text, /Lipid panel|دهون الدم/u);
+  });
