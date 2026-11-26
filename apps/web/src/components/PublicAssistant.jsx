@@ -118,13 +118,13 @@ export default function PublicAssistant() {
       log.scrollTop = log.scrollHeight;
     }
   }, [open, turns, busy]);
-  async function send(value, topic) {
+  async function send(value, topic, intentChoice) {
     if (busy || !value) return;
     const messages = [
       ...turns.filter((turn) => !turn.topic).map((turn) => turn.question),
       value,
     ].slice(-8);
-    if (!topic) setQuestion("");
+    if (!topic && !intentChoice) setQuestion("");
     setBusy(true);
     let answer;
     try {
@@ -138,6 +138,7 @@ export default function PublicAssistant() {
           messages,
           searchContext: searchContext.current,
           ...(topic ? { topic } : {}),
+          ...(intentChoice ? { intentChoice } : {}),
         }),
         signal: AbortSignal.timeout(55_000),
       });
@@ -321,6 +322,22 @@ export default function PublicAssistant() {
                       </a>
                     </p>
                   )}
+                  {index === turns.length - 1 &&
+                    !!answer.intentOptions?.length && (
+                      <div className="cedar-assistant-chips">
+                        {answer.intentOptions.map(({ id, label }) => (
+                          <button
+                            key={id}
+                            type="button"
+                            className="button button-secondary"
+                            disabled={busy}
+                            onClick={() => send(question, undefined, id)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   {!topic && (
                     <p
                       className="cedar-assistant-safety"

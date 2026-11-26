@@ -49,7 +49,7 @@ export function catalogueIntent(message) {
         (id === "urinalysis" &&
           /(?<!\p{L})ل?تحليل البول(?!\p{L})/u.test(query)) ||
         (id === "urine-culture" &&
-          /(?<!\p{L})ل?(?:زرع|زراعه|زراعة|مزرعه|مزرعة)\s+البول(?!\p{L})|\b(?:zare3|zar3|zera3et) (?:el |l )?(?:bawl|bol)\b/u.test(
+          /(?<!\p{L})ل?(?:زرع|زراعه|زراعة|مزرعه|مزرعة)\s+البول(?!\p{L})|\b(?:zare3|zar3|zera3et) (?:el |l )?(?:bawl|bol|boul|baul)\b/u.test(
             query,
           )),
     )
@@ -69,6 +69,27 @@ export function catalogueIntent(message) {
     };
   return null;
 }
+
+export const unpublishedPrice = (language, lab) => ({
+  text: lab
+    ? language === "ar"
+      ? "سعر الفحص غير منشور. تواصل مع الاستقبال للاستفسار عن التكلفة."
+      : "Cedar has not published prices for these tests. Contact Reception to ask about costs."
+    : language === "ar"
+      ? "التكلفة غير منشورة. تواصل مع الاستقبال للاستفسار."
+      : "Cedar has not published the cost. Contact Reception to ask about fees.",
+  page: lab ? "/services/laboratory" : "/#contact",
+  reception: true,
+});
+
+export const labBookingAnswer = (language) => ({
+  text:
+    language === "ar"
+      ? "حجز زيارات المختبر غير متاح على الموقع. تواصل مع الاستقبال لتأكيد توفر الفحص وساعات المختبر. لم ينشر سيدر ما إذا كانت الزيارة تتطلب موعدًا أو إحالة أو مستندات محددة."
+      : "Online Lab booking is not available. Contact Reception first to confirm test availability and Lab hours. Cedar has not published whether your visit needs an appointment, a referral, or specific documents.",
+  page: "/services/laboratory",
+  reception: true,
+});
 
 export function publicServiceAnswer(value, language, catalogue) {
   const text = normalize(value);
@@ -91,32 +112,14 @@ export function publicServiceAnswer(value, language, catalogue) {
       text,
     )
   )
-    return {
-      ...library(
-        language === "ar"
-          ? "سعر الفحص غير منشور. تواصل مع الاستقبال للاستفسار عن التكلفة."
-          : "Cedar has not published prices for these tests. Contact Reception to ask about costs.",
-        "/services/laboratory",
-        true,
-      ),
-      kind: "reception",
-    };
+    return { ...unpublishedPrice(language, true), kind: "reception" };
   if (
     priceQuestion &&
     /\b(?:consultation|appointments?|clinic|audiometry|hearing test|visits?|sessions?)\b|معاينه|كشفيه|عياده|موعد|جلسه|السمع/u.test(
       canon(value),
     )
   ) {
-    return {
-      ...library(
-        language === "ar"
-          ? "التكلفة غير منشورة. تواصل مع الاستقبال للاستفسار."
-          : "Cedar has not published the cost. Contact Reception to ask about fees.",
-        "/#contact",
-        true,
-      ),
-      kind: "reception",
-    };
+    return { ...unpublishedPrice(language, false), kind: "reception" };
   }
   if (
     audiometryTopic.test(canonical) &&
@@ -179,13 +182,7 @@ export function publicServiceAnswer(value, language, catalogue) {
       text,
     )
   )
-    return library(
-      language === "ar"
-        ? "حجز زيارات المختبر غير متاح على الموقع. تواصل مع الاستقبال لتأكيد توفر الفحص وساعات المختبر. لم ينشر سيدر ما إذا كانت الزيارة تتطلب موعدًا أو إحالة أو مستندات محددة."
-        : "Online Lab booking is not available. Contact Reception first to confirm test availability and Lab hours. Cedar has not published whether your visit needs an appointment, a referral, or specific documents.",
-      "/services/laboratory",
-      true,
-    );
+    return labBookingAnswer(language);
   if (
     audiometryTopic.test(canonical) &&
     /\b(?:prep(?:are|aration)?|get ready|te7dir|ta7dir)\b|تحضير|تحضر|جهز/u.test(
@@ -289,7 +286,7 @@ export function publicServiceAnswer(value, language, catalogue) {
 }
 
 export const closingQuestion =
-  /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|\b(?:la|la7ad) ay(?:ya)? se3a\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|اغلاق|اقفال|يقفل|بيقفل|بيسكر|يسكر|بخلص|بيخلص|بيضل شغال|(?:لحد|حتى) اي ساع[هة]|اخر ساع[هة]/iu;
+  /\b(?:close|closes|closing|shut(?:s|ting)?|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|\b(?:la|la7ad) ay(?:ya)? se3a\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|اغلاق|اقفال|يقفل|بيقفل|بيسكر|يسكر|بخلص|بيخلص|بيضل شغال|(?:لحد|حتى) اي ساع[هة]|اخر ساع[هة]/iu;
 
 export function hoursQuestion(value) {
   const text = canon(value);

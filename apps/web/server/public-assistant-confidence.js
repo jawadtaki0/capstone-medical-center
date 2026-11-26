@@ -7,7 +7,7 @@ import {
 } from "./public-assistant-language.js";
 
 const publicHours =
-  /\b(?:hours|open(?:s|ing)?|clos(?:e[sd]?|ing)|daw[ae]m|maftou?7|bye?fta7|byes[ae]kk[ei]r)\b|ساعات|دوام|مفتوح|يفتح|بيفتح|فاتح|اغلاق|اقفال|يغلق|بيقفل|يسكر|بيسكر|مسكر/u;
+  /\b(?:hours|open(?:s|ing)?|clos(?:e[sd]?|ing)|shut(?:s|ting)?|daw[ae]m|maftou?7|bye?fta7|byes[ae]kk[ei]r)\b|ساعات|دوام|مفتوح|يفتح|بيفتح|فاتح|اغلاق|اقفال|يغلق|بيقفل|يسكر|بيسكر|مسكر/u;
 const publicRequestOpening =
   /^(?:\b(?:what|when|which|how|is|are|does|do|should|must|can|could|any|please|show|list|give|tell|check|find|lab|laboratory|clinic|cent(?:er|re)|cedar|open(?:ing)?|audiometry|hearing|dr|doctor|hours|emta|aymta|shu|shou|ade|adde|addesh|2adesh|fiy?a?|ay|hal|daw[ae]m|lab[o]?|sama3|la7ad)\b|(?:هل|متى|امتى|ايمتى|كيف|قديش|كم|شو|في |فيني|وين|اي |عندكن|عندكم|العياده|المختبر|اللاب|المركز|فحوصات السمع|ساعات|دوام))/u;
 const publicPriceSubject =
@@ -16,10 +16,10 @@ const preparationWording =
   /\b(?:prepar(?:e|ation)|get ready|fasting|fast|collect(?:ion)?|container|specimen|ta7dir|te7dir|siyam|3elbe)\b|تحضير|جهز|جمع|وعاء|صيام|صوم|علبه/u;
 const hearingPreparation =
   /\b(?:audiometry|hearing (?:test|assessment|exam))\b|(?:فحص|اختبار|فحوصات) السمع/u;
-const bareClinic =
+export const bareClinic =
   /^(?:(?:please )?(?:show(?: me)?|list|any|are there|what are) )?(?:published )?clinic (?:sessions?|windows?|slots?)(?:\s|$)/u;
 
-function singleRequest(value) {
+export function singleRequest(value) {
   const text = canon(value)
     .trim()
     .replace(/\bdr\./gu, "dr")
@@ -37,19 +37,27 @@ function singleRequest(value) {
   return text;
 }
 
-export function isPublicFastingQuestion(value) {
+export function isExactPublicPreparation(value) {
   const text = singleRequest(value);
-  const query =
+  const fasting =
     /^(?:(?:do|should|must) i (?:need to )?fast (?:for|before)|is fasting (?:needed|required) (?:for|before)|(?:لازم|هل لازم) (?:صوم|اصوم) (?:قبل|ل))\s+(.+)$/u.exec(
       text,
     );
-  if (!query || !catalogueIntent(value)?.preparation) return false;
-  // Exempt only an exact named catalogue test. A personal qualifier or a
-  // medication question remains under the clinical gate's existing rules.
-  return laboratoryTests.some(({ id, name, aliases }) =>
-    [id, name, name.replace(/\s*\(.*\)/u, ""), ...aliases].some(
-      (term) => canon(term) === query[1].replace(/^(?:a|an|the) /u, ""),
-    ),
+  const instructions =
+    /^(?:(?:could|can|would) you )?(?:please )?(?:show|give|tell) me (?:the )?(?:published )?(?:test )?(?:prep(?:aration)?|collection) (?:instructions|notes|guidance) (?:for|before) (.+)$/u.exec(
+      text,
+    );
+  const name = (fasting ?? instructions)?.[1]?.replace(/^(?:a|an|the) /u, "");
+  if (!name || catalogueIntent(value)?.tests.length !== 1) return false;
+  return laboratoryTests.some(({ id, name: label, aliases }) =>
+    [id, label, label.replace(/\s*\(.*\)/u, ""), ...aliases].some((term) => {
+      const known = canon(term);
+      return (
+        name === known ||
+        name === known + " blood test" ||
+        name === known + " test"
+      );
+    }),
   );
 }
 

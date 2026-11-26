@@ -1,3 +1,4 @@
+import { createLocalIntentMatcher } from "../server/public-assistant-local-match.js";
 import {
   createPublicAssistant,
   publishedHours,
@@ -10,6 +11,7 @@ const publicOrigin =
   process.env.CEDAR_ASSISTANT_PUBLIC_ORIGIN ??
   "https://cedar-cmc-api.onrender.com";
 const assistant = createPublicAssistant({
+  matchIntent: createLocalIntentMatcher(),
   readSessions: publishedSessions(publicOrigin),
   readHours: publishedHours(publicOrigin),
 });

@@ -1,11 +1,16 @@
 import {
+  intentLabels,
+  intentQuestion,
+} from "./public-assistant-intent-labels.js";
+import {
   emergencyLine,
   receptionHandoff,
 } from "../src/public-assistant-safety.js";
 import {
   confidentPublicRequest,
-  isPublicFastingQuestion,
+  isExactPublicPreparation,
 } from "./public-assistant-confidence.js";
+import { resolvePublicIntent } from "./public-assistant-intent-resolve.js";
 import { laboratoryTests } from "../src/data/labAudioContent.js";
 import {
   emergencyDisclosure,
@@ -109,6 +114,7 @@ export function createAssistant({
   readSessions,
   readHours,
   publishedOnly = false,
+  matchIntent,
   observe: defaultObserve = () => {},
   today = cedarToday,
   now = Date.now,
@@ -116,7 +122,7 @@ export function createAssistant({
 }) {
   const tokens = searchTokens(contextKey);
   return async (
-    { language, messages, searchContext, topic },
+    { language, messages, searchContext, topic, intentChoice },
     { observe = defaultObserve, trace = () => {} } = {},
   ) => {
     const deadline = Date.now() + turnBudgetMs - fallbackReserveMs;
@@ -205,8 +211,8 @@ export function createAssistant({
     const protectedCategory = protectedGate(latest);
     const category =
       freeTextPolicy &&
-      protectedCategory === "clinical" &&
-      isPublicFastingQuestion(latest)
+      ["clinical", "override"].includes(protectedCategory) &&
+      isExactPublicPreparation(latest)
         ? null
         : protectedCategory;
     const early =
@@ -229,14 +235,44 @@ export function createAssistant({
       );
     }
     const date = today();
-    const classified = classifyPublicTurn(latest, {
-      date,
-      lang,
-      context,
-      activeSearch,
-    });
-    if (freeTextPolicy && !confidentPublicRequest(latest, classified))
-      return handoff();
+    const publicContext = { date, lang, context, activeSearch };
+    let classified = classifyPublicTurn(latest, publicContext);
+    if (freeTextPolicy) {
+      if (matchIntent) {
+        let match;
+        try {
+          match = await matchIntent(latest);
+        } catch {
+          return handoff();
+        }
+        const choices = (match?.intents ?? [])
+          .filter((id) => Object.hasOwn(intentLabels, id))
+          .slice(0, 3);
+        if (
+          match?.band === "middle" &&
+          intentChoice === undefined &&
+          choices.length
+        ) {
+          return reply("intentOptions", {
+            text: intentQuestion[lang],
+            intentOptions: choices.map((id) => ({
+              id,
+              label: intentLabels[id][lang],
+            })),
+          });
+        }
+        const selected = intentChoice ?? choices[0];
+        const picked =
+          match?.band === "middle" && choices.includes(intentChoice);
+        const confident = match?.band === "high" && intentChoice === undefined;
+        classified =
+          (picked || confident) &&
+          resolvePublicIntent(selected, latest, publicContext, picked);
+        if (!classified) return handoff();
+      } else if (!confidentPublicRequest(latest, classified)) {
+        return handoff();
+      }
+    }
     if (classified.kind === "reference")
       return reply(classified.route, classified.fields);
     if (classified.kind === "ambiguousService")
@@ -292,7 +328,11 @@ export function createAssistant({
         deadline,
       );
       const result = renderHours(
-        { days: facts, closingOnly: closingQuestion.test(canon(hoursMessage)) },
+        {
+          days: facts,
+          closingOnly:
+            !freeTextPolicy && closingQuestion.test(canon(hoursMessage)),
+        },
         lang,
       );
       if (freeTextPolicy && !result.complete) return handoff();
