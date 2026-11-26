@@ -160,6 +160,9 @@ export function resolveDay(value, date) {
         dec: "december",
       })[short.replace(".", "")],
   );
+  const textWithLebaneseMonths = text.replace(/تشرين التاني/gu, "تشرين الثاني");
+  if (textWithLebaneseMonths !== text)
+    return resolveDay(textWithLebaneseMonths, date);
   const weekdays = [
     /sunday|الاحد/,
     /monday|الاثنين/,
@@ -177,7 +180,7 @@ export function resolveDay(value, date) {
   if (namedWeekdays.length > 1) return { day: null, specified: true };
   const [namedWeekday = -1] = namedWeekdays;
   const months =
-    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b|تشرين الثاني|كانون الاول/iu;
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b|تشرين الثاني|كانون الاول|كانون الثاني|شباط/iu;
   const month = months.exec(text);
   const numberedDay = /(?:^|\s)(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?$/u;
   const spokenOrdinals = [
@@ -263,6 +266,12 @@ export function resolveDay(value, date) {
       ? new Date(explicit + "T12:00:00Z")
       : new Date(day);
     if (!explicit) {
+      const year = monthDay
+        ? /^\s*(?:\d{1,2}(?:st|nd|rd|th)?[,\s]+)?(\d{4})(?!\d)/u.exec(
+            text.slice(month.index + month[0].length),
+          )?.[1]
+        : null;
+      if (year) candidate.setUTCFullYear(Number(year));
       const requestedDay = Number(monthDay || ordinal);
       const requestedMonth = monthDay
         ? [
@@ -284,9 +293,12 @@ export function resolveDay(value, date) {
         candidate.setUTCMonth(
           requestedMonth >= 0
             ? requestedMonth
-            : month[0] === "تشرين الثاني"
-              ? 10
-              : 11,
+            : {
+                "تشرين الثاني": 10,
+                "كانون الاول": 11,
+                "كانون الثاني": 0,
+                شباط: 1,
+              }[month[0]],
           requestedDay,
         );
       else {
@@ -319,7 +331,7 @@ export function resolveDay(value, date) {
         day: null,
         specified: Boolean(
           month ||
-          /\b(?:weekday|\d{1,2}[/.-]\d{1,2})\b|نهار ال\p{L}+/u.test(text),
+            /\b(?:weekday|\d{1,2}[/.-]\d{1,2})\b|نهار ال\p{L}+/u.test(text),
         ),
       };
     day.setUTCDate(day.getUTCDate() + ((which - day.getUTCDay() + 7) % 7));

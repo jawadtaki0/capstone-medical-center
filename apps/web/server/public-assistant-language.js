@@ -144,7 +144,7 @@ export function skeleton(word) {
 }
 
 const titles =
-  /^(?:dr|doctor|doc|doktor|daktor|dktor|dr\.|el|al|prof|professor|ms|mrs|mr|miss|specialist|الدكتور|الدكتوره|دكتور|دكتوره|الطبيب|الطبيبه|د|الاخصائي|الاخصائيه|اخصائي|اخصائيه|الاستاذ|الاستاذه|الست|ابو|abou|abu)$/u;
+  /^(?:dr|doctor|doc|doktor|daktor|dktor|dr\.|el|al|prof|professor|ms|mrs|mr|miss|specialist|الدكتور|الدكتوره|دكتور|دكتوره|للدكتور|للدكتوره|بالدكتور|بالدكتوره|الطبيب|الطبيبه|د|الاخصائي|الاخصائيه|اخصائي|اخصائيه|الاستاذ|الاستاذه|الست|ابو|abou|abu)$/u;
 
 // Tokens of a person's name, without titles or articles.
 export const nameTokens = (name) =>
@@ -226,7 +226,7 @@ function scoreNameTokens(wanted, available, strict) {
 }
 
 const nameStop =
-  /^(?:on|at|in|for|after|before|have|has|had|is|was|available|listed|published|session|sessions|window|windows|schedule|this|next|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|and|or|please|work|working|see|seeing|open|slots?|appointments?|pls|bukra|bokra|emta|hours|saturday|nhar|yom|ba3d|ba3ed|2abel|يوم|نهار|بعد|قبل|بكرا|اليوم|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|الاحد|شو|متى|امتى|في|على|عند|عنده|عندها|عندن|بيقبل|بتقبل|يستقبل|بتستقبل|بس|هل|وقت|موعد|مواعيد|جلسه|دوام|بيداوم|بيشتغل|موجود|موجوده|متاح|متاحه|بكره|غدا)$/u;
+  /^(?:on|at|in|for|after|before|have|has|had|is|was|available|listed|published|session|sessions|window|windows|schedule|this|next|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|and|or|please|work|working|see|seeing|open|slots?|appointments?|posted|pls|bukra|bokra|emta|hours|saturday|nhar|yom|ba3d|ba3ed|2abel|يوم|نهار|بعد|قبل|بكرا|اليوم|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|الاحد|شو|متى|امتى|في|على|عند|عنده|عندها|عندن|بيقبل|بتقبل|يستقبل|بتستقبل|بس|هل|وقت|موعد|مواعيد|جلسه|دوام|بيداوم|بيشتغل|بالجلديه|بالقلبيه|بالعياده|بالاسنان|بطب|المنشور|المنشوره|موجود|موجوده|متاح|متاحه|بكره|غدا)$/u;
 
 // A clinician named after a title, e.g. "Dr. Zeinab Mkahhel" or "الدكتور غازي سرغاني".
 export function requestedProfessional(message) {
@@ -236,7 +236,7 @@ export function requestedProfessional(message) {
     .filter(Boolean)
     .map((word) => word.replace(/\.$/, ""));
   const start = words.findIndex((word) =>
-    /^(?:dr|doctor|doktor|daktor|الدكتور|الدكتوره|دكتور|دكتوره|الطبيب|الطبيبه|الاخصائي|الاخصائيه)$/u.test(
+    /^(?:dr|doctor|doktor|daktor|الدكتور|الدكتوره|دكتور|دكتوره|للدكتور|للدكتوره|بالدكتور|بالدكتوره|الطبيب|الطبيبه|الاخصائي|الاخصائيه)$/u.test(
       word,
     ),
   );
@@ -329,8 +329,8 @@ export function cancellationConcept(value) {
   const bookingMatch = booking.exec(text);
   return Boolean(
     verbMatch &&
-    bookingMatch &&
-    Math.abs(verbMatch.index - bookingMatch.index) <= 100,
+      bookingMatch &&
+      Math.abs(verbMatch.index - bookingMatch.index) <= 100,
   );
 }
 

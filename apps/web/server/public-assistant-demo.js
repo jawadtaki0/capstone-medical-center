@@ -1,3 +1,4 @@
+import { fixedIntentExamples } from "./public-assistant-fixed-bank.js";
 import { canon } from "./public-assistant-language.js";
 import { receptionHandoff } from "../src/public-assistant-safety.js";
 
@@ -24,11 +25,6 @@ export const demoCopy = {
   },
 };
 
-export const creatorQuestion = (message) =>
-  /^(?:who (?:made|built|created|developed|programmed) you|who is your (?:creator|developer)|(?:من|مين) (?:صنعك|طورك|برمجك|عملك))[.!?؟\s]*$/u.test(
-    canon(message).trim(),
-  );
-
 export const standaloneArabizi = (message) =>
   !/\p{Script=Arabic}/u.test(message) &&
   (/(?<=[a-z])[2356789](?=[a-z])|\b[2356789][a-z]+/iu.test(message) ||
@@ -40,14 +36,43 @@ export const standaloneArabizi = (message) =>
   );
 
 export const symptomRequest = (message) =>
-  /\b(?:pain|hurts?|aching|swelling|dizziness|rash|symptoms?|numbness|headache|fever)\b|(?<!\p{L})(?:وجع|الم|دوخه|طفح|تورم|خدر|صداع|اعراض|حراره)(?!\p{L})|بيوجع/u.test(
+  /\b(?:pain|hurts?|aching|swelling|dizziness|rash|symptoms?|numbness|headache|fever)\b|(?<!\p{L})(?:وجع|الم|دوخه|طفح|تورم|خدر|صداع|اعراض|حراره)(?!\p{L})|بيوجع|(?:^|\s)ب(?:وجع|الم)(?!\p{L})/u.test(
     canon(message),
   );
 
-export const demoFixedIdentity = (message) =>
-  /^(?:who are you|what are you|(?:من|مين) انت)[.!?؟\s]*$/u.test(
-    canon(message).trim(),
-  );
+const phraseKey = (message) =>
+  canon(message)
+    .replace(/[^\p{L}\p{N}' ]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+const bank = Object.fromEntries(
+  Object.entries(fixedIntentExamples).flatMap(([id, messages]) =>
+    messages.map((message) => [phraseKey(message), id]),
+  ),
+);
+const assistantSubject =
+  /\b(?:assistant|chatbot|this chat|this tool|you|your)\b|المساعد|مساعد|الدردشه|دردشه|اداه|برنامج|انت|حضرتك/u;
+const creator =
+  /\b(?:who|author|creator|developer|behind)\b.{0,75}\b(?:built|coded|programmed|made|created|developed|designed|wrote|behind|creator|developer|author)\b|\b(?:creator|developer|author)\s+(?:of|behind)\b|(?:مين|من|الشخص).{0,35}(?:طور|صمم|برمج|عمل|صنع|كتب|مبرمج)|(?:كيف|وين).{0,30}(?:تواصل|لاقي).{0,30}(?:طور|صمم|برمج)|(?:مطور|مصمم|مبرمج) (?:هال)?(?:مساعد|دردشه|اداه|برنامج)/u;
+const identity =
+  /\b(?:who are you|what are you|who am i (?:talking|speaking|chatting) (?:to|with)|introduce yourself|(?:your|assistant'?s) name|what (?:kind of )?assistant|which (?:cedar )?(?:assistant|helper)|what should i call|what (?:can|do) you (?:do|help))\b|(?:مين|من) (?:انت|حضرتك|هالمساعد)|حضرتك مين|(?:تعرف|عرفني) (?:عن نفسك|عن حالك|مين)|شو (?:اسمك|اسم المساعد|دورك|منسميك)/u;
+const unrelated =
+  /\b(?:capital of|wedding playlist|sandwich recipe|home renovation)\b|عاصمه|تذكر[هة] الطيار[هة]|تزيين الصالون|اقتراح فيلم|اقترح فيلم/u;
+
+export function fixedDemoIntent(message, gateCategory) {
+  const text = phraseKey(message);
+  if (
+    (assistantSubject.test(text) && creator.test(text)) ||
+    /^(?:مين|من) (?:طورك|برمجك|صممك|عملك|صنعك)$/u.test(text)
+  )
+    return "creator";
+  if (identity.test(text)) return "identity";
+  const match = bank[text];
+  if (match) return match;
+  return gateCategory === "unrelated" || unrelated.test(text)
+    ? "offTopic"
+    : null;
+}
 
 export function splitDemoRequests(message) {
   return message

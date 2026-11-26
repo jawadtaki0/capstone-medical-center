@@ -54,7 +54,7 @@ export const identityQuestion = (value) =>
 export function scheduleSpecialty(value) {
   const text = scheduleText(value);
   const heart =
-    /\bcardiolog(?:y|ist)\b|\bheart\s+(?:doctor|specialist)\b|(?<!\p{L})(?:ال)?قلب(?!\p{L})|\b(?:2alb|al[bp])\b/u.test(
+    /\bcardiolog(?:y|ist)\b|\bheart\s+(?:doctor|specialist)\b|(?<!\p{L})(?:ب?ال)?قلب(?:يه)?(?!\p{L})|\b(?:2alb|al[bp])\b/u.test(
       text,
     );
   const skin =

@@ -288,7 +288,11 @@ export default function PublicAssistant() {
                                 </p>
                                 <a
                                   className="button button-secondary"
-                                  href={card.href}
+                                  href={
+                                    replyLanguage === "ar"
+                                      ? card.href + "&lang=ar"
+                                      : card.href
+                                  }
                                 >
                                   {copy.choose}
                                 </a>

@@ -363,7 +363,7 @@ for (const date of ["2026-11-23", "2026-02-31", "2027-04-01", "2026-11-29"]) {
       searchContext: r.searchContext,
     });
     assert.equal(selected.cards[0].date, saturday);
-    assert.equal(calls.filter(([type]) => type === "matcher").length, 1);
+    assert.equal(calls.filter(([type]) => type === "matcher").length, 0);
   });
 }
 

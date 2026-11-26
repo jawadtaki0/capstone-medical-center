@@ -1,9 +1,8 @@
 import {
   demoCopy,
-  creatorQuestion,
+  fixedDemoIntent,
   standaloneArabizi,
   symptomRequest,
-  demoFixedIdentity,
   splitDemoRequests,
 } from "./public-assistant-demo.js";
 import {
@@ -20,6 +19,7 @@ import {
 } from "./public-assistant-confidence.js";
 import {
   demoReferenceIntent,
+  exactDemoPublicRequest,
   isNamedTestPreparation,
   medicationQuestion,
   resolvePublicIntent,
@@ -195,7 +195,7 @@ export function createAssistant({
             "thanks",
             "identity",
             "unrelated",
-            "clarify",
+            ...(demo ? [] : ["clarify"]),
             "chooseSession",
             "unavailable",
           ].includes(key))
@@ -255,11 +255,30 @@ export function createAssistant({
       !["private", "cancel", "clinical", "override"].includes(category)
     )
       return handoff();
+
     if (
       demoTurn &&
-      partsToAnswer.length > 1 &&
-      !["emergency", "override"].includes(category)
-    ) {
+      !["emergency", "private", "cancel", "override"].includes(category) &&
+      symptomRequest(latest) &&
+      !medicationQuestion(latest)
+    )
+      return handoff();
+    if (demoTurn && (!category || category === "unrelated")) {
+      const fixedIntent = fixedDemoIntent(latest, category);
+      if (fixedIntent === "identity")
+        return reply("demoIdentity", { text: demoCopy[lang].identity });
+      if (fixedIntent === "creator")
+        return reply("demoCreator", { text: demoCopy[lang].creator });
+      if (
+        fixedIntent === "offTopic" ||
+        /(?:^|\s)(?:joke|نكت[هة])(?:[.!؟?\s]|$)/iu.test(latest)
+      )
+        return reply("demoOffTopic", {
+          text: demoCopy[lang].offTopic,
+          topicOptions: ["urgent", "private", "cancel", "clinical"],
+        });
+    }
+    if (demoTurn && partsToAnswer.length > 1 && !category) {
       if (partIndex !== undefined) {
         if (!Number.isInteger(partIndex) || !partsToAnswer[partIndex])
           return handoff();
@@ -291,27 +310,16 @@ export function createAssistant({
         parts,
       });
     }
-    if (
+    const demoPublic =
       demoTurn &&
-      !["emergency", "private", "cancel", "override"].includes(category) &&
-      symptomRequest(latest) &&
-      !medicationQuestion(latest)
-    )
-      return handoff();
-    if (demoTurn && (!category || category === "unrelated")) {
-      if (demoFixedIdentity(latest))
-        return reply("demoIdentity", { text: demoCopy[lang].identity });
-      if (creatorQuestion(latest))
-        return reply("demoCreator", { text: demoCopy[lang].creator });
-      if (
-        category === "unrelated" ||
-        /(?:^|\s)(?:joke|نكت[هة])(?:[.!؟?\s]|$)/iu.test(latest)
-      )
-        return reply("demoOffTopic", {
-          text: demoCopy[lang].offTopic,
-          topicOptions: ["urgent", "private", "cancel", "clinical"],
-        });
-    }
+      !category &&
+      exactDemoPublicRequest(latest, {
+        date: today(),
+        lang,
+        context,
+        activeSearch,
+        demo: true,
+      });
     const early =
       category === "cancel" ? "private" : (category ?? socialRoute(latest));
     if (early) {
@@ -377,6 +385,8 @@ export function createAssistant({
           true,
         );
         if (!classified) return handoff();
+      } else if (demoPublic && intentChoice === undefined) {
+        classified = demoPublic;
       } else if (matchIntent) {
         let match;
         try {
@@ -748,6 +758,7 @@ export function createAssistant({
 
     intent = {
       ...intent,
+      ...(demoTurn && !day ? { through: addDays(date, 6) } : {}),
       ...(directSearch ? context?.pendingTime : {}),
       ...time,
     };
@@ -812,6 +823,7 @@ export function createAssistant({
       )
         return dateOptions("clinicSchedule", { professional, specialty });
       if (matchCount !== null) {
+        if (demoTurn && matchCount === 0) return handoff();
         carried = {
           remaining,
           at: searchStarted,

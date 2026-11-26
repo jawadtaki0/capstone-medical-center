@@ -41,12 +41,14 @@ const unreadDate =
   /(?<![\p{L}\p{N}])\d{1,4}(?:st|nd|rd|th)?(?![\p{L}\p{N}])|\b(?:week|weekend|month|days?|date|night|nhar|yom|on the|mon|tues?|wed|thur?s?|fri|sat|ssebt|7ad|a7ad|jem3a|jom3a)\b|نهار|يوم|اسبوع|شهر|تاريخ|ليل/u;
 
 const labWords =
-  /\b(?:lab|laboratory|mokhtabar|moukhtabar|mo5tabar|blood draw)\b|مختبر|اللاب|(?<!\p{L})لاب(?!\p{L})/u;
+  /\b(?:lab|laboratory|labortory|mokhtabar|moukhtabar|mo5tabar|blood draw)\b|مختبر|اللاب|(?<!\p{L})لاب(?!\p{L})/u;
 const audioWords = /\b(?:audiometry|hearing|sama3)\b|السمع/u;
 const centerWords =
-  /\b(?:cent(?:er|re)|building|clinic|cedar|markaz|mabna|entrance|doors)\b|مركز|المبني|مبني|عياده|سيدر/u;
+  /\b(?:cent(?:er|re)|building|clinic|cedar|markaz|mabna|entrance|doors)\b|مركز|المبني|مبني|عياده|سيدر|بوابه المركز/u;
+const clinicPolicy =
+  /\bclinic\b.{0,45}\b(?:request|time|window|session)\b.{0,80}\b(?:confirm(?:ed|ation)?|reserve|book)\b/u;
 const hoursCue =
-  /\b(?:hours?|open\w*|clos\w*|shut\w*|tim(?:e|ing|etable)|when|until|late|early|arrive|visit\w*|enter|come|running|operat\w*|working|emta|aymta|2emta|se3a|sa3a|daw[ae]m|wa2e?t|awkat|aw2at|maftou?7a?|bye?fta7|byesakk?[ei]r|msakk?[ae]r|fate7a?|byebda2|bikhallas)\b|ساعه|ساعات|وقت|دوام|متي|امتي|ايمتي|فاتح|مفتوح|يفتح|يسكر|مسكر|سكر|شغال|يغلق|بيقفل|يستقبل|بيستقبل|بيبلش/u;
+  /\b(?:hrs|hours?|first and last|open\w*|clos\w*|shut\w*|tim(?:e|ing|etable)|when|until|late|early|arrive|visit\w*|enter|come|running|operat\w*|working|emta|aymta|2emta|se3a|sa3a|daw[ae]m|wa2e?t|awkat|aw2at|maftou?7a?|bye?fta7|byesakk?[ei]r|msakk?[ae]r|fate7a?|byebda2|bikhallas)\b|ساعه|ساعات|وقت|دو+ام|متي|امتي|ايمتي|فاتح|مفتوح|يفتح|بتفتح|بيفتح|يسكر|مسكر|سكر|شغال|يغلق|بيقفل|يستقبل|بيستقبل|بيبلش/u;
 const priceCue =
   /\b(?:fees?|prices?|costs?|charges?|how much|set me back|mablagh|se3er|s3er|kelfe|taklfe|2adesh|2addesh|ade|adde|addesh)\b|سعر|كلف|رسوم|قديش|قدي|الحق|مبلغ|بكم/u;
 const priceSubject =
@@ -78,7 +80,7 @@ const topicCues = [
 const aboutCedar = (clause) => topicCues.some((cue) => cue.test(clause));
 
 function requestText(message, date) {
-  const clauses = canon(message)
+  const clauses = canon(message.replace(/(\d{1,2}),\s+(?=\d{4}\b)/gu, "$1 "))
     .split(/[,،;؛]+/u)
     .map((clause) => clause.replace(/[.!?؟\s]+$/u, "").trim())
     .filter(Boolean);
@@ -217,7 +219,7 @@ function sessionRequest(message, text, { date, context, demo, selectedDate }) {
   const clinician =
     parsedClinician || (demo && requestedProfessional(message)) || undefined;
   const named = clinician
-    ? nameTokens(clinician).length >= 2
+    ? nameTokens(clinician).length >= (demo ? 1 : 2)
     : specialty || bareClinic.test(text);
   if (!named) return null;
   if (
@@ -233,7 +235,7 @@ function sessionRequest(message, text, { date, context, demo, selectedDate }) {
       professional: clinician,
       specialty,
     });
-  if (!day && !selectedDate) return null;
+  if (!day && !selectedDate && !demo) return null;
   return {
     kind: "sessions",
     day: selectedDate ?? day,
@@ -295,9 +297,61 @@ function bookingRequest(text, lang) {
   });
 }
 
+const clearClinicRequest =
+  /\b(?:windows?|slots?|sessions?|appointments?|availability|available|roster|visits?|schedule|listed|published)\b|جلس|مواعيد|موعد|وقت|الفتره|جدول|منشور|متاح|(?:فيني|بدي) شوف/u;
+const hoursRequestCue =
+  /\b(?:hours?|hrs|open\w*|clos\w*|first and last|timetable|timings?)\b|دو+ام|ساعات|وقت فتح|بتفتح|افتح|يفتح|بيفتح|سكر/u;
+
+export function exactDemoPublicRequest(message, turn) {
+  const text = canon(message);
+  if (demoReferenceIntent(message)) return null;
+  if (clinicPolicy.test(text))
+    return resolvePublicIntent("bookingPolicy", message, turn);
+  if (
+    clearClinicRequest.test(text) &&
+    !/\b(?:lab|audiometry|test|hearing|result)\b|مختبر|فحوص|نتيج|السمع/u.test(
+      text,
+    )
+  ) {
+    const clinic = resolvePublicIntent("clinicSchedule", message, turn);
+    if (
+      clinic &&
+      (clinic.namedProfessional ||
+        clinic.specialtyHint ||
+        clinic.filters?.professional ||
+        clinic.filters?.specialty ||
+        bareClinic.test(text))
+    )
+      return clinic;
+  }
+  if (hoursRequestCue.test(text)) {
+    const candidates = ["centerHours", "labHours", "audioHours"]
+      .map((intent) => resolvePublicIntent(intent, message, turn))
+      .filter(Boolean);
+    if (candidates.length === 1) return candidates[0];
+  }
+  const lab = catalogueIntent(message);
+  if (lab?.tests.length === 1) {
+    if (priceCue.test(text) || priceConcept(text))
+      return resolvePublicIntent("prices", message, turn);
+    if (preparationCue.test(text))
+      return resolvePublicIntent("preparation", message, turn);
+  }
+  return null;
+}
+
 // Returns the published request the visitor asked for, or null for Reception.
 export function resolvePublicIntent(intent, message, turn, picked = false) {
-  const text = requestText(message, turn.date);
+  const original = canon(message);
+  if (turn.demo && intent === "bookingPolicy" && clinicPolicy.test(original))
+    return bookingRequest(original, turn.lang);
+  const normalized = turn.demo
+    ? message.replace(
+        /\b(?:opening and closing|first and last)\b/giu,
+        "opening closing",
+      )
+    : message;
+  const text = requestText(normalized, turn.date);
   if (
     !text ||
     personal.test(text) ||

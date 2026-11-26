@@ -54,6 +54,8 @@ export function catalogueIntent(message) {
           /(?<!\p{L})(?:تحليل|فحص) (?:سكر الدم الصايم|السكر الصايم)(?!\p{L})/u.test(
             canon(query),
           )) ||
+        (id === "hba1c" && /(?:سكر|السكر) التراكمي/u.test(canon(query))) ||
+        (id === "esr" && /ترسيب (?:كريات الدم|الكريات)/u.test(canon(query))) ||
         (id === "urinalysis" &&
           /(?<!\p{L})ل?تحليل البول(?!\p{L})/u.test(query)) ||
         (id === "urine-culture" &&
