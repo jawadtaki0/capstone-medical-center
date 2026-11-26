@@ -48,6 +48,13 @@ export async function routeMessage(message, matcher) {
   // "Prepare ..." asks for a draft report, even though it names an order.
   if (new RegExp(`${OPENING}(prepare|حضر|جهز)( |$)`).test(text))
     return result("topic", "lab_prepare_help");
+  // Asking to create someone's account opens the form, not the how-to.
+  if (
+    new RegExp(
+      `${OPENING}((create|add|make|set up) .{0,30}account|(اعمل|انشئ|ضيف) .{0,10}حساب)`,
+    ).test(text)
+  )
+    return result("topic", "staff_create");
   const command =
     !LAB_WORDS.test(text) && COMMANDS.find(([, pattern]) => pattern.test(text));
   if (command) return result("topic", command[0]);

@@ -21,6 +21,7 @@ const TASKS = {
   lab_prepare_help: "labPrepare",
   limit_change: "limit",
   absence: "absence",
+  staff_create: "staffCreate",
 };
 const WINDOW_DAYS = 28;
 const addDays = (day, count) => {

@@ -10,6 +10,12 @@ const ANCHORS = new Set(
     "book",
     "patient",
     "register",
+    "account",
+    "حساب",
+    "موظف",
+    "موظفه",
+    "لموظف",
+    "لموظفه",
     "cancel",
     "reschedule",
     "احجز",
@@ -29,6 +35,9 @@ const ANCHORS = new Set(
 const SKIPPED = new Set(["patient", "the", "mr", "mrs", "ms"]);
 const STOP = new Set(
   [
+    ..."as account staff employee receptionist reception admin administrator clinic role موظف موظفه استقبال حساب مدير".split(
+      " ",
+    ),
     ..."a an the appointment appointments booking bookings patient new for with on at to of from born dob birth date today tomorrow monday tuesday wednesday thursday friday saturday sunday next this that him her them me my someone visit session dr doctor please how do i and is in lab order test tests result slot place another day time".split(
       " ",
     ),
@@ -62,6 +71,9 @@ function readName(message) {
       if (!ANCHORS.has(plain(words[i]))) continue;
       while (words[start] && SKIPPED.has(plain(words[start]))) start++;
       first = words[start];
+      // "حساب موظف لمايا": the account is for مايا.
+      if (/^(موظف|موظفه|حساب)$/.test(plain(words[i])) && /^ل../u.test(first))
+        first = first.slice(1);
     }
     if (!isName(first)) continue;
     const name = [first];

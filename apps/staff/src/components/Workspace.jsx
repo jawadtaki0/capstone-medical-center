@@ -341,6 +341,8 @@ export default function Workspace({
             api={api}
             lab={labAllowed}
             roles={roles}
+            user={user}
+            onSensitiveAction={onSensitiveAction}
             onError={onError}
             onNavigate={navigate}
           />

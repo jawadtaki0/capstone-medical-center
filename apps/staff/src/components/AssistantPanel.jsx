@@ -6,6 +6,7 @@ import AssistantChange from "./AssistantChange.jsx";
 import AssistantLab from "./AssistantLab.jsx";
 import AssistantPrepare from "./AssistantPrepare.jsx";
 import AssistantSchedule from "./AssistantSchedule.jsx";
+import AssistantStaff from "./AssistantStaff.jsx";
 import { TEXT } from "./assistantText.js";
 import "./assistant.css";
 
@@ -25,10 +26,21 @@ const TASKS = {
   labPrepare: AssistantPrepare,
   limit: AssistantSchedule,
   absence: AssistantSchedule,
+  staffCreate: AssistantStaff,
 };
 
 // A form opens straight away when the question carried details, else on request.
-function Task({ api, language, task, question, roles, onError, onDone }) {
+function Task({
+  api,
+  language,
+  task,
+  question,
+  roles,
+  onError,
+  onDone,
+  user,
+  onSensitiveAction,
+}) {
   const [open, setOpen] = useState(task.open);
   const Card = TASKS[task.type];
   return open ? (
@@ -42,6 +54,8 @@ function Task({ api, language, task, question, roles, onError, onDone }) {
       roles={roles}
       onError={onError}
       onDone={onDone}
+      user={user}
+      onSensitiveAction={onSensitiveAction}
     />
   ) : (
     <div className="staff-actions assistant-actions">
@@ -86,6 +100,8 @@ export default function AssistantPanel({
   api,
   lab,
   roles,
+  user,
+  onSensitiveAction,
   onError,
   onNavigate,
 }) {
@@ -311,6 +327,8 @@ export default function AssistantPanel({
                     task={reply.task}
                     question={question}
                     roles={roles}
+                    user={user}
+                    onSensitiveAction={onSensitiveAction}
                     onError={onError}
                     onDone={(message) => {
                       if (reply.turnId)

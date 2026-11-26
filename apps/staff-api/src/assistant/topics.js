@@ -386,6 +386,28 @@ export const TOPICS = [
     ]),
   ),
   topic(
+    "staff_create",
+    "directory",
+    "directory",
+    [
+      "create a staff account for John Smith",
+      "add a new receptionist account",
+      "set up an account for a new employee",
+      "اعمل حساب موظف جديد لأحمد علي",
+      "أنشئ حساباً لموظفة استقبال",
+    ],
+    text("Create a staff account", "To create a staff account:", [
+      "Open Staff Directory and choose to create an account.",
+      "Fill in the profile and choose the roles.",
+      "Hand the one-time setup code over in person.",
+    ]),
+    text("إنشاء حساب موظف", "لإنشاء حساب موظف:", [
+      "افتح Staff Directory واختر إنشاء حساب.",
+      "املأ الملف واختر الأدوار.",
+      "سلّم رمز الإعداد لمرة واحدة شخصياً.",
+    ]),
+  ),
+  topic(
     "staff_help",
     "directory",
     "directory",

@@ -2,6 +2,9 @@
 export const TEXT = {
   en: {
     start: "Do it here",
+    staffCreated: (username) =>
+      `Account created: ${username}. The setup code was shown once, privately.`,
+    cancelledForm: "Nothing was created.",
     doctor: "Doctor or specialist",
     weekly: "Weekly session",
     days: [
@@ -150,6 +153,9 @@ export const TEXT = {
   },
   ar: {
     start: "نفّذ من هنا",
+    staffCreated: (username) =>
+      `أُنشئ الحساب: ${username}. عُرض رمز الإعداد مرة واحدة بشكل خاص.`,
+    cancelledForm: "لم يُنشأ أي شيء.",
     doctor: "الطبيب أو الاختصاصي",
     weekly: "الجلسة الأسبوعية",
     days: [
