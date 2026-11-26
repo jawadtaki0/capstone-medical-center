@@ -55,6 +55,9 @@ const labels = {
     reception: "Contact Reception",
     details: "See public information",
     account: "Open My account",
+    signedInAccount: "You’re signed in. Open My account to manage your records.",
+    signedInResults: "View released Lab reports for yourself or a linked child.",
+    signedInBookings: "View booking requests for yourself or a linked child.",
     labResults: "Open secure Lab results",
     choose: "Open request form",
     source: "Source",
@@ -101,6 +104,9 @@ const labels = {
     reception: "تواصل مع الاستقبال",
     details: "عرض المعلومات العامة",
     account: "افتح حسابي",
+    signedInAccount: "أنت مسجّل الدخول. افتح حسابي لإدارة سجلاتك.",
+    signedInResults: "اعرض نتائج المختبر الصادرة لك أو لأحد أطفالك المرتبطين بحسابك.",
+    signedInBookings: "اعرض طلبات المواعيد لك أو لأحد أطفالك المرتبطين بحسابك.",
     labResults: "افتح نتائج المختبر الآمنة",
     choose: "افتح نموذج الطلب",
     source: "المصدر",
@@ -141,6 +147,25 @@ export default function PublicAssistant({ account, onAccount }) {
   // One emergency line, always in view. The urgent reply already says it.
   const footerLanguage =
     privatePanel?.language ?? latest?.replyLanguage ?? language;
+  let privateText = privatePanel?.text;
+  if (privatePanel?.intent) {
+    const { intent, language: panelLanguage } = privatePanel;
+    const panelCopy = labels[panelLanguage];
+    if (account) {
+      privateText = {
+        my_results: panelCopy.signedInResults,
+        where_results: panelCopy.signedInResults,
+        my_bookings: panelCopy.signedInBookings,
+        booking_status: panelCopy.signedInBookings,
+        cancel_request: cancelChatCopy[panelLanguage],
+        sign_in: panelCopy.signedInAccount,
+      }[intent] ?? privateText;
+    } else if (account === undefined) {
+      privateText = panelCopy.busy;
+    } else {
+      privateText = rulesCopy[panelLanguage].private;
+    }
+  }
   const urgentShown =
     !privatePanel &&
     latest &&
@@ -182,14 +207,16 @@ export default function PublicAssistant({ account, onAccount }) {
     if (!open) return;
     const log = history.current;
     // Start reading at the top of the newest exchange.
-    if (!busy && latestReply.current) {
+    if (privatePanel || (!busy && !latestReply.current)) {
+      log.scrollTop = 0;
+    } else if (!busy && latestReply.current) {
       log.scrollTop +=
         latestReply.current.parentElement.getBoundingClientRect().top -
         log.getBoundingClientRect().top;
     } else {
       log.scrollTop = log.scrollHeight;
     }
-  }, [open, turns, busy]);
+  }, [open, turns, busy, privatePanel]);
   async function send(value, control) {
     if (busy || !value) return;
     setShowTopics(false);
@@ -304,6 +331,7 @@ export default function PublicAssistant({ account, onAccount }) {
   const topicButton = ([topic, label], className, onClick) => (
     <button
       key={topic}
+      data-selected={Boolean(privatePanel && ({private: "my_results", bookings: "my_bookings", cancel: "cancel_request"})[topic] === privatePanel.intent) || undefined}
       type="button"
       className={"button " + className}
       disabled={busy}
@@ -363,7 +391,7 @@ export default function PublicAssistant({ account, onAccount }) {
           lang={language}
           aria-labelledby="cedar-assistant-title"
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
+            if (event.key === "Escape" && !event.target.closest("dialog")) {
               event.stopPropagation();
               close();
             }
@@ -394,11 +422,7 @@ export default function PublicAssistant({ account, onAccount }) {
                   fill="none"
                   stroke="currentColor"
                 >
-                  {maximized ? (
-                    <path d="M6 5V3h7v7h-2M3 6h7v7H3z" />
-                  ) : (
-                    <rect x="3" y="3" width="10" height="10" />
-                  )}
+                  <path d="M6 5V3h7v7h-2M3 6h7v7H3z" />
                 </svg>
               </button>
               <button
@@ -429,15 +453,9 @@ export default function PublicAssistant({ account, onAccount }) {
             tabIndex={0}
             aria-label={copy.title}
           >
-            {!turns.length && (
-              <div className="cedar-assistant-welcome">
-                <h3>{copy.welcome}</h3>
-                <p>{copy.help}</p>
-                {topicList}
-              </div>
-            )}
+            {(!turns.length || privatePanel || showTopics) && topicList}
             {turns.map(({ question, answer, replyLanguage }, index) => (
-              <section key={index}>
+              <section key={index} hidden={Boolean(privatePanel)}>
                 {question && (
                   <div className="cedar-assistant-question">
                     <span className="cedar-assistant-hidden">{copy.you}</span>
@@ -661,10 +679,30 @@ export default function PublicAssistant({ account, onAccount }) {
                 {copy.busy}
               </div>
             )}
-          </div>
-          {turns.length > 0 && showTopics && (
-            <div className="cedar-assistant-drawer">{topicList}</div>
+          {privatePanel && (
+            <div
+              className="cedar-assistant-private"
+              lang={privatePanel.language}
+              dir={privatePanel.language === "ar" ? "rtl" : "ltr"}
+            >
+              <p className={account && ["my_results", "my_bookings", "booking_status"].includes(privatePanel.intent) ? "cedar-assistant-hidden" : undefined}>{privateText}</p>
+              {privatePanel.intent && account !== undefined && (
+                <AssistantAccountCards
+                  key={
+                    privatePanel.generation +
+                    ":" +
+                    (accountEmail ?? "signed-out")
+                  }
+                  intent={privatePanel.intent}
+                  account={account}
+                  preferredProfileId={privatePanel.profileId}
+                  language={privatePanel.language}
+                  onExpire={invalidateAccount}
+                />
+              )}
+            </div>
           )}
+          </div>
           <div className="cedar-assistant-bar">
             {turns.length > 0 && (
               <button
@@ -682,7 +720,7 @@ export default function PublicAssistant({ account, onAccount }) {
               (topic, label) => send(label, { topic }),
             )}
           </div>
-          <form
+          <form className="cedar-assistant-composer"
             onSubmit={(event) => {
               event.preventDefault();
               send(question.trim());
@@ -721,30 +759,6 @@ export default function PublicAssistant({ account, onAccount }) {
               </svg>
             </button>
           </form>
-          {privatePanel && (
-            <div
-              className="cedar-assistant-private"
-              lang={privatePanel.language}
-              dir={privatePanel.language === "ar" ? "rtl" : "ltr"}
-            >
-              <p>{privatePanel.text}</p>
-              {privatePanel.intent && (
-                <AssistantAccountCards
-                  key={
-                    privatePanel.generation +
-                    ":" +
-                    (accountEmail ?? "signed-out")
-                  }
-                  intent={privatePanel.intent}
-                  account={account}
-                  preferredProfileId={privatePanel.profileId}
-                  language={privatePanel.language}
-                  onExpire={invalidateAccount}
-                />
-              )}
-            </div>
-          )}
-
           {!urgentShown && !privatePanel?.urgent && (
             <p
               className="cedar-assistant-footer"

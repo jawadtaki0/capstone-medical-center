@@ -177,13 +177,12 @@ export default function App() {
           </PublicPage>
         )}
       </PublicShell>
-      {import.meta.env.VITE_CEDAR_PUBLIC_ASSISTANT === "1" &&
-        (onHomePage || onSchedulePage || onDoctorsPage || service) && (
-          <PublicAssistant
-            account={patientAccounts ? account : null}
-            onAccount={setAccount}
-          />
-        )}
+      {import.meta.env.VITE_CEDAR_PUBLIC_ASSISTANT === "1" && (
+        <PublicAssistant
+          account={patientAccounts ? account : null}
+          onAccount={setAccount}
+        />
+      )}
     </>
   );
 }

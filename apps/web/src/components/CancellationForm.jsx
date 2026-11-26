@@ -37,10 +37,11 @@ export function cancellationUnavailable(reason, ar) {
   return (unavailable[reason] ?? unavailable.status)[ar ? 1 : 0];
 }
 
-export default function CancellationForm({ ar, submit, onBack }) {
+export default function CancellationForm({ ar, submit, onBack, inDialog }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [other, setOther] = useState(false);
+  const [noteLength, setNoteLength] = useState(0);
   const t = (en, arabic) => (ar ? arabic : en);
   return (
     <form
@@ -63,14 +64,17 @@ export default function CancellationForm({ ar, submit, onBack }) {
         }
       }}
     >
-      <fieldset disabled={busy}>
-        <legend>{t("Confirm cancellation", "تأكيد الإلغاء")}</legend>
+      <fieldset disabled={busy || undefined}>
+        <legend className={inDialog ? "cedar-assistant-hidden" : undefined}>
+          {t("Confirm cancellation", "تأكيد الإلغاء")}
+        </legend>
         <p>
           {t(
             "The booking cannot be restored. Reasons are optional.",
             "لا يمكن استعادة الموعد. ذكر الأسباب اختياري.",
           )}
         </p>
+        <div className={inDialog ? "cedar-cancellation-reasons" : undefined}>
         {reasons.map(([code, en, arabic]) => (
           <label key={code}>
             <input
@@ -78,16 +82,21 @@ export default function CancellationForm({ ar, submit, onBack }) {
               name="reasons"
               value={code}
               onChange={
-                code === "other" ? (e) => setOther(e.target.checked) : undefined
+                code === "other" ? (e) => {
+                  setOther(e.target.checked);
+                  if (!e.target.checked) setNoteLength(0);
+                } : undefined
               }
             />
             {t(en, arabic)}
           </label>
         ))}
+        </div>
         {other && (
-          <label>
+          <label className={inDialog ? "cedar-cancellation-note" : undefined}>
             {t("Other reason", "سبب آخر")}{" "}
-            <textarea name="note" maxLength={200} />
+            <textarea name="note" maxLength={200} onChange={inDialog ? (event) => setNoteLength(event.target.value.length) : undefined} />
+            {inDialog && <span dir="ltr">{noteLength} / 200</span>}
           </label>
         )}
         {failed && (
@@ -98,14 +107,15 @@ export default function CancellationForm({ ar, submit, onBack }) {
             )}
           </p>
         )}
-        <button type="submit">
-          {t("Confirm cancellation", "أكّد الإلغاء")}
-        </button>
+        <div className={inDialog ? "cedar-cancellation-actions" : undefined}>
+        {!inDialog && <button type="submit">{t("Confirm cancellation", "أكّد الإلغاء")}</button>}
         {onBack && (
-          <button type="button" onClick={onBack}>
+          <button type="button" onClick={onBack} autoFocus={inDialog} className={inDialog ? "button cedar-cancellation-keep" : undefined}>
             {t("Keep booking", "الاحتفاظ بالموعد")}
           </button>
         )}
+        {inDialog && <button type="submit" className="button cedar-cancellation-confirm">{t("Confirm cancellation", "أكّد الإلغاء")}</button>}
+        </div>
       </fieldset>
     </form>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { accountRequest } from "../patient-account-client.js";
 import CancellationForm, {
   cancellationUnavailable,
@@ -14,6 +14,81 @@ const statusText = {
 };
 export const bookingStatus = (status, ar) =>
   statusText[status]?.[ar ? 1 : 0] ?? "";
+
+function BookingSummary({ record, profile, ar, confirmation = false }) {
+  const date = new Date(record.date + "T00:00:00Z");
+  const day = Number.isNaN(date.getTime())
+    ? record.date
+    : new Intl.DateTimeFormat(ar ? "ar-LB" : "en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      }).format(date);
+  return (
+    <div className="cedar-booking-summary">
+      {/dentistry|أسنان/u.test(record.specialty?.toLowerCase() ?? "") && (
+        <span className="cedar-booking-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5.1c2.4-2.3 6.5-2.6 8.1 1 1.5 3.1-.4 5.7-1.5 8.3-1 2.4-1 6.1-2.7 6.1-1.5 0-1.5-4.8-3.9-4.8s-2.4 4.8-3.9 4.8c-1.7 0-1.7-3.7-2.7-6.1C4.3 11.8 2.4 9.2 3.9 6.1c1.6-3.6 5.7-3.3 8.1-1Zm0 0c.8.7 1.5 1.2 2.4 1.3" />
+          </svg>
+        </span>
+      )}
+      <div>
+        <strong dir="auto">{record.professional}</strong>
+        {record.specialty && <div dir="auto">{record.specialty}</div>}
+        <div><bdi>{day} · {record.startTime}–{record.endTime}</bdi>{confirmation && (ar ? " · بتوقيت بيروت" : " · Beirut time")}</div>
+        {confirmation && <div dir="auto">{profile}</div>}
+      </div>
+    </div>
+  );
+}
+
+function BookingCancellationDialog({ record, profile, ar, submit, onClose }) {
+  const dialog = useRef(null);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    dialog.current.showModal();
+  }, []);
+  const finish = () => {
+    dialog.current.close();
+    onClose();
+  };
+  const dismiss = () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) finish();
+    else setClosing(true);
+  };
+  return (
+    <dialog
+      ref={dialog}
+      className="cedar-cancellation-dialog"
+      data-closing={closing || undefined}
+      aria-labelledby="cedar-cancellation-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!dialog.current.querySelector("fieldset")?.disabled) dismiss();
+      }}
+      onAnimationEnd={(event) => {
+        if (event.target !== event.currentTarget || !closing) return;
+        finish();
+      }}
+    >
+      <h3 id="cedar-cancellation-title">{ar ? "تأكيد الإلغاء" : "Confirm cancellation"}</h3>
+      <div className="cedar-cancellation-content">
+        <BookingSummary record={record} profile={profile} ar={ar} confirmation />
+        <CancellationForm
+          ar={ar}
+          inDialog
+          onBack={dismiss}
+          submit={async (confirmation) => {
+            await submit(confirmation);
+            dismiss();
+          }}
+        />
+      </div>
+    </dialog>
+  );
+}
 
 export default function AssistantAccountCards({
   intent,
@@ -112,7 +187,8 @@ export default function AssistantAccountCards({
         {t("Open Lab results in My account", "افتح نتائج المختبر في حسابي")}
       </a>
     );
-  if (intent === "sign_in" && account) return null;
+  if (intent === "sign_in" && account)
+    return <a href="/account">{t("Open My account", "افتح حسابي")}</a>;
   if (!account)
     return (
       <>
@@ -142,6 +218,9 @@ export default function AssistantAccountCards({
           : t("My bookings", "حجوزاتي")
       }
     >
+      <h3 className="cedar-assistant-account-title">
+        {reports ? t("My results", "نتائجي") : t("My bookings", "حجوزاتي")}
+      </h3>
       {profiles.length > 1 && (
         <div className="cedar-assistant-account-profiles">
           {profiles.map((p) => (
@@ -179,16 +258,17 @@ export default function AssistantAccountCards({
         </p>
       )}
       {!!records?.length && (
-        <ul>
+        <ul className="cedar-assistant-account-records">
           {records.map((record) =>
             reports ? (
-              <li key={record.id}>
+              <li key={record.id} className="cedar-assistant-account-card">
                 <bdi>
                   {record.orderNumber} · {String(record.date).slice(0, 10)} ·{" "}
                   {label(profile)}
                 </bdi>{" "}
                 <button
                   type="button"
+                  className="button button-secondary"
                   onClick={async () => {
                     try {
                       const blob = await accountRequest("lab-report", {
@@ -211,13 +291,15 @@ export default function AssistantAccountCards({
                 </button>
               </li>
             ) : (
-              <li key={record.reference}>
-                <bdi>
-                  {record.professional}
-                  {record.specialty ? " · " + record.specialty : ""} ·{" "}
-                  {record.date} · {record.startTime}–{record.endTime}
-                </bdi>{" "}
-                {bookingStatus(record.status, ar)} · <bdi>{label(profile)}</bdi>
+              <li key={record.reference} className="cedar-assistant-account-card">
+                <div className="cedar-booking-top">
+                  <BookingSummary record={record} profile={label(profile)} ar={ar} />
+                  {bookingStatus(record.status, ar) && (
+                    <span className="cedar-booking-status" data-status={record.status}>
+                      {bookingStatus(record.status, ar)}
+                    </span>
+                  )}
+                </div>
                 {record.cancellation?.reason &&
                   !["cancelled", "cancelled_by_patient"].includes(
                     record.status,
@@ -226,10 +308,12 @@ export default function AssistantAccountCards({
                       {cancellationUnavailable(record.cancellation.reason, ar)}
                     </p>
                   )}
-                {cancelling === record.reference ? (
-                  <CancellationForm
+                {cancelling === record.reference && (
+                  <BookingCancellationDialog
+                    record={record}
+                    profile={label(profile)}
                     ar={ar}
-                    onBack={() => setCancelling(null)}
+                    onClose={() => setCancelling(null)}
                     submit={async (confirmation) => {
                       try {
                         await accountRequest("cancel-booking", {
@@ -252,18 +336,17 @@ export default function AssistantAccountCards({
                             : r,
                         ),
                       );
-                      setCancelling(null);
                     }}
                   />
-                ) : (
-                  record.cancellation?.eligible && (
+                )}
+                {record.cancellation?.eligible && (
                     <button
                       type="button"
+                      className="button button-secondary cedar-booking-cancel"
                       onClick={() => setCancelling(record.reference)}
                     >
                       {t("Cancel booking", "إلغاء الموعد")}
                     </button>
-                  )
                 )}
               </li>
             ),

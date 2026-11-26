@@ -5,23 +5,26 @@
   z-index: 30;
 }
 .cedar-assistant {
-  --cedar-ink: #163c55;
-  --cedar-blue: #226b9d;
-  --cedar-pale: #edf6fc;
-  --cedar-wash: #f6fafd;
-  --cedar-line: #dae6ed;
-  --cedar-urgent: #a52a2a;
+  --cedar-ink: #06364b;
+  --cedar-blue: #006789;
+  --cedar-pale: #e8f5fb;
+  --cedar-wash: #f4f9fc;
+  --cedar-line: #c9e0eb;
+  --cedar-urgent: #be141a;
   border: 1px solid var(--cedar-line);
   border-radius: 1rem;
   color: var(--cedar-ink);
   background: #fff;
   position: fixed;
-  right: max(0.75rem, env(safe-area-inset-right));
-  bottom: calc(
-    var(--cedar-keyboard-inset, 0px) + max(4.5rem, env(safe-area-inset-bottom))
-  );
-  width: min(calc(100% - 1.5rem), 24rem);
-  height: min(40rem, calc(var(--cedar-visible-height, 100dvh) - 5.5rem));
+  --cedar-panel-right: max(1.25rem, env(safe-area-inset-right));
+  --cedar-panel-bottom: calc(var(--cedar-keyboard-inset, 0px) + max(5.4rem, env(safe-area-inset-bottom)));
+  --cedar-panel-width: min(52vw, 54rem);
+  --cedar-panel-height: min(47rem, calc(var(--cedar-visible-height, 100dvh) - 9rem));
+  right: var(--cedar-panel-right);
+  bottom: var(--cedar-panel-bottom);
+  width: var(--cedar-panel-width);
+  height: var(--cedar-panel-height);
+  transition: width 220ms ease, height 220ms ease;
   z-index: 31;
   display: flex;
   flex-direction: column;
@@ -30,8 +33,8 @@
   animation: cedar-assistant-enter 180ms ease-out;
 }
 .cedar-assistant-max {
-  width: min(calc(100% - 1.5rem), 44rem);
-  height: calc(var(--cedar-visible-height, 100dvh) - 5.5rem);
+  --cedar-panel-width: min(calc(100vw - 2.5rem), 66rem);
+  --cedar-panel-height: calc(var(--cedar-visible-height, 100dvh) - 6.5rem);
 }
 .cedar-assistant-header {
   display: flex;
@@ -44,7 +47,7 @@
 .cedar-assistant .cedar-assistant-header h2 {
   flex: 1;
   margin: 0;
-  font-size: 1.05rem;
+  font-size: clamp(1.2rem, 1.8vw, 1.55rem);
   line-height: 1.2;
   color: inherit;
 }
@@ -80,7 +83,7 @@
   padding: 0.75rem;
   background: var(--cedar-wash);
 }
-.cedar-assistant-turns section {
+.cedar-assistant-turns > section:not([hidden]) {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -89,14 +92,6 @@
 .cedar-assistant h3 {
   margin: 0;
   font-size: 1rem;
-}
-.cedar-assistant-welcome h3 {
-  font-size: 1.2rem;
-}
-.cedar-assistant-welcome > p {
-  margin-block: 0.25rem 0.75rem;
-  font-size: 0.85rem;
-  color: #526979;
 }
 .cedar-assistant-question {
   align-self: flex-end;
@@ -149,7 +144,7 @@
   min-height: 44px;
   padding: 0.35rem 0.65rem;
   border-radius: 0.6rem;
-  font-size: 0.88rem;
+  font-size: 1rem;
   line-height: 1.25;
 }
 .cedar-assistant .cedar-assistant-topic,
@@ -174,14 +169,6 @@
   background: var(--cedar-urgent);
   color: #fff;
   font-weight: 700;
-}
-.cedar-assistant-drawer {
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 65%;
-  overflow: auto;
-  padding: 0.25rem 0.75rem 0.5rem;
-  border-block-start: 1px solid var(--cedar-line);
 }
 .cedar-assistant-bar {
   display: flex;
@@ -221,7 +208,7 @@
   display: inline-block;
   margin-block: 0.25rem;
   color: var(--cedar-blue);
-  font-size: 0.88rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 .cedar-assistant a.cedar-assistant-reception {
@@ -233,7 +220,7 @@
   border: 1px solid var(--cedar-blue);
   border-radius: 0.6rem;
   color: var(--cedar-blue);
-  font-size: 0.88rem;
+  font-size: 1rem;
   font-weight: 700;
   text-decoration: none;
 }
@@ -247,16 +234,16 @@
   font-size: 0.85rem;
   font-weight: 700;
 }
-.cedar-assistant form {
+.cedar-assistant .cedar-assistant-composer {
   display: flex;
   gap: 0.4rem;
   padding: 0.5rem 0.75rem;
 }
-.cedar-assistant form input {
+.cedar-assistant .cedar-assistant-composer input {
   flex: 1;
   min-width: 0;
 }
-.cedar-assistant form button {
+.cedar-assistant .cedar-assistant-composer button {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -337,19 +324,317 @@
   }
 }
 
-.cedar-assistant-private {
-  max-height: 38vh;
-  overflow: auto;
-  border-block-start: 1px solid currentColor;
-  padding: 0.75rem 1rem;
+
+.cedar-assistant-open {
+  min-height: 3.1rem;
+  padding-inline: 1.45rem;
+  border-radius: 999px;
 }
-.cedar-assistant-private fieldset,
-.cedar-assistant-private ul {
+.cedar-assistant-header {
+  background: #003c51;
+  padding: 0.6rem 0.85rem;
+}
+.cedar-assistant .cedar-assistant-header select,
+.cedar-assistant .cedar-assistant-controls button {
+  min-height: 40px;
+  font-size: 0.95rem;
+}
+.cedar-assistant .cedar-assistant-controls button {
+  width: 40px;
+}
+.cedar-assistant-controls svg {
+  width: 17px;
+  height: 17px;
+}
+.cedar-assistant-turns {
+  padding: 0.7rem 0.85rem;
+  overscroll-behavior: contain;
+}
+.cedar-assistant-menu {
+  margin-block-start: 0;
+}
+.cedar-assistant .cedar-assistant-topic,
+.cedar-assistant .cedar-assistant-personal .button {
+  min-height: 40px;
+}
+.cedar-assistant-personal {
   display: grid;
-  gap: 0.4rem;
+  grid-template-columns: 1fr 1fr 1.35fr 1fr;
+}
+.cedar-assistant .cedar-assistant-group-title {
+  font-size: 0.95rem;
+}
+.cedar-assistant .cedar-assistant-quiet[data-selected] {
+  background: #cfe7f2;
+  border-color: #cfe7f2;
+}
+.cedar-assistant button:not(:disabled) {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.cedar-assistant-private {
+  margin-block-start: 0.6rem;
+  padding-block-start: 0.6rem;
+  border-block-start: 1px solid var(--cedar-line);
+  animation: cedar-assistant-enter 180ms ease-out;
+}
+.cedar-assistant-private > p:not(.cedar-assistant-hidden) {
+  margin-block: 0 0.5rem;
+}
+.cedar-assistant .cedar-assistant-account-title {
+  font-size: clamp(1.18rem, 1.8vw, 1.45rem);
 }
 .cedar-assistant-account-profiles {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.5rem;
+  margin-block: 0.65rem 0.8rem;
+}
+.cedar-assistant-account-profiles button {
+  min-height: 38px;
+  padding: 0.2rem 0.9rem;
+  border: 1px solid var(--cedar-line);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: var(--cedar-ink);
+  font: inherit;
+}
+.cedar-assistant-account-profiles button[aria-pressed="true"] {
+  border-color: var(--cedar-blue);
+  background: var(--cedar-blue);
+  color: #fff;
+  font-weight: 700;
+}
+.cedar-assistant-account-records {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cedar-assistant-account-card {
+  min-width: 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #a9c7d8;
+  border-radius: 0.6rem;
+  background: #f7fbfd;
+  animation: cedar-assistant-enter 180ms ease-out;
+}
+.cedar-assistant-account-card > p {
+  margin-block: 0.5rem 0;
+}
+.cedar-booking-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+.cedar-booking-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.cedar-booking-summary strong {
+  display: block;
+  font-size: 1.13rem;
+  line-height: 1.22;
+}
+.cedar-booking-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 3.65rem;
+  min-height: 3.35rem;
+  padding-inline-end: 0.75rem;
+  border-inline-end: 1px solid #adc5d3;
+}
+.cedar-booking-icon svg {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+.cedar-booking-status {
+  flex: none;
+  padding: 0.25rem 0.65rem;
+  border-radius: 0.45rem;
+  background: #e1ecf2;
+  color: #143f55;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.cedar-booking-status[data-status="confirmed"] {
+  color: #164e30;
+  background: #dceee2;
+}
+.cedar-booking-status:is([data-status="cancelled_by_patient"], [data-status="cancelled"]) {
+  color: #37454d;
+  background: #d2dee5;
+}
+.cedar-booking-cancel {
+  margin-block-start: 0.55rem;
+}
+.cedar-assistant .cedar-assistant-footer {
+  font-size: 0.76rem;
+}
+.cedar-assistant:has(.cedar-cancellation-dialog[open])::after {
+  position: absolute;
+  content: "";
+  inset: 3.7rem 0 0;
+  z-index: 1;
+  background: rgb(18 43 55 / 42%);
+  animation: cedar-dialog-fade 180ms ease both;
+  pointer-events: none;
+}
+.cedar-assistant:has(.cedar-cancellation-dialog[data-closing])::after {
+  animation-direction: reverse;
+}
+.cedar-cancellation-dialog {
+  --cedar-dialog-width: min(calc(var(--cedar-panel-width) * 0.76), 39rem);
+  position: fixed;
+  inset: auto;
+  top: calc(100dvh - var(--cedar-panel-bottom) - var(--cedar-panel-height) / 2 + 1.5rem);
+  right: calc(var(--cedar-panel-right) + (var(--cedar-panel-width) - var(--cedar-dialog-width)) / 2);
+  translate: 0 -50%;
+  width: var(--cedar-dialog-width);
+  max-width: none;
+  max-height: calc(var(--cedar-panel-height) - 4.2rem);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #85bdd5;
+  border-radius: 0.9rem;
+  background: var(--cedar-wash);
+  color: var(--cedar-ink);
+  box-shadow: 0 0.7rem 2rem rgb(7 44 62 / 25%);
+  animation: cedar-assistant-enter 190ms ease-out both;
+}
+.cedar-cancellation-dialog[data-closing] {
+  animation: cedar-dialog-exit 150ms ease-in both;
+}
+.cedar-cancellation-dialog::backdrop {
+  background: transparent;
+}
+.cedar-assistant .cedar-cancellation-dialog > h3 {
+  padding: 0.65rem 0.95rem;
+  background: #00465e;
+  color: white;
+  font-size: 1.25rem;
+}
+.cedar-cancellation-content {
+  padding: 0.65rem 0.95rem 0.85rem;
+}
+.cedar-cancellation-content > .cedar-booking-summary {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #a8cede;
+  border-radius: 0.55rem;
+  background: #ebf7fc;
+}
+.cedar-cancellation-content fieldset {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.cedar-cancellation-content p {
+  margin-block: 0.55rem 0;
+}
+.cedar-cancellation-reasons {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 0.35rem 0.65rem;
+}
+.cedar-cancellation-reasons label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  line-height: 1.25;
+}
+.cedar-cancellation-reasons input {
+  flex: none;
+  width: 1.14rem;
+  height: 1.14rem;
+  margin: 0.05rem 0 0;
+  accent-color: var(--cedar-blue);
+}
+.cedar-cancellation-note {
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  font-weight: 600;
+  animation: cedar-assistant-enter 150ms ease-out;
+}
+.cedar-cancellation-note textarea {
+  min-height: 4rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem 1.25rem;
+  border: 1px solid #7494a8;
+  border-radius: 0.55rem;
+  color: inherit;
+  background: #fff;
+  font: inherit;
+  resize: vertical;
+}
+.cedar-cancellation-note span {
+  position: absolute;
+  inset-inline-end: 0.6rem;
+  inset-block-end: 0.25rem;
+  font-size: 0.8rem;
+  color: #566c79;
+}
+.cedar-cancellation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 0.7rem;
+  margin-block-start: 0.28rem;
+}
+.cedar-assistant .cedar-cancellation-keep {
+  border: 1px solid var(--cedar-blue);
+  background: #fff;
+  color: var(--cedar-ink);
+  font-weight: 700;
+}
+.cedar-assistant .cedar-cancellation-confirm {
+  border: 1px solid var(--cedar-urgent);
+  background: var(--cedar-urgent);
+  color: #fff;
+  font-weight: 700;
+}
+@keyframes cedar-dialog-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes cedar-dialog-exit {
+  to { opacity: 0; transform: translateY(6px) scale(0.985); }
+}
+@media (max-width: 850px) {
+  .cedar-assistant, .cedar-assistant-max {
+    --cedar-panel-right: max(0.5rem, env(safe-area-inset-right));
+    --cedar-panel-width: min(calc(100vw - 1rem), 40rem);
+    --cedar-panel-height: calc(var(--cedar-visible-height, 100dvh) - 6rem);
+  }
+}
+@media (max-width: 540px) {
+  .cedar-assistant .cedar-assistant-topic,
+  .cedar-assistant .cedar-assistant-personal .button {
+    min-height: 44px;
+  }
+  .cedar-assistant-personal {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cedar-cancellation-dialog {
+    --cedar-dialog-width: calc(var(--cedar-panel-width) - 0.75rem);
+  }
+  .cedar-cancellation-reasons {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cedar-assistant,
+  .cedar-assistant :is(button, .cedar-cancellation-dialog, .cedar-cancellation-note, .cedar-assistant-private, .cedar-assistant-account-card),
+  .cedar-assistant:has(.cedar-cancellation-dialog[open])::after {
+    transition-duration: 1ms;
+    animation-duration: 1ms;
+  }
 }
