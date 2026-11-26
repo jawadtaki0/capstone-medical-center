@@ -179,7 +179,7 @@ const serviceNames = [
   ["laboratory", /\b(?:lab|laboratory)\b|(?<!\p{L})ب?المختبر(?!\p{L})/gu],
   [
     "audiometry",
-    /\b(?:audiometry|hearing tests?)\b|(?<!\p{L})(?:فحوصات السمع|قياس السمع)(?!\p{L})/gu,
+    /\b(?:audiometry|hearing tests?)\b|(?<!\p{L})(?:(?:فحوصات|فحص|قياس) (?:ال)?سمع)(?!\p{L})/gu,
   ],
   [
     "center",
@@ -195,7 +195,7 @@ export function resolvePublicFollowup(message, previous, today) {
     .replace(/[؟?!.,]+$/gu, "")
     .trim()
     .replace(
-      /^(?:(?:could|can) (?:you|we) (?:check|make it)|how about|what about|and|طيب|وكمان|كمان|وعندن)\s+|^و(?=(?:نهار|يوم|ال|فحوصات|قياس))/u,
+      /^(?:(?:could|can) (?:you|we) (?:check|make it)|how about|what about|and|طيب|وكمان|كمان|وعندن)\s+|^و(?=(?:نهار|يوم|ال|فحوصات|فحص|قياس))/u,
       "",
     )
     .replace(/\s+(?:instead of|rather than|بدل)\s+.*$/u, "")
@@ -308,10 +308,18 @@ export function browserPublicRequest(input, previous, today, published = []) {
     };
 
   const everyday = everydayRequest(message, today);
-  const who = /\b(?:which|who)\b|(?<!\p{L})مين(?!\p{L})/u.test(canon(message))
-    ? resolvePublicIntent("clinicSchedule", message, turn)
-    : null;
-  const asked = who?.specialtyHint ? who : null;
+  // A specialty or doctor asked in any wording, unless it is another request.
+  const found = resolvePublicIntent("clinicSchedule", message, turn);
+  const asked =
+    (found?.specialtyHint || found?.namedProfessional) &&
+    everyday?.kind !== "register" &&
+    !resolvePublicIntent("prices", message, turn) &&
+    !resolvePublicIntent("preparation", message, turn) &&
+    !/\b(?:book\w*|online|website|prices?|cost|how much|prepar\w*|fast\w*)\b|حجز|اونلاين|الموقع|سعر|قديش|تحضير|صيام/u.test(
+      canon(message),
+    )
+      ? found
+      : null;
   if (
     asked ||
     request?.kind === "sessions" ||
@@ -321,7 +329,8 @@ export function browserPublicRequest(input, previous, today, published = []) {
     const named =
       request?.namedProfessional ??
       request?.filters?.professional ??
-      everyday?.clinician;
+      everyday?.clinician ??
+      asked?.namedProfessional;
     const specialty =
       request?.specialtyHint ??
       request?.filters?.specialty ??

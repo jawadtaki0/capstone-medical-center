@@ -25,7 +25,7 @@ const results =
 
 // Indirect wording about the visitor's own sample, request or test.
 const indirectOwn =
-  /\b(?:time|slot) i (?:asked|requested)\b|\bwhat did my (?:\w+ )?(?:test|scan) (?:show|say)\b|(?:سحبوه|سحبوها|اخدوه|اخدوها|اخذوه|اخذوها) مني|وين صار (?:طلبي|طلب (?:ابني|بنتي))/u;
+  /\b(?:time|slot) i (?:asked|requested)\b|\bwhat did my (?:\w+ )?(?:test|scan) (?:show|say)\b|(?:سحبوه|سحبوها|اخدوه|اخدوها|اخذوه|اخذوها) مني|وين صار (?:طلبي|طلب (?:ابني|بنتي))|\b(?:i|we) (?:left|gave|dropped off|provided|submitted|did|had)\b.{0,40}\b(?:sample|swab|blood|urine|test|scan)\b.{0,60}\b(?:show|say|ready|come back|came back|results?)\b|(?:تركت|عطيت|عملت|قدمت)\S{0,3} .{0,30}(?:عينه|تحليل|فحص|مسحه|دم).{0,40}(?:طلع|بين|جاهز|نتيج)/u;
 
 // The privacy check is deliberately wider than the account intent lookup.
 // For example, a personal document can be identifiable without naming a supported action.

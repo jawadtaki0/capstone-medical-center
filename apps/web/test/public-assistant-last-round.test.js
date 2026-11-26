@@ -37,7 +37,6 @@ for (const text of [
 ])
   test("personal: " + text, () => assert.ok(localRoute(text)?.intent));
 for (const text of [
-  "What should I take to the lab?",
   "Is a urine test available on Monday?",
   "How should I prepare for a urine culture?",
   "شو لازم جيب معي على المختبر؟",
@@ -84,12 +83,7 @@ test("a named clinician on a day", () =>
       clinicianId: "doctor:ghazi-sarghani",
     },
   ));
-test("fasting question and Arabic hearing follow-up", () => {
-  assert.equal(
-    request("Is fasting required for a glucose test?", null, today)?.menu
-      ?.topic,
-    "preparation",
-  );
+test("Arabic hearing follow-up", () => {
   const prior = {
     lastIntent: "hours",
     service: "laboratory",

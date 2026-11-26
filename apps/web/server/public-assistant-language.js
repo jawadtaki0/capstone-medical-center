@@ -294,10 +294,10 @@ function selfHarmRisk(clause) {
 // Other present-tense emergencies described in Arabic or Arabizi.
 function otherEmergency(clause) {
   return (
-    /(?:(?:صدري|قلبي) (?:عم )?(?:يوجعني|بيوجعني|يالمني|عم يضغط)|وجع (?:قوي |كتير )?(?:ب|في )?(?:صدري|الصدر)|ضغط (?:على|ع) صدري|(?:عم|ما عم) (?:ينزف|نزف) (?:كتير|كثير|بقوه)|ما (?:عم )?(?:يوقف|بيوقف) (?:ال)?نزيف|(?:غايب|فاقد|فاقده) (?:عن )?(?:ال)?وعي|ما عم (?:يفيق|تفيق|يفوق|تفوق|يصح[ىي]|تصح[ىي]|يرد|ترد|(?:بي|بت)?جاوب(?:ني)?|يتنفس|تتنفس)|(?:عم )?(?:يتشنج|بيتشنج)|جلطه (?:هلق|هلا|الان)|(?:مش|ما) عم (?:ي|ت)تنفس|(?:غاب|غابت) عن (?:ال)?وعي|اغمي علي)/u.test(
+    /(?:(?:صدري|قلبي) (?:عم )?(?:يوجعني|بيوجعني|يالمني|عم يضغط)|وجع (?:قوي |كتير )?(?:ب|في )?(?:صدري|الصدر)|ضغط (?:على|ع) صدري|(?:عم|ما عم) (?:ينزف|نزف) (?:كتير|كثير|بقوه)|ما (?:عم )?(?:يوقف|بيوقف) (?:ال)?نزيف|(?:غايب|فاقد|فاقده) (?:عن )?(?:ال)?وعي|ما عم (?:يفيق|تفيق|يفوق|تفوق|يصح[ىي]|تصح[ىي]|يرد|ترد|(?:بي|بت)?جاوب(?:ني)?|يتنفس|تتنفس)|(?:عم )?(?:يتشنج|بيتشنج)|جلطه (?:هلق|هلا|الان)|(?:مش|ما) عم (?:ي|ت)تنفس|(?:غاب|غابت) عن (?:ال)?وعي|اغمي علي|عم (?:ي|ت)ختنق|بلع(?:ت)? (?:سم|كلور|حبوب)|عم (?:ي|ت)نزف (?:كتير|كثير)|(?:عنده|عندها|صابته|صابتها|اجته|اجتها) (?:نوبه قلبيه|جلطه))/u.test(
       clause,
     ) ||
-    /\b(?:waja3|wje3)\s+(?:b|bi|fi)?\s*(?:sadre|sadri|sedre)\b|\b(?:sadre|sadri)\s+(?:3am\s+)?(?:yewja3ne|byewja3ne|wej3ne)\b|\b(?:fainted|passed out|collapsed|unconscious|(?:not|stopped|isn'?t) breathing|not responding|won'?t wake up|unresponsive|turning blue|seizing)\b/u.test(
+    /\b(?:waja3|wje3)\s+(?:b|bi|fi)?\s*(?:sadre|sadri|sedre)\b|\b(?:sadre|sadri)\s+(?:3am\s+)?(?:yewja3ne|byewja3ne|wej3ne)\b|\b(?:fainted|passed out|collapsed|unconscious|(?:not|stopped|isn'?t) breathing|not responding|won'?t wake up|unresponsive|turning blue|seizing|swallowed (?:bleach|poison|(?:\w+ )?pills)|(?:having|has|had) a (?:heart attack|stroke)|bleeding (?:a lot|badly)|(?:baby|child|son|daughter) is choking)\b/u.test(
       clause,
     )
   );
@@ -432,9 +432,12 @@ export function clinicalConcept(value) {
     /\b(?:low|high|elevated|abnormal|positive|borderline|out of range|raised)\b|واطي|واطيه|منخفض|منخفضه|عالي|عاليه|مرتفع|مرتفعه|طالع|طالعه|نازل|نازله|ناقص|\b(?:wa6e|wati|3ali|3alye|nezle|tal3a)\b/u;
   const meaning =
     /\b(?:mean|means|worried|serious|dangerous|bad|normal|what should|what do i)\b|شو يعني|يعني شي|خطير|خطر|طبيعي|شو بعمل|شو لازم|\b(?:shu ya3ne|khatir)\b/u;
+  const remedy =
+    /\bwhat (?:should|can|do) (?:i|we) (?:take|use) for\b(?!.*\b(?:test|lab|visit|appointment)\b)|(?<!\p{L})(?:شو|ايش)(?: لازم| فيني| بقدر)? (?:اخد|باخد|اخذ|استعمل) (?:ل|لل)(?!.*(?:مختبر|فحص|موعد))/u;
   const reading =
     /\b(?:sugar|glucose|blood pressure|cholesterol|h(?:a)?emoglobin)\b|سكر|ضغط|كوليسترول/u;
   return (
+    remedy.test(text) ||
     (reading.test(text) && /\d{2,}/u.test(text) && meaning.test(text)) ||
     (medicine.test(medicationText) && advice.test(text)) ||
     (result.test(text) &&
