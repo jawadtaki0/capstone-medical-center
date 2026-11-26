@@ -174,7 +174,7 @@ export function publicReplyContext(reply, service, relativeDate) {
 }
 
 const weekdays =
-  /^(?:(?:on|for) )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|(?:(?:the|that) )?(?:same )?(?:day|date))$|^(?:(?:نهار|يوم) )?(?:اليوم|بكرا|الاحد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|بهالنهار|بنفس النهار|بهداك النهار)$/u;
+  /^(?:(?:on|for) )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|(?:(?:the|that) )?(?:same )?(?:day|date))$|^(?:(?:نهار|يوم) )?(?:اليوم|بكرا|الاحد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|بهالنهار|بنفس النهار|بنفس اليوم|بهداك النهار)$/u;
 const serviceNames = [
   ["laboratory", /\b(?:lab|laboratory)\b|(?<!\p{L})ب?المختبر(?!\p{L})/gu],
   [
