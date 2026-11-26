@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "demo": "node scripts/demo-server.mjs",
     "intent-model": "node scripts/intent-model.mjs",
     "vercel-build": "node scripts/intent-model.mjs && vite build",
     "test": "node --test"

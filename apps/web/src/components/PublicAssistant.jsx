@@ -278,7 +278,7 @@ export default function PublicAssistant() {
               <option value="ar">العربية</option>
             </select>
           </label>
-          <p>{copy.help}</p>
+          {!turns.length && <p>{copy.help}</p>}
           <div
             ref={history}
             className="cedar-assistant-turns"

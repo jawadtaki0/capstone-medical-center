@@ -217,7 +217,9 @@ function sessionRequest(message, text, { date, context, demo, selectedDate }) {
     time,
   } = scheduleRequest(message, date, resolveBeirutDate(message, date, context));
   const clinician =
-    parsedClinician || (demo && requestedProfessional(message)) || undefined;
+    parsedClinician ||
+    (demo && !specialty && requestedProfessional(message)) ||
+    undefined;
   const named = clinician
     ? nameTokens(clinician).length >= (demo ? 1 : 2)
     : specialty || bareClinic.test(text);

@@ -216,3 +216,17 @@
 .cedar-assistant-chips.cedar-assistant-menu {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+/* On small screens each button group is one scrolling row, leaving room to read. */
+@media (max-width: 600px), (max-height: 950px) {
+  .cedar-assistant > .cedar-assistant-chips {
+    display: flex;
+    flex: 0 0 auto;
+    overflow-x: auto;
+    margin-block-end: 0.35rem;
+    padding-block-end: 0.15rem;
+  }
+  .cedar-assistant > .cedar-assistant-chips .button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
