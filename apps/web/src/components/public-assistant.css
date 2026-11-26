@@ -66,6 +66,12 @@
 .cedar-assistant-reply p {
   margin-block: 0.25rem;
 }
+.cedar-assistant-reply .cedar-assistant-safety {
+  border-block-start: 1px solid #abc6d6;
+  margin-block-start: 0.65rem;
+  padding-block-start: 0.55rem;
+  font-size: 0.9em;
+}
 .cedar-assistant-max {
   width: min(calc(100% - 2rem), 48rem);
   max-height: calc(var(--cedar-visible-height, 100dvh) - 5.5rem);

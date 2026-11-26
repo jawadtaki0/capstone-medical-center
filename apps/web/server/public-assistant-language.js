@@ -154,10 +154,10 @@ export const nameTokens = (name) =>
     .filter((token) => token && !titles.test(token));
 
 // Score how well every token of a requested name matches a published name.
-export function nameScore(requested, published) {
+export function nameScore(requested, published, { strict = false } = {}) {
   const wanted = nameTokens(requested);
   const available = nameTokens(published);
-  const exact = scoreNameTokens(wanted, available);
+  const exact = scoreNameTokens(wanted, available, strict);
   if (exact) return exact;
   // A surname may be joined in one script and written as two words in another.
   const mergeAdjacent = (tokens, i) => [
@@ -170,18 +170,22 @@ export function nameScore(requested, published) {
       0,
       ...wanted
         .slice(0, -1)
-        .map((_, i) => scoreNameTokens(mergeAdjacent(wanted, i), available)),
+        .map((_, i) =>
+          scoreNameTokens(mergeAdjacent(wanted, i), available, strict),
+        ),
     );
   if (available.length === wanted.length + 1)
     return Math.max(
       0,
       ...available
         .slice(0, -1)
-        .map((_, i) => scoreNameTokens(wanted, mergeAdjacent(available, i))),
+        .map((_, i) =>
+          scoreNameTokens(wanted, mergeAdjacent(available, i), strict),
+        ),
     );
   return 0;
 }
-function scoreNameTokens(wanted, available) {
+function scoreNameTokens(wanted, available, strict) {
   if (!wanted.length) return 0;
   let score = 0;
   const used = new Set();
@@ -193,14 +197,20 @@ function scoreNameTokens(wanted, available) {
       const outline = skeleton(token);
       const publishedOutline = skeleton(candidate);
       const reduced = outline.replace(/y/g, "");
+      const crossScript =
+        /[\p{Script=Arabic}\d]/u.test(token) !==
+        /[\p{Script=Arabic}\d]/u.test(candidate);
       const points =
         token === candidate
           ? 3
-          : (outline.length >= 2 && outline === publishedOutline) ||
-              (reduced.length >= 2 &&
-                reduced === publishedOutline.replace(/y/g, ""))
+          : (!strict || crossScript) &&
+              ((outline.length >= 2 && outline === publishedOutline) ||
+                (reduced.length >= 2 &&
+                  reduced === publishedOutline.replace(/y/g, "")))
             ? 2
-            : /^[a-z]{5,}$/.test(token) && distance(token, candidate) <= 1
+            : !strict &&
+                /^[a-z]{5,}$/.test(token) &&
+                distance(token, candidate) <= 1
               ? 2
               : 0;
       if (points > best) {

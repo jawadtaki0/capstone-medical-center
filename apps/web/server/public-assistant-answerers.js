@@ -33,6 +33,7 @@ export async function clinicWindowFacts({
   readSessions,
   deadline,
   professional,
+  strictProfessional,
   specialty,
   after,
   before,
@@ -75,7 +76,9 @@ export async function clinicWindowFacts({
   if (professional) {
     const scored = published.map((row) => ({
       row,
-      score: nameScore(professional, row.professionalName),
+      score: nameScore(professional, row.professionalName, {
+        strict: strictProfessional,
+      }),
     }));
     const bestScore = scored.reduce(
       (best, { score }) => Math.max(best, score),

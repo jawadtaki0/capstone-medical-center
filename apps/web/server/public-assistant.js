@@ -1,3 +1,11 @@
+import {
+  emergencyLine,
+  receptionHandoff,
+} from "../src/public-assistant-safety.js";
+import {
+  confidentPublicRequest,
+  isPublicFastingQuestion,
+} from "./public-assistant-confidence.js";
 import { laboratoryTests } from "../src/data/labAudioContent.js";
 import {
   emergencyDisclosure,
@@ -81,16 +89,26 @@ const blocked =
 const blockedMessage = (value) =>
   blocked.test(value.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ""));
 const fallbackSafety = {
-  en: "If this is an emergency, call the Lebanese Red Cross ambulance at 140 in Lebanon or go to the nearest emergency department. For non-emergency help, contact Cedar Reception.",
-  ar: "إذا كانت الحالة طارئة، اتصل بإسعاف الصليب الأحمر اللبناني على الرقم 140 في لبنان أو توجّه إلى أقرب قسم طوارئ. للمساعدة في الحالات غير الطارئة، تواصل مع استقبال سيدر.",
+  en: emergencyLine.en + " " + receptionHandoff.en,
+  ar: emergencyLine.ar + " " + receptionHandoff.ar,
 };
 const internalCopy =
   /\b(?:system prompt|developer message|system instructions|return json|output schema|insert (?:text|response)|placeholder|previous instructions)\b|\{\{|\[(?:insert|placeholder|todo)\b/i;
+export function createPublicAssistant(options) {
+  return createAssistant({
+    ...options,
+    interpret: undefined,
+    compose: undefined,
+    publishedOnly: true,
+  });
+}
+
 export function createAssistant({
   interpret,
   compose,
   readSessions,
   readHours,
+  publishedOnly = false,
   observe: defaultObserve = () => {},
   today = cedarToday,
   now = Date.now,
@@ -130,8 +148,32 @@ export function createAssistant({
       reception: true,
       fallback: true,
     });
+    const guide = guidedTopic(topic);
+    const freeTextPolicy = publishedOnly && !guide;
     let providerFallback = false;
     const reply = (key, extra = {}, relativeDisplayDate) => {
+      if (
+        freeTextPolicy &&
+        (providerFallback ||
+          extra.fallback === true ||
+          [
+            "greeting",
+            "thanks",
+            "identity",
+            "unrelated",
+            "clarify",
+            "chooseSession",
+            "unavailable",
+          ].includes(key))
+      ) {
+        key = "reception";
+        extra = {
+          text: receptionHandoff[lang],
+          reception: true,
+          fallback: true,
+        };
+        carried = null;
+      }
       trace(routeReasons[key] ?? "conversation_route");
       const result = renderReply(key, lang, extra, prefix);
       const state =
@@ -139,11 +181,13 @@ export function createAssistant({
           ? { ...carried, shownDate: shownDateFor(result, relativeDisplayDate) }
           : carried;
       result.searchContext = tokens.encode(state);
+      if (freeTextPolicy)
+        return { ...result, emergencyLine: emergencyLine[lang] };
       return providerFallback || extra.fallback === true
         ? safeFallback(result)
         : result;
     };
-    const guide = guidedTopic(topic);
+    const handoff = () => reply("reception", { fallback: true });
     if (guide) {
       const { kind, copyKey, page } = guide;
       return reply(kind, { text: fixed[copyKey], ...(page ? { page } : {}) });
@@ -156,9 +200,15 @@ export function createAssistant({
         (text) => typeof text !== "string" || !text.trim() || text.length > 400,
       )
     )
-      return reply("reception");
+      return freeTextPolicy ? handoff() : reply("reception");
     const latest = messages.at(-1);
-    const category = protectedGate(latest);
+    const protectedCategory = protectedGate(latest);
+    const category =
+      freeTextPolicy &&
+      protectedCategory === "clinical" &&
+      isPublicFastingQuestion(latest)
+        ? null
+        : protectedCategory;
     const early =
       category === "cancel" ? "private" : (category ?? socialRoute(latest));
     if (early) {
@@ -185,6 +235,8 @@ export function createAssistant({
       context,
       activeSearch,
     });
+    if (freeTextPolicy && !confidentPublicRequest(latest, classified))
+      return handoff();
     if (classified.kind === "reference")
       return reply(classified.route, classified.fields);
     if (classified.kind === "ambiguousService")
@@ -243,6 +295,7 @@ export function createAssistant({
         { days: facts, closingOnly: closingQuestion.test(canon(hoursMessage)) },
         lang,
       );
+      if (freeTextPolicy && !result.complete) return handoff();
       if (!combinedSchedule) {
         if (result.complete && result.day) carried = { at, remaining: 2 };
         return reply(result.complete ? "library" : "reception", {
@@ -512,7 +565,7 @@ export function createAssistant({
       timeOnlyContext: refinement && hasTime ? activeSearch : null,
     });
     const days = range && sessionDays(range, date);
-    if (!days) return reply("empty");
+    if (!days) return freeTextPolicy ? handoff() : reply("empty");
     const { from, through } = range;
     const {
       professional = "",
@@ -529,7 +582,7 @@ export function createAssistant({
       (before && !timePattern.test(before)) ||
       (before && after && before <= after)
     )
-      return reply("empty");
+      return freeTextPolicy ? handoff() : reply("empty");
     try {
       const afternoonOnly = hasTime
         ? /\b(?:only (?:in the )?afternoon|afternoon only)\b/iu.test(latest)
@@ -552,6 +605,7 @@ export function createAssistant({
         readSessions,
         deadline,
         professional,
+        strictProfessional: freeTextPolicy,
         specialty,
         after,
         before,

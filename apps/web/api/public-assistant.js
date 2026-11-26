@@ -1,5 +1,5 @@
 import {
-  createAssistant,
+  createPublicAssistant,
   publishedHours,
   publishedSessions,
 } from "../server/public-assistant.js";
@@ -9,7 +9,7 @@ import { guidedTopic } from "../server/public-assistant-gate.js";
 const publicOrigin =
   process.env.CEDAR_ASSISTANT_PUBLIC_ORIGIN ??
   "https://cedar-cmc-api.onrender.com";
-const assistant = createAssistant({
+const assistant = createPublicAssistant({
   readSessions: publishedSessions(publicOrigin),
   readHours: publishedHours(publicOrigin),
 });

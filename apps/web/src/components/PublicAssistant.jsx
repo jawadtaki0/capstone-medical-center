@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { emergencyLine, receptionHandoff } from "../public-assistant-safety.js";
 import "./public-assistant.css";
 
 const labels = {
@@ -146,9 +147,14 @@ export default function PublicAssistant() {
       searchContext.current = answer.searchContext ?? null;
     } catch {
       searchContext.current = null;
-      answer = { kind: "failure", text: copy.failed };
+      answer = topic
+        ? { kind: "failure", text: copy.failed }
+        : { kind: "failure", text: receptionHandoff[language] };
     }
-    setTurns((current) => [...current, { question: value, answer, topic }]);
+    setTurns((current) => [
+      ...current,
+      { question: value, answer, topic, replyLanguage: language },
+    ]);
     setBusy(false);
   }
 
@@ -243,7 +249,7 @@ export default function PublicAssistant() {
             tabIndex={0}
             aria-label={copy.title}
           >
-            {turns.map(({ question, answer }, index) => (
+            {turns.map(({ question, answer, topic, replyLanguage }, index) => (
               <section key={index}>
                 <div className="cedar-assistant-question">
                   <strong>{copy.you}</strong>
@@ -313,6 +319,15 @@ export default function PublicAssistant() {
                           {language === "ar" ? "←" : "→"}
                         </span>
                       </a>
+                    </p>
+                  )}
+                  {!topic && (
+                    <p
+                      className="cedar-assistant-safety"
+                      lang={replyLanguage}
+                      dir="auto"
+                    >
+                      {emergencyLine[replyLanguage]}
                     </p>
                   )}
                 </div>
