@@ -51,6 +51,7 @@ export default function AssistantLab({
     [order, setOrder] = useState(null),
     [checked, setChecked] = useState([]),
     [reason, setReason] = useState(""),
+    [specimen, setSpecimen] = useState(""),
     [previewed, setPreviewed] = useState(null),
     [typed, setTyped] = useState({ patientNumber: "", orderNumber: "" }),
     [done, setDone] = useState("");
@@ -69,6 +70,7 @@ export default function AssistantLab({
     setPreviewed(null);
     setTyped({ patientNumber: "", orderNumber: "" });
     setReason("");
+    setSpecimen("");
   }
   // A refused change means the record moved on: show the current one again.
   async function change(action, message) {
@@ -125,6 +127,7 @@ export default function AssistantLab({
   const available =
     data?.catalogue.filter((test) => test.active && test.approval) ?? [];
   const report = order && releasableReport(order);
+  const correcting = ["recollect", "reopen", "withdraw"].includes(type);
 
   return (
     <div className="assistant-task">
@@ -258,6 +261,35 @@ export default function AssistantLab({
           </div>
         </fieldset>
       )}
+      {order && type === "recollect" && (
+        <label className="staff-field">
+          {t.specimen}
+          <select
+            value={specimen}
+            onChange={(e) => setSpecimen(e.target.value)}
+          >
+            <option value="" disabled>
+              {t.choose}
+            </option>
+            {requiredSpecimens(order).map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.kind}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {order && correcting && (
+        <label className="staff-field">
+          {t.internalReason}
+          <input
+            dir="auto"
+            maxLength={250}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+      )}
       {order && type === "labCancel" && (
         <label className="staff-field">
           {t.internalReason}
@@ -333,6 +365,38 @@ export default function AssistantLab({
               }
             >
               {t.confirmCollect}
+            </button>
+          </div>
+        )}
+      {order &&
+        correcting &&
+        reason.trim() &&
+        (type !== "recollect" || specimen) && (
+          <div className="staff-action-confirmation">
+            <p>{heading(order)}</p>
+            <p>{t.correctionHint[type]}</p>
+            <button
+              type="button"
+              className="staff-button staff-button-primary"
+              disabled={task.busy}
+              onClick={() =>
+                change(
+                  () =>
+                    api.lab({
+                      action:
+                        type === "recollect" ? "recollect" : `${type}-report`,
+                      id: order._id,
+                      revision: order.revision,
+                      reason: reason.trim(),
+                      ...(type === "recollect"
+                        ? { target: specimen }
+                        : { reportId: order.reportVersions.at(-1).id }),
+                    }),
+                  () => t.corrected[type]("LAB-" + order._id),
+                )
+              }
+            >
+              {t.confirmCorrection[type]}
             </button>
           </div>
         )}

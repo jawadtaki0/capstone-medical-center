@@ -8,6 +8,14 @@ export function eligibleOrders(orders, task, roles) {
     if (task === "collect")
       return (lab || reception) && order.status === "Registered";
     if (task === "release") return releasableReport(order) !== null;
+    const report = order.reportVersions?.at(-1)?.status;
+    if (task === "recollect") return lab && order.status === "Sample collected";
+    if (task === "reopen")
+      return (
+        lab && order.status === "Ready to release" && report === "Finalized"
+      );
+    if (task === "withdraw")
+      return order.status === "Released" && report === "Released";
     return (
       (lab && ["Registered", "Sample collected"].includes(order.status)) ||
       (reception && order.status === "Registered" && !hasLabCollection(order))

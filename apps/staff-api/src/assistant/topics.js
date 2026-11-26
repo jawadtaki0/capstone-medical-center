@@ -386,6 +386,161 @@ export const TOPICS = [
     ]),
   ),
   topic(
+    "attention",
+    null,
+    "today",
+    [
+      "what needs my attention today",
+      "what do I need to do today",
+      "anything waiting for me",
+      "give me today's summary",
+      "شو المطلوب مني اليوم",
+      "شو في شغل ناطرني",
+      "ملخص اليوم",
+    ],
+    text("What needs my attention?", "Waiting for you today:", []),
+    text("ما الذي يحتاج انتباهي؟", "بانتظارك اليوم:", []),
+  ),
+  topic(
+    "walkin",
+    "walkIn",
+    "queue",
+    [
+      "add a walk-in patient to the queue",
+      "accept a walk-in",
+      "a patient came without an appointment",
+      "إضافة مريض بدون موعد إلى الدور",
+      "مريض إجا بلا موعد",
+    ],
+    text("Add a walk-in", "To add a walk-in:", [
+      "Open Queue and choose the session.",
+      "Choose Accept walk-in and the patient.",
+    ]),
+    text("إضافة مريض بلا موعد", "لإضافة مريض بلا موعد:", [
+      "افتح Queue واختر الجلسة.",
+      "اختر Accept walk-in ثم المريض.",
+    ]),
+  ),
+  topic(
+    "publish",
+    "clinicEdit",
+    "website-updates",
+    [
+      "publish the schedule changes to the website",
+      "update the website with the new schedule",
+      "publish the saved absence",
+      "انشر تغييرات الدوام على الموقع",
+      "حدّث الموقع بالجدول الجديد",
+    ],
+    text("Publish schedule changes", "To publish saved changes:", [
+      "Open Website updates.",
+      "Review the changes, then confirm.",
+    ]),
+    text("نشر تغييرات الدوام", "لنشر التغييرات المحفوظة:", [
+      "افتح Website updates.",
+      "راجع التغييرات ثم أكّد.",
+    ]),
+  ),
+  topic(
+    "patient_update",
+    "patients",
+    "patients",
+    [
+      "update the patient's phone number",
+      "change a patient's details",
+      "correct the patient's name",
+      "edit the patient's record",
+      "غير رقم تلفون المريض",
+      "تعديل بيانات المريض",
+    ],
+    text("Update patient details", "To update a patient:", [
+      "Open Patients and find the record.",
+      "Edit it, review the duplicate check and save.",
+    ]),
+    text("تعديل بيانات مريض", "لتعديل بيانات مريض:", [
+      "افتح Patients وابحث عن الملف.",
+      "عدّله وراجع فحص التكرار ثم احفظ.",
+    ]),
+  ),
+  topic(
+    "recollect",
+    "labManage",
+    "lab",
+    [
+      "recollect the sample",
+      "the specimen must be taken again",
+      "أعد أخذ العينة",
+      "لازم ناخد العينة مرة تانية",
+    ],
+    text("Recollect a sample", "To recollect a sample:", [
+      "Open Lab and the collected order.",
+      "Choose recollection and give the reason.",
+    ]),
+    text("إعادة أخذ العينة", "لإعادة أخذ العينة:", [
+      "افتح Lab ثم الطلب.",
+      "اختر إعادة الأخذ واذكر السبب.",
+    ]),
+  ),
+  topic(
+    "reopen",
+    "labManage",
+    "lab",
+    [
+      "reopen the report",
+      "reopen the finalized report to correct it",
+      "أعد فتح التقرير",
+      "بدي صلّح التقرير قبل إصداره",
+    ],
+    text("Reopen a report", "To reopen a finalized report:", [
+      "Open Lab and the order.",
+      "Choose Reopen report and give the reason.",
+    ]),
+    text("إعادة فتح تقرير", "لإعادة فتح تقرير معتمد:", [
+      "افتح Lab ثم الطلب.",
+      "اختر Reopen report واذكر السبب.",
+    ]),
+  ),
+  topic(
+    "withdraw",
+    "labWithdraw",
+    "lab",
+    [
+      "withdraw the report",
+      "take back a released result",
+      "اسحب التقرير",
+      "سحب النتيجة بعد إصدارها",
+    ],
+    text("Withdraw a report", "To withdraw a released report:", [
+      "Open Lab and the released order.",
+      "Choose Withdraw report and give the reason.",
+    ]),
+    text("سحب تقرير", "لسحب تقرير صادر:", [
+      "افتح Lab ثم الطلب.",
+      "اختر Withdraw report واذكر السبب.",
+    ]),
+  ),
+  topic(
+    "catalogue",
+    "labManage",
+    "lab",
+    [
+      "add a new test to the Lab catalogue",
+      "approve a test template",
+      "retire a test from the catalogue",
+      "أضف فحصاً جديداً إلى قائمة المختبر",
+      "اعتماد قالب فحص",
+      "إيقاف فحص من القائمة",
+    ],
+    text("Manage Lab tests", "To manage the test catalogue:", [
+      "Open Lab and choose Catalogue.",
+      "Add, approve or retire a test.",
+    ]),
+    text("إدارة فحوصات المختبر", "لإدارة قائمة الفحوصات:", [
+      "افتح Lab واختر Catalogue.",
+      "أضف فحصاً أو اعتمده أو أوقفه.",
+    ]),
+  ),
+  topic(
     "staff_create",
     "directory",
     "directory",
@@ -497,6 +652,9 @@ export function capabilitiesFor(roles, summary, labEnabled) {
     labOrder: labEnabled && has("Lab Admin", "Receptionist"),
     labRelease: labEnabled && has("Admin", "Lab Admin", "Receptionist"),
     labPrepare: labEnabled && has("Lab Admin"),
+    labManage: labEnabled && has("Lab Admin"),
+    labWithdraw: labEnabled && has("Admin", "Lab Admin"),
+    walkIn: summary.queue === true && summary.book === true,
   };
 }
 

@@ -7,6 +7,14 @@ import AssistantLab from "./AssistantLab.jsx";
 import AssistantPrepare from "./AssistantPrepare.jsx";
 import AssistantSchedule from "./AssistantSchedule.jsx";
 import AssistantStaff from "./AssistantStaff.jsx";
+import AssistantQueue from "./AssistantQueue.jsx";
+import AssistantRequests from "./AssistantRequests.jsx";
+import AssistantCatalogue from "./AssistantCatalogue.jsx";
+import {
+  AssistantPublish,
+  AssistantHours,
+  AssistantPatientUpdate,
+} from "./AssistantDialogs.jsx";
 import { TEXT } from "./assistantText.js";
 import "./assistant.css";
 
@@ -27,6 +35,16 @@ const TASKS = {
   limit: AssistantSchedule,
   absence: AssistantSchedule,
   staffCreate: AssistantStaff,
+  checkin: AssistantQueue,
+  walkin: AssistantQueue,
+  request: AssistantRequests,
+  publish: AssistantPublish,
+  schedule: AssistantHours,
+  patientUpdate: AssistantPatientUpdate,
+  recollect: AssistantLab,
+  reopen: AssistantLab,
+  withdraw: AssistantLab,
+  catalogue: AssistantCatalogue,
 };
 
 // A form opens straight away when the question carried details, else on request.
@@ -40,6 +58,7 @@ function Task({
   onDone,
   user,
   onSensitiveAction,
+  onNavigate,
 }) {
   const [open, setOpen] = useState(task.open);
   const Card = TASKS[task.type];
@@ -56,6 +75,7 @@ function Task({
       onDone={onDone}
       user={user}
       onSensitiveAction={onSensitiveAction}
+      onNavigate={onNavigate}
     />
   ) : (
     <div className="staff-actions assistant-actions">
@@ -308,6 +328,22 @@ export default function AssistantPanel({
                     ))}
                   </ol>
                 )}
+                {reply.items?.length > 0 && (
+                  <div className="staff-actions assistant-actions">
+                    {reply.items.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="staff-button"
+                        onClick={() =>
+                          onNavigate({ view: item.view, tab: item.tab })
+                        }
+                      >
+                        {item.label}: <strong>{item.count}</strong>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {reply.sessions?.length > 0 && (
                   <Sessions
                     language={reply.language}
@@ -329,6 +365,7 @@ export default function AssistantPanel({
                     roles={roles}
                     user={user}
                     onSensitiveAction={onSensitiveAction}
+                    onNavigate={onNavigate}
                     onError={onError}
                     onDone={(message) => {
                       if (reply.turnId)

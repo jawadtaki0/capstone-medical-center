@@ -55,6 +55,8 @@ export async function routeMessage(message, matcher) {
     ).test(text)
   )
     return result("topic", "staff_create");
+  if (new RegExp(`${OPENING}(check[ -]?in |سجل وصول )`).test(text))
+    return result("topic", "checkin_help");
   const command =
     !LAB_WORDS.test(text) && COMMANDS.find(([, pattern]) => pattern.test(text));
   if (command) return result("topic", command[0]);

@@ -8,6 +8,7 @@ const ANCHORS = new Set(
     "for",
     "of",
     "book",
+    "in",
     "patient",
     "register",
     "account",

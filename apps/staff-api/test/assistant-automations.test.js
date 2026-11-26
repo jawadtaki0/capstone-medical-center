@@ -65,7 +65,11 @@ test("what needs attention comes from the Today counts", async () => {
 });
 
 const CASES = [
-  ["check in Lina Khoury", "checkin", ["Admin", "Receptionist"]],
+  [
+    "check in Lina Khoury",
+    "checkin",
+    ["Admin", "Clinic Admin", "Receptionist"],
+  ],
   ["add a walk-in patient to the queue", "walkin", ["Admin", "Receptionist"]],
   [
     "publish the schedule changes to the website",

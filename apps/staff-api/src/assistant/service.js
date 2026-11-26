@@ -22,8 +22,44 @@ const TASKS = {
   limit_change: "limit",
   absence: "absence",
   staff_create: "staffCreate",
+  checkin_help: "checkin",
+  walkin: "walkin",
+  publish: "publish",
+  requests_help: "request",
+  patient_update: "patientUpdate",
+  recollect: "recollect",
+  reopen: "reopen",
+  withdraw: "withdraw",
+  catalogue: "catalogue",
+  schedule_help: "schedule",
 };
 const WINDOW_DAYS = 28;
+const ATTENTION = [
+  ["requestsAwaitingDecision", "requests", undefined],
+  ["messagesToSend", "requests", "messages"],
+  ["trackingDeliveryProblems", "requests", undefined],
+  ["todayBookings", "bookings", undefined],
+  ["unpublishedChanges", "website-updates", undefined],
+  ["publicationDeliveryProblems", "website-updates", undefined],
+];
+const COUNT_LABELS = {
+  en: {
+    requestsAwaitingDecision: "Requests awaiting decision",
+    messagesToSend: "Messages to send",
+    trackingDeliveryProblems: "Tracking delivery problems",
+    todayBookings: "Today's bookings",
+    unpublishedChanges: "Unpublished changes",
+    publicationDeliveryProblems: "Website delivery problems",
+  },
+  ar: {
+    requestsAwaitingDecision: "طلبات بانتظار القرار",
+    messagesToSend: "رسائل للإرسال",
+    trackingDeliveryProblems: "مشاكل في تسليم التتبع",
+    todayBookings: "حجوزات اليوم",
+    unpublishedChanges: "تغييرات غير منشورة",
+    publicationDeliveryProblems: "مشاكل في تحديث الموقع",
+  },
+};
 const addDays = (day, count) => {
   const value = new Date(`${day}T12:00:00Z`);
   value.setUTCDate(value.getUTCDate() + count);
@@ -60,6 +96,7 @@ const REPLIES = {
     unavailable: "Typed questions are unavailable right now. Use the buttons.",
     noSessions: "No published, unended clinic sessions on",
     form: "Fill in the form below. Nothing is saved until you confirm.",
+    quiet: "Nothing in your Today counts needs attention right now.",
   },
   ar: {
     denied: "دورك لا يشمل هذا الإجراء. هذا ما يمكنني مساعدتك به.",
@@ -70,6 +107,7 @@ const REPLIES = {
     unavailable: "الأسئلة المكتوبة غير متاحة الآن. استخدم الأزرار.",
     noSessions: "لا توجد جلسات عيادة منشورة وغير منتهية بتاريخ",
     form: "املأ النموذج أدناه. لا يُحفظ أي شيء قبل أن تؤكد.",
+    quiet: "لا يوجد في أرقام اليوم ما يحتاج انتباهك الآن.",
   },
 };
 
@@ -91,8 +129,9 @@ export function createAssistantService({
     const context = await transaction((session) =>
       authenticated(session, token, at),
     );
-    const { capabilities } = await summary().read(token);
+    const { capabilities, counts } = await summary().read(token);
     return {
+      counts,
       today: beirutClock(at).date,
       capabilities: capabilitiesFor(
         context.account.roles,
@@ -183,10 +222,10 @@ export function createAssistantService({
         input.text?.trim() ??
         TOPICS.find((t) => t.id === input.topic)[reply.language].label;
       // Availability is a fact of the moment, so it is not kept.
-      const { sessions, task, ...kept } = reply;
+      const { sessions, items, task, ...kept } = reply;
       const turnId = await chats.append(token, id, question, {
         ...kept,
-        ...(sessions ? { stale: true } : {}),
+        ...(sessions || items ? { stale: true } : {}),
         ...(task ? { task: { type: task.type, prefill: task.prefill } } : {}),
       });
       return { ...reply, turnId };
@@ -213,7 +252,10 @@ export function createAssistantService({
         (input.lab !== undefined && typeof input.lab !== "boolean")
       )
         throw invalid();
-      const { capabilities, today } = await person(token, input.lab === true);
+      const { capabilities, today, counts } = await person(
+        token,
+        input.lab === true,
+      );
       const allowed = allowedTopics(capabilities);
       let routed = {
         kind: "topic",
@@ -254,6 +296,20 @@ export function createAssistantService({
         return answer("denied", replies.denied, { suggestions: offer() });
       const copy = entry[language];
       const actions = entry.view ? [{ view: entry.view }] : [];
+      if (entry.id === "attention") {
+        const items = ATTENTION.filter(([id]) => counts[id] > 0).map(
+          ([id, view, tab]) => ({
+            id,
+            label: COUNT_LABELS[language][id],
+            count: counts[id],
+            view,
+            ...(tab ? { tab } : {}),
+          }),
+        );
+        return answer("attention", items.length ? copy.reply : replies.quiet, {
+          items,
+        });
+      }
       if (entry.id === "capabilities")
         return answer("help", copy.reply, { suggestions: offer() });
       if (TASKS[entry.id]) {
