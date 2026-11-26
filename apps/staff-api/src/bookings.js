@@ -219,6 +219,122 @@ export function createBookingService({
         .toArray()
     ).map(dto);
   }
+  async function admit(
+    session,
+    context,
+    p,
+    s,
+    input,
+    at,
+    requestDigest,
+    previous,
+  ) {
+    const capacity = await availability(s, session);
+    if (capacity.remaining === null)
+      throw fail(
+        "booking_limit_unset",
+        "Patient limit is Not configured. An authorized schedule manager must configure it first.",
+      );
+    if (
+      await bookings.findOne(
+        { datedSessionId: s.id, patientId: p._id, status: "confirmed" },
+        { session },
+      )
+    )
+      throw fail(
+        "booking_duplicate",
+        "This patient already has an active booking in this session.",
+      );
+    if (!extraAdmission && !capacity.remaining)
+      throw fail(
+        "booking_full",
+        "This session is full. No ordinary booking place remains.",
+      );
+    const counter = db.collection("booking_state"),
+      old = await counter.findOne({ _id: "numbers" }, { session });
+    if (
+      (!old &&
+        (await bookings.findOne({}, { session, projection: { _id: 1 } }))) ||
+      (old &&
+        (!Number.isSafeInteger(old.next) ||
+          old.next < 1 ||
+          old.next >= Number.MAX_SAFE_INTEGER))
+    )
+      throw fail(
+        "booking_number_unavailable",
+        "Booking numbering requires operator reconciliation.",
+        503,
+      );
+    const number = old?.next ?? 1;
+    await counter.updateOne(
+      { _id: "numbers" },
+      { $set: { next: number + 1 } },
+      { session, upsert: true },
+    );
+    const b = {
+      _id: randomUUID(),
+      id: undefined,
+      ordinal: number,
+      bookingNumber: `B-${String(number).padStart(8, "0")}`,
+      patientId: p._id,
+      patientNumber: p.patientNumber,
+      patientName: [p.firstName, p.fatherName, p.lastName].join(" "),
+      datedSessionId: s.id,
+      sourceSessionId: s.sourceSessionId,
+      scopeId: s.scopeId,
+      professionalId: s.professionalId,
+      professionalName: s.professionalName,
+      date: s.date,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      scheduleSignature: s.scheduleSignature,
+      publicationId: s.publicationId,
+      publicationSequence: s.publicationSequence,
+      limitAtConfirmation: s.capacity,
+      status: "confirmed",
+      source,
+      ...(source === "walk_in"
+        ? { admissionKind: extraAdmission ? "extra" : "walk_in" }
+        : {}),
+      actorId: context.account._id,
+      createdAt: at,
+      idempotencyKey: input.idempotencyKey,
+      requestDigest,
+      ...(previous ? { rescheduledFrom: previous._id } : {}),
+    };
+    b.id = b._id;
+    await bookings.insertOne(b, { session });
+    if (!extraAdmission) await invalidateAvailability(db, session, b.date);
+    await audit(session, context, b, "confirmed", at);
+    await afterWrite?.(session, context, b, "confirmed", at, input);
+    return b;
+  }
+  function assertCancellable(b, at) {
+    const clock = beirutClock(at);
+    if (
+      b.date < clock.date ||
+      (b.date === clock.date && b.endTime <= clock.time)
+    )
+      throw fail(
+        "booking_ended",
+        "The session has ended; this reserved place cannot be cancelled.",
+      );
+    if (b.queue)
+      throw fail(
+        "booking_checked_in",
+        "This booking has a recorded queue outcome; cancellation cannot release its reserved place.",
+      );
+  }
+  async function release(session, context, b, reason, input, at) {
+    b.status = "cancelled";
+    b.cancelledAt = at;
+    b.cancelledBy = context.account._id;
+    b.cancellationReason = reason;
+    await bookings.replaceOne({ _id: b._id }, b, { session });
+    await invalidateAvailability(db, session, b.date);
+    await audit(session, context, b, "cancelled", at, b.cancellationReason);
+    await afterWrite?.(session, context, b, "cancelled", at, input);
+  }
   const requestFields = [
     "patientId",
     "patientRevision",
@@ -392,87 +508,150 @@ export function createBookingService({
             "booking_stale",
             "The session or patient limit changed. Review availability again.",
           );
-        const capacity = await availability(s, session);
-        if (capacity.remaining === null)
+        const b = await admit(session, context, p, s, input, at, requestDigest);
+        return { booking: dto(b), overlaps: await overlaps(p, s, session) };
+      }),
+    // Upcoming confirmed bookings this person may change, by name or number.
+    upcoming: (token, input) =>
+      run(token, false, async (session, context, a, at) => {
+        allowFields(input, ["query"]);
+        const scopeIds = a.scopes
+          .filter((s) => s.kind === "clinic" && canBook(context, a, s.id))
+          .map((s) => s.id);
+        if (!scopeIds.length)
           throw fail(
-            "booking_limit_unset",
-            "Patient limit is Not configured. An authorized schedule manager must configure it first.",
+            "booking_forbidden",
+            "An explicit clinic assignment or Admin authority is required.",
+            403,
           );
-        if (
-          await bookings.findOne(
-            { datedSessionId: s.id, patientId: p._id, status: "confirmed" },
+        const query = typeof input.query === "string" ? input.query.trim() : "";
+        if (query.length < 2 || query.length > 80)
+          throw fail(
+            "booking_input",
+            "Enter a patient name, patient number or booking number.",
+            400,
+          );
+        const number = query.toUpperCase();
+        const match = /^B-\d{8,16}$/.test(number)
+          ? { bookingNumber: number }
+          : /^P-\d{8,16}$/.test(number)
+            ? { patientNumber: number }
+            : {
+                $and: query.split(/\s+/).map((word) => ({
+                  patientName: {
+                    $regex: word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+                    $options: "i",
+                  },
+                })),
+              };
+        const clock = beirutClock(at);
+        const found = await bookings
+          .find(
+            {
+              ...match,
+              status: "confirmed",
+              scopeId: { $in: scopeIds },
+              date: { $gte: clock.date },
+            },
             { session },
           )
-        )
-          throw fail(
-            "booking_duplicate",
-            "This patient already has an active booking in this session.",
-          );
-        if (!extraAdmission && !capacity.remaining)
-          throw fail(
-            "booking_full",
-            "This session is full. No ordinary booking place remains.",
-          );
-        const counter = db.collection("booking_state"),
-          old = await counter.findOne({ _id: "numbers" }, { session });
-        if (
-          (!old &&
-            (await bookings.findOne(
-              {},
-              { session, projection: { _id: 1 } },
-            ))) ||
-          (old &&
-            (!Number.isSafeInteger(old.next) ||
-              old.next < 1 ||
-              old.next >= Number.MAX_SAFE_INTEGER))
-        )
-          throw fail(
-            "booking_number_unavailable",
-            "Booking numbering requires operator reconciliation.",
-            503,
-          );
-        const number = old?.next ?? 1;
-        await counter.updateOne(
-          { _id: "numbers" },
-          { $set: { next: number + 1 } },
-          { session, upsert: true },
+          .sort({ date: 1, ordinal: 1 })
+          .limit(21)
+          .maxTimeMS(2000)
+          .toArray();
+        const live = found.filter(
+          (b) => b.date > clock.date || b.endTime > clock.time,
         );
-        const b = {
-          _id: randomUUID(),
-          id: undefined,
-          ordinal: number,
-          bookingNumber: `B-${String(number).padStart(8, "0")}`,
-          patientId: p._id,
-          patientNumber: p.patientNumber,
-          patientName: [p.firstName, p.fatherName, p.lastName].join(" "),
-          datedSessionId: s.id,
-          sourceSessionId: s.sourceSessionId,
-          scopeId: s.scopeId,
-          professionalId: s.professionalId,
-          professionalName: s.professionalName,
-          date: s.date,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          scheduleSignature: s.scheduleSignature,
-          publicationId: s.publicationId,
-          publicationSequence: s.publicationSequence,
-          limitAtConfirmation: s.capacity,
-          status: "confirmed",
-          source,
-          ...(source === "walk_in"
-            ? { admissionKind: extraAdmission ? "extra" : "walk_in" }
-            : {}),
-          actorId: context.account._id,
-          createdAt: at,
-          idempotencyKey: input.idempotencyKey,
-          requestDigest,
+        return {
+          bookings: live.slice(0, 20).map(dto),
+          more: found.length > 20,
         };
-        b.id = b._id;
-        await bookings.insertOne(b, { session });
-        if (!extraAdmission) await invalidateAvailability(db, session, b.date);
-        await audit(session, context, b, "confirmed", at);
-        await afterWrite?.(session, context, b, "confirmed", at, input);
-        return { booking: dto(b), overlaps: await overlaps(p, s, session) };
+      }),
+    // One transaction: if the new session cannot be confirmed, nothing changes.
+    reschedule: (token, input) =>
+      run(token, true, async (session, context, a, at) => {
+        allowFields(input, [
+          "bookingId",
+          "date",
+          "scopeId",
+          "sourceSessionId",
+          "sessionVersion",
+          "idempotencyKey",
+          "publicReason",
+          "noticeLanguage",
+        ]);
+        authorize(context, a, input.scopeId);
+        uuid(input.idempotencyKey);
+        const old = await bookings.findOne(
+          { _id: uuid(input.bookingId) },
+          { session },
+        );
+        if (!old) throw fail("booking_missing", "Booking not found.", 404);
+        authorize(context, a, old.scopeId);
+        const requestDigest = bookingDigest(
+          Object.fromEntries(
+            [
+              "bookingId",
+              "date",
+              "scopeId",
+              "sourceSessionId",
+              "sessionVersion",
+            ].map((k) => [k, input[k]]),
+          ),
+        );
+        const prior = await bookings.findOne(
+          {
+            actorId: context.account._id,
+            idempotencyKey: input.idempotencyKey,
+          },
+          { session },
+        );
+        if (prior) {
+          if (prior.requestDigest !== requestDigest)
+            throw fail(
+              "booking_idempotency",
+              "This confirmation key was used for different booking details. Start a new review.",
+            );
+          return { booking: dto(prior), previous: dto(old), replayed: true };
+        }
+        if (old.status !== "confirmed")
+          throw fail(
+            "booking_stale",
+            "This booking is no longer active. Search for it again.",
+          );
+        assertCancellable(old, at);
+        const p = await db
+          .collection("patients")
+          .findOne({ _id: old.patientId }, { session });
+        if (!p)
+          throw fail("patient_missing", "Select an existing patient.", 404);
+        const s = selected(a, input, at);
+        if (s.id === old.datedSessionId)
+          throw fail("booking_input", "Choose a different session.", 400);
+        if (input.sessionVersion !== s.version)
+          throw fail(
+            "booking_stale",
+            "The session or patient limit changed. Review availability again.",
+          );
+        await release(
+          session,
+          context,
+          old,
+          `Rescheduled to ${s.date} ${s.startTime}`,
+          input,
+          at,
+        );
+        const b = await admit(
+          session,
+          context,
+          p,
+          s,
+          input,
+          at,
+          requestDigest,
+          old,
+        );
+        return { booking: dto(b), previous: dto(old) };
       }),
     list: (token, input) =>
       run(token, false, async (session, context, a) => {
@@ -528,28 +707,8 @@ export function createBookingService({
           );
         if (b.status === "cancelled")
           return { booking: dto(b), replayed: true };
-        const clock = beirutClock(at);
-        if (
-          b.date < clock.date ||
-          (b.date === clock.date && b.endTime <= clock.time)
-        )
-          throw fail(
-            "booking_ended",
-            "The session has ended; this reserved place cannot be cancelled.",
-          );
-        if (b.queue)
-          throw fail(
-            "booking_checked_in",
-            "This booking has a recorded queue outcome; cancellation cannot release its reserved place.",
-          );
-        b.status = "cancelled";
-        b.cancelledAt = at;
-        b.cancelledBy = context.account._id;
-        b.cancellationReason = input.reason.trim();
-        await bookings.replaceOne({ _id: b._id }, b, { session });
-        await invalidateAvailability(db, session, b.date);
-        await audit(session, context, b, "cancelled", at, b.cancellationReason);
-        await afterWrite?.(session, context, b, "cancelled", at, input);
+        assertCancellable(b, at);
+        await release(session, context, b, input.reason.trim(), input, at);
         return { booking: dto(b) };
       }),
   };

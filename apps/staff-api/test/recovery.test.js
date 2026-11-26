@@ -84,6 +84,20 @@ async function emailProof(person) {
     "test-source",
   );
 }
+test("own profile reports the same email eligibility used for recovery", async () => {
+  const verified = await eligible();
+  const unverified = await fixture.account();
+  assert.equal(
+    (await service.management.ownProfile(await login(verified)))
+      .canRecoverByEmail,
+    true,
+  );
+  assert.equal(
+    (await service.management.ownProfile(await login(unverified)))
+      .canRecoverByEmail,
+    false,
+  );
+});
 for (const roles of [
   ["Admin"],
   ["Clinic Admin"],
@@ -1001,7 +1015,7 @@ test("busy refusal does not spend a second history check; quota exhaustion remai
     { code: "recovery_allowance" },
   );
 });
-test("recovery shares account/destination send ceilings and concurrent monthly budget admission", async () => {
+test("recovery enforces daily send ceilings and records concurrent monthly usage", async () => {
   const target = await eligible();
   for (let i = 0; i < 4; i++) {
     await service.recovery.request(
@@ -1031,13 +1045,13 @@ test("recovery shares account/destination send ceilings and concurrent monthly b
     service.recovery.request({ username: second.username }, "quota-b"),
   ]);
   await service.recovery.flushDelivery();
-  assert.equal(messages.length, 4);
+  assert.equal(messages.length, 5);
   const budgets = await fixture.db
     .collection("contact_delivery_budgets")
     .find()
     .toArray();
   assert.equal(budgets.length, 2);
-  assert.ok(budgets.every((item) => item.attempts === 20));
+  assert.ok(budgets.every((item) => item.attempts === 21));
 });
 test("provider failure never changes credentials or creates verified recovery authority", async () => {
   const target = await eligible(),

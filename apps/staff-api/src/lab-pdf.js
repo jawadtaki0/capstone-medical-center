@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { patientAgeLabel, patientToday } from "../../staff/shared/patient-input.js";
 
 const escapeHtml = (value) =>
   String(value ?? "").replace(
@@ -58,7 +59,7 @@ export async function renderLabPdf(
       "Collection Date",
       date(order.history.findLast((event) => event.action === "collect")?.at),
     ],
-    ["Sex", patient.gender, "", ""],
+    ["Sex", patient.gender, "Age:", patientAgeLabel(patient.dateOfBirth, patientToday(finalizedAt))],
   ];
   const [logo, stamp] = await Promise.all([
     readFile(

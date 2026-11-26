@@ -107,6 +107,7 @@ export function createManagementService({
   digestSecret,
   requiresMfa,
   recentVerificationExpiry,
+  canRecoverByEmail,
   vault,
 }) {
   if (
@@ -488,7 +489,13 @@ export function createManagementService({
       actor,
       targetAccount,
     );
-    return detail(targetAccount, next);
+    const result = detail(targetAccount, next);
+    if (actor._id === targetAccount._id)
+      result.canRecoverByEmail = await canRecoverByEmail(
+        session,
+        targetAccount,
+      );
+    return result;
   }
 
   return {
@@ -546,9 +553,10 @@ export function createManagementService({
       });
     },
     ownProfile(token) {
-      return read(token, (_session, { account, profile }) =>
-        detail(account, profile),
-      );
+      return read(token, async (session, { account, profile }) => ({
+        ...detail(account, profile),
+        canRecoverByEmail: await canRecoverByEmail(session, account),
+      }));
     },
     profile(token, id) {
       return read(token, async (session, context) => {

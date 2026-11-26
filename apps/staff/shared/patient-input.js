@@ -121,6 +121,11 @@ export function childBirthDateAllowed(date, today) {
     realPatientDate(date) && date <= today && shiftPatientYear(date, 18) > today
   );
 }
+export function patientAgeLabel(date, today = patientToday()) {
+  if (!realPatientDate(date) || date > today) return "—";
+  const years = Number(today.slice(0, 4)) - Number(date.slice(0, 4));
+  return `${years - Number(shiftPatientYear(date, years) > today)} Y`;
+}
 export function classifyPatientDuplicate(record, other) {
   if (
     !similarPatientName(record.firstName, other.firstName) ||

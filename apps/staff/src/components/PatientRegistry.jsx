@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { displayInternationalPhone } from "../../shared/contact-input.js";
 import PatientEditor from "./PatientEditor.jsx";
 import PhoneInput from "./PhoneInput.jsx";
-import { PATIENT_LABELS } from "../../shared/patient-input.js";
+import { PATIENT_LABELS, patientAgeLabel } from "../../shared/patient-input.js";
 import { isAccessError } from "../lib/staffManagement.js";
 import "./patients.css";
 
@@ -254,6 +254,8 @@ export default function PatientRegistry({
                     <div>
                       <dt>Date of birth</dt>
                       <dd>{p.dateOfBirth}</dd>
+                      <dt>Age</dt>
+                      <dd>{patientAgeLabel(p.dateOfBirth)}</dd>
                     </div>
                     <div>
                       <dt>Phone</dt>

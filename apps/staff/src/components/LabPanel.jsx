@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import PatientEditor from "./PatientEditor.jsx";
 import LabReport from "./LabReport.jsx";
 import LabWhatsApp from "./LabWhatsApp.jsx";
-import { patientToday } from "../../shared/patient-input.js";
+import PhoneInput from "./PhoneInput.jsx";
+import { patientAgeLabel, patientToday } from "../../shared/patient-input.js";
 import { hasLabCollection } from "../../shared/lab-collection.js";
 import "./lab.css";
 
@@ -33,6 +34,9 @@ export default function LabPanel({ api, roles, onError }) {
   const [matches, setMatches] = useState([]);
   const [editor, setEditor] = useState(false);
   const [number, setNumber] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [patientPhone, setPatientPhone] = useState("");
   const [numberError, setNumberError] = useState("");
   const [tests, setTests] = useState([]);
   const [reason, setReason] = useState("");
@@ -43,6 +47,17 @@ export default function LabPanel({ api, roles, onError }) {
   const [whatsAppDraft, setWhatsAppDraft] = useState(null);
   const [templateError, setTemplateError] = useState("");
   const order = data.orders.find((item) => item._id === selected);
+  const orderPatientId = order?.patientId;
+  const [orderPatient, setOrderPatient] = useState(null);
+  useEffect(() => {
+    if (!orderPatientId) return;
+    let current = true;
+    api.readPatient({ patientId: orderPatientId }).then(
+      ({ patient: record }) => { if (current) setOrderPatient(record); },
+      () => {},
+    );
+    return () => { current = false; };
+  }, [api, orderPatientId]);
   const registered = order?.status === "Registered";
   const collected = order?.status === "Sample collected";
   const canCancel =
@@ -180,12 +195,15 @@ export default function LabPanel({ api, roles, onError }) {
                     Catalogue
                   </button>
                 )}
-                {reception && (
+                {(reception || lab) && (
                   <button
                     className="staff-button staff-button-primary"
                     onClick={() => {
                       setPatient(null);
                       setNumber("");
+                      setFirstName("");
+                      setLastName("");
+                      setPatientPhone("");
                       setNumberError("");
                       setMatches([]);
                       setSearched(false);
@@ -272,6 +290,9 @@ export default function LabPanel({ api, roles, onError }) {
               <p>
                 {order.patientName} · {order.patientNumber}
               </p>
+              {orderPatient?.id === orderPatientId && (
+                <p>Age: {patientAgeLabel(orderPatient.dateOfBirth)}</p>
+              )}
               <p>Ordered {new Date(order.createdAt).toLocaleString()}</p>
               <ol className="lab-timeline">
                 {steps.map((step, index) => (
@@ -428,9 +449,10 @@ export default function LabPanel({ api, roles, onError }) {
               roles={roles}
               change={change}
             />
-            {reception && (
+            {(reception || lab) && (
               <LabWhatsApp
-                key={order._id}
+                key={order._id + ":" + order.status}
+                api={api}
                 order={order}
                 change={change}
                 draft={whatsAppDraft}
@@ -438,7 +460,7 @@ export default function LabPanel({ api, roles, onError }) {
             )}
           </>
         )}
-        {view === "new" && reception && (
+        {view === "new" && (reception || lab) && (
           <section className="lab-card">
             <h1>New order</h1>
             <h2>Patient</h2>
@@ -446,18 +468,30 @@ export default function LabPanel({ api, roles, onError }) {
               onSubmit={(event) => {
                 event.preventDefault();
                 const value = number.trim();
-                if (!/^(?:P-)?\d{1,16}$/i.test(value)) {
+                if (value && !/^(?:P-)?\d{1,16}$/i.test(value)) {
                   setNumberError(
                     "Enter the patient number, for example P-00000001.",
                   );
                   return;
                 }
-                const patientNumber =
-                  "P-" + value.replace(/^P-/i, "").padStart(8, "0");
-                run(async () => {
-                  setMatches(
-                    (await api.searchPatients({ patientNumber })).patients,
+                const criteria = Object.fromEntries(
+                  Object.entries({
+                    patientNumber:
+                      value &&
+                      "P-" + value.replace(/^P-/i, "").padStart(8, "0"),
+                    firstName: firstName.trim(),
+                    lastName: lastName.trim(),
+                    phone: patientPhone,
+                  }).filter(([, entry]) => entry),
+                );
+                if (!Object.keys(criteria).length) {
+                  setNumberError(
+                    "Enter a patient number, name, or phone number.",
                   );
+                  return;
+                }
+                run(async () => {
+                  setMatches((await api.searchPatients(criteria)).patients);
                   setPatient(null);
                   setSearched(true);
                 });
@@ -466,7 +500,6 @@ export default function LabPanel({ api, roles, onError }) {
               <label>
                 Patient number{" "}
                 <input
-                  required
                   value={number}
                   aria-invalid={Boolean(numberError)}
                   aria-describedby={
@@ -487,7 +520,41 @@ export default function LabPanel({ api, roles, onError }) {
                   </span>
                 )}
               </label>
-              <button className="staff-button">Find patient</button>
+              <div className="staff-form-grid">
+                <label>
+                  First name
+                  <input
+                    minLength={2}
+                    value={firstName}
+                    onChange={(event) => {
+                      setNumberError("");
+                      setFirstName(event.target.value);
+                    }}
+                  />
+                </label>
+                <label>
+                  Last name
+                  <input
+                    minLength={2}
+                    value={lastName}
+                    onChange={(event) => {
+                      setNumberError("");
+                      setLastName(event.target.value);
+                    }}
+                  />
+                </label>
+                <PhoneInput
+                  label="Phone number"
+                  required={false}
+                  onValueChange={(value) => {
+                    setNumberError("");
+                    setPatientPhone(value);
+                  }}
+                />
+              </div>
+              <button className="staff-button" disabled={busy}>
+                Find patient
+              </button>
               <button
                 className="staff-button"
                 type="button"
@@ -498,7 +565,7 @@ export default function LabPanel({ api, roles, onError }) {
             </form>
             {searched && !matches.length && !patient && (
               <p className="staff-warning" role="status">
-                No patient matched that number. Check the number or register a
+                No patient matched your search. Check the details or register a
                 new patient.
               </p>
             )}
@@ -507,7 +574,7 @@ export default function LabPanel({ api, roles, onError }) {
                 <div key={person.id}>
                   <p>
                     {person.firstName} {person.fatherName} {person.lastName} ·{" "}
-                    {person.patientNumber} · DOB {person.dateOfBirth}
+                    {person.patientNumber} · DOB {person.dateOfBirth} · Age: {patientAgeLabel(person.dateOfBirth)}
                   </p>
                   <button
                     className="staff-button"
@@ -520,7 +587,7 @@ export default function LabPanel({ api, roles, onError }) {
             {patient && (
               <p>
                 Selected patient: {personName(patient)} ·{" "}
-                {patient.patientNumber}
+                {patient.patientNumber} · Age: {patientAgeLabel(patient.dateOfBirth)}
               </p>
             )}
             <h2>Tests</h2>

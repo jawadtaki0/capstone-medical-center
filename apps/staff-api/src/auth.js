@@ -30,6 +30,8 @@ import { createEmergencyRecovery } from "./emergency-recovery.js";
 import { createOperationsService } from "./operations.js";
 import { createBookingService } from "./bookings.js";
 import { createLabService } from "./lab.js";
+import { createAssistantService } from "./assistant/service.js";
+import { createAssistantChats } from "./assistant/chats.js";
 import { createQueueService } from "./queue.js";
 import { createPatientService } from "./patients.js";
 
@@ -145,6 +147,8 @@ export function createAuthService({
   testPasswordWork,
   publicationDeliveryConfigured = false,
   publicationDeliveryBlocked = false,
+  assistantMatcher = null,
+  labEnabled = false,
 }) {
   if (!db || !client?.startSession || !vault?.encrypt || !vault?.decrypt)
     throw unavailable();
@@ -729,7 +733,7 @@ export function createAuthService({
 
   // Health/setup validation must not touch unrelated registry collections.
   // Initialize private services only when their named authenticated route is used.
-  let bookings, patients, websiteRequests, queue, lab;
+  let bookings, patients, websiteRequests, queue, lab, assistant, assistantChats;
   const operations = createOperationsService({
     db,
     transaction,
@@ -755,6 +759,8 @@ export function createAuthService({
     guard,
     requiresMfa,
     recentVerificationExpiry,
+    canRecoverByEmail: (session, account) =>
+      recovery.operator.canRecoverByEmail(session, account),
   });
   async function consumeContactFactor(session, account, method, code, at) {
     let filter = {
@@ -908,6 +914,27 @@ export function createAuthService({
         authenticated,
         now,
         hostedLab: requestIntegration?.transport.lab,
+      }));
+    },
+    get assistantChats() {
+      return (assistantChats ??= createAssistantChats({
+        db,
+        transaction,
+        authenticated,
+        now,
+      }));
+    },
+    get assistant() {
+      const services = this;
+      return (assistant ??= createAssistantService({
+        transaction,
+        authenticated,
+        now,
+        summary: () => services.summary,
+        bookings: () => services.bookings,
+        matcher: assistantMatcher,
+        labEnabled,
+        chats: this.assistantChats,
       }));
     },
     get patients() {

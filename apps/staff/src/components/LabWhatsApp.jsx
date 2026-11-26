@@ -1,48 +1,43 @@
 import { useState } from "react";
 import { labNotice } from "../../shared/lab-notice.js";
 import { displayInternationalPhone } from "../../shared/contact-input.js";
-import PhoneInput from "./PhoneInput.jsx";
 
-export default function LabWhatsApp({ order, change, draft }) {
+export default function LabWhatsApp({ api, order, change, draft }) {
   const [language, setLanguage] = useState("en");
-  const [phone, setPhone] = useState("");
+  const [contact, setContact] = useState(null);
+  const [contactError, setContactError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const notice = labNotice(order);
   const delivery = notice && order.noticeDelivery?.[notice.id];
+  async function readContact() {
+    setContact(null);
+    setContactError("");
+    setConfirmed(false);
+    try {
+      setContact(
+        await api.lab({
+          action: "delivery-contact",
+          id: order._id,
+          revision: order.revision,
+        }),
+      );
+    } catch (error) {
+      setContactError(error.message);
+    }
+  }
   return (
-    <details className="lab-card">
+    <details
+      className="lab-card"
+      onToggle={(event) => {
+        if (event.currentTarget.open && notice && !delivery?.sentAt)
+          void readContact();
+      }}
+    >
       <summary>WhatsApp delivery</summary>
-      <p>Reception sends manually. Opening a draft leaves it pending.</p>
-      <PhoneInput
-        label="Contact number"
-        defaultValue=""
-        onValueChange={(value) => {
-          setPhone(value ?? "");
-          setConfirmed(false);
-        }}
-      />
-      <button
-        className="staff-button"
-        disabled={!phone.trim()}
-        onClick={() => change("contact-pending", { phone })}
-      >
-        Hold delivery pending verification
-      </button>
-      <label>
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(event) => setConfirmed(event.target.checked)}
-        />{" "}
-        I verified possession of the pending number with the intended contact.
-      </label>
-      <button
-        className="staff-button"
-        disabled={!phone.trim() || !confirmed}
-        onClick={() => change("contact-confirm", { phone, confirmed })}
-      >
-        Confirm verified contact
-      </button>
+      <p>
+        Cedar uses the WhatsApp contact on the patient’s record. Send manually
+        in WhatsApp.
+      </p>
       {notice && (
         <>
           <h3>
@@ -61,6 +56,30 @@ export default function LabWhatsApp({ order, change, draft }) {
             <p>Confirmed sent {new Date(delivery.sentAt).toLocaleString()}.</p>
           ) : (
             <>
+              {contactError && (
+                <p className="staff-error" role="alert">
+                  {contactError}
+                </p>
+              )}
+              {contact && (contact.onHold || !contact.phone) && (
+                <p className="staff-warning" role="status">
+                  Delivery is on hold. Verify the patient’s WhatsApp contact
+                  before sending.
+                </p>
+              )}
+              {contact?.needsConfirmation &&
+                contact.phone &&
+                !contact.onHold && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={confirmed}
+                      onChange={(event) => setConfirmed(event.target.checked)}
+                    />
+                    I confirmed the registered number with the intended
+                    recipient.
+                  </label>
+                )}
               <label>
                 Message language{" "}
                 <select
@@ -73,8 +92,17 @@ export default function LabWhatsApp({ order, change, draft }) {
               </label>
               <button
                 className="staff-button"
+                disabled={
+                  !contact?.phone ||
+                  contact.onHold ||
+                  (contact.needsConfirmation && !confirmed)
+                }
                 onClick={() =>
-                  change("open-notice", { noticeId: notice.id, language })
+                  change("open-notice", {
+                    noticeId: notice.id,
+                    language,
+                    confirmed,
+                  })
                 }
               >
                 Open WhatsApp draft

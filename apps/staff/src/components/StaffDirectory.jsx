@@ -26,7 +26,7 @@ import {
   validateManagementProfile,
 } from "../lib/staffManagement.js";
 
-function PrivateSetupHandoff({ result, onClose }) {
+export function PrivateSetupHandoff({ result, onClose }) {
   return (
     <section
       className="staff-private-handoff"
@@ -60,10 +60,24 @@ function PrivateSetupHandoff({ result, onClose }) {
   );
 }
 
-function CreateStaffForm({ roles, departments, busy, onSubmit, onCancel }) {
+export function CreateStaffForm({
+  roles,
+  departments,
+  busy,
+  onSubmit,
+  onCancel,
+  initial = {},
+}) {
   const id = useId();
-  const [names, setNames] = useState({ firstName: "", lastName: "" });
-  const [username, setUsername] = useState("");
+  const [names, setNames] = useState({
+    firstName: initial.firstName ?? "",
+    lastName: initial.lastName ?? "",
+  });
+  const [username, setUsername] = useState(() =>
+    initial.firstName && initial.lastName
+      ? suggestedUsername(initial.firstName, initial.lastName).slice(0, 40)
+      : "",
+  );
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [error, setError] = useState("");
   function nameChanged(key, value) {
@@ -122,7 +136,12 @@ function CreateStaffForm({ roles, departments, busy, onSubmit, onCancel }) {
         <div className="staff-checkboxes">
           {roles.map((role) => (
             <label key={role}>
-              <input type="checkbox" name="roles" value={role} />
+              <input
+                type="checkbox"
+                name="roles"
+                value={role}
+                defaultChecked={initial.roles?.includes(role)}
+              />
               {role}
             </label>
           ))}
@@ -133,6 +152,10 @@ function CreateStaffForm({ roles, departments, busy, onSubmit, onCancel }) {
         </p>
       </fieldset>
       <StaffProfileFields
+        profile={{
+          firstName: initial.firstName,
+          lastName: initial.lastName,
+        }}
         departments={departments}
         disabled={busy}
         onNameChange={nameChanged}

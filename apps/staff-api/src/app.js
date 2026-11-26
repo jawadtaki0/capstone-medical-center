@@ -1,6 +1,7 @@
 import express from "express";
 import helmet from "helmet";
 import { createAuthService } from "./auth.js";
+import { createMatcher } from "./assistant/matcher.js";
 import { StaffError, publicError, unavailable } from "./errors.js";
 
 const loopback = (address) =>
@@ -27,8 +28,17 @@ export function createApp({
   requestIntegration = null,
   publicationDeliveryConfigured = false,
   publicationDeliveryBlocked = false,
+  assistantMatcher = createMatcher(),
 } = {}) {
   const app = express();
+  const labEnabled = Boolean(
+    demoMode &&
+      ((db?.databaseName === "capstone_staff_test" &&
+        process.env.CEDAR_LAB_REVIEW === "1") ||
+        (db?.databaseName === "capstone_staff_dev" &&
+          requestIntegration?.mode === "normal-hosted" &&
+          requestIntegration.transport.lab)),
+  );
   const auth =
     db && client && vault
       ? createAuthService({
@@ -40,6 +50,8 @@ export function createApp({
           requestIntegration,
           publicationDeliveryConfigured,
           publicationDeliveryBlocked,
+          assistantMatcher,
+          labEnabled,
         })
       : null;
   app.locals.websiteRequests = () => auth?.websiteRequests;
@@ -203,6 +215,8 @@ export function createApp({
     "list",
     "cancel",
     "affected",
+    "upcoming",
+    "reschedule",
   ]) {
     app.post(
       `/bookings/${action}`,
@@ -246,17 +260,29 @@ export function createApp({
       service.summary.viewed(bearer(request), request.body),
     ),
   );
-  if (
-    demoMode &&
-    ((db?.databaseName === "capstone_staff_test" &&
-      process.env.CEDAR_LAB_REVIEW === "1") ||
-      (db?.databaseName === "capstone_staff_dev" &&
-        requestIntegration?.mode === "normal-hosted" &&
-        requestIntegration.transport.lab))
-  )
+  if (labEnabled)
     app.post(
       "/lab",
       route((service, request) => service.lab(bearer(request), request.body)),
+    );
+  for (const action of ["message", "alternatives"])
+    app.post(
+      `/assistant/${action}`,
+      route((service, request) =>
+        service.assistant[action](bearer(request), request.body),
+      ),
+    );
+  for (const [path, action] of [
+    ["chats", "list"],
+    ["chat", "read"],
+    ["delete", "remove"],
+    ["outcome", "outcome"],
+  ])
+    app.post(
+      `/assistant/${path}`,
+      route((service, request) =>
+        service.assistantChats[action](bearer(request), request.body),
+      ),
     );
   // Fixed, permission-checked staff operations; no generic collection browser.
   for (const action of ["search", "read", "check", "create", "update"]) {

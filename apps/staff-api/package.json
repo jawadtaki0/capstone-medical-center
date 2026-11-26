@@ -8,9 +8,12 @@
     "db:start": "node scripts/start-mongo.js",
     "bootstrap": "node scripts/bootstrap.js",
     "start": "node src/server.js",
+    "intent-model": "node scripts/intent-model.js",
     "test": "node --test --test-concurrency=1 test/*.test.js"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "3.1175.0",
+    "@huggingface/transformers": "3.8.1",
     "argon2": "0.45.1",
     "express": "5.2.1",
     "helmet": "8.3.0",
