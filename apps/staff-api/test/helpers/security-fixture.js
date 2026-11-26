@@ -34,6 +34,7 @@ export const STAFF_COLLECTIONS = Object.freeze([
   "booking_limits",
   "booking_state",
   "booking_changes",
+  "assistant_chats",
   "patients",
   "patient_registry_state",
   "patient_changes",

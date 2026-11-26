@@ -262,6 +262,14 @@ export async function assertExistingAuthority() {
   // Never prepare/bootstrap or replace existing protected authority material.
   await access(join(runtimeDirectory, "authority.dpapi"));
 }
+export function staffContactEmail({ code, expiresAt, notification, purpose }) {
+  if (purpose === "recovery") return recoveryEmail({ code, expiresAt });
+  if (purpose === "recovery_notice") return recoveryNotification();
+  return notification
+    ? emailChangedNotification()
+    : verificationEmail({ code, expiresAt });
+}
+
 export function createGmailDelivery({
   load = loadDeliveryConfig,
   transport = nodemailer.createTransport,
@@ -296,14 +304,7 @@ export function createGmailDelivery({
       const config = await this.configuration(destination);
       let smtp;
       try {
-        const message =
-          purpose === "recovery"
-            ? recoveryEmail({ code, expiresAt })
-            : purpose === "recovery_notice"
-              ? recoveryNotification()
-              : notification
-                ? emailChangedNotification()
-                : verificationEmail({ code, expiresAt });
+        const message = staffContactEmail({ code, expiresAt, notification, purpose });
         smtp = transport({
           host: "smtp.gmail.com",
           port: 465,

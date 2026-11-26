@@ -4,7 +4,7 @@ import PreviewDialog from "./WebsiteRequestDialog.jsx";
 import { REQUEST_REASONS } from "../../../../shared/website-request-contract.mjs";
 import RequestNoticeDialog from "./RequestNoticeDialog.jsx";
 import { createRequestListLoader } from "../lib/requestList.js";
-import { nameKey, PATIENT_FIELDS } from "../../shared/patient-input.js";
+import { nameKey, PATIENT_FIELDS, patientAgeLabel } from "../../shared/patient-input.js";
 import RequestActionCount from "./RequestActionCount.jsx";
 import "../website-requests.css";
 
@@ -675,6 +675,7 @@ export default function WebsiteRequests({
                     ["Last name", r.patient.lastName],
                     ["Mother’s maiden name", r.patient.motherFirstName],
                     ["Date of birth", r.patient.dateOfBirth],
+                    ["Age", patientAgeLabel(r.patient.dateOfBirth)],
                     ["Submitted phone", r.patient.phone],
                     ["Gender", r.patient.gender],
                     ["Language", r.language],
@@ -718,7 +719,7 @@ export default function WebsiteRequests({
                             {c.classification}: {fullName(c)}
                           </strong>
                           <br />
-                          DOB: {c.dateOfBirth} · Submitted DOB:{" "}
+                          DOB: {c.dateOfBirth} · Age: {patientAgeLabel(c.dateOfBirth)} · Submitted DOB:{" "}
                           {r.patient.dateOfBirth}
                           {c.dateOfBirth !== r.patient.dateOfBirth
                             ? " — dates differ"

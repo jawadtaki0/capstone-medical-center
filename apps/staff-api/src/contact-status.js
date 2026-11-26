@@ -6,13 +6,13 @@ export function contactStatus(profile, vault) {
     proof.verifiedAt instanceof Date &&
     Number.isFinite(proof.verifiedAt.getTime()) &&
     proof.method === "email_code" &&
-    proof.provider === "gmail" &&
+    ["gmail", "ses"].includes(proof.provider) &&
     proof.valueDigest === vault.contactDigest(String(profile.email));
   return {
     email:
       matches && Object.hasOwn(proof, "releasedAt")
         ? "released"
-        : matches && proof.mode === "live" && proof.provider === "gmail"
+        : matches && proof.mode === "live"
           ? "verified"
           : matches && proof.mode === "test"
             ? "test_only"

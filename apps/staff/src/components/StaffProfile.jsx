@@ -12,7 +12,7 @@ import ContactChange from "./ContactChange.jsx";
 import PasswordChange from "./PasswordChange.jsx";
 import { savedPhone } from "../../shared/contact-input.js";
 
-export function ProfileDetails({ account, profile }) {
+export function ProfileDetails({ account, profile, showContacts = true }) {
   const phone = savedPhone(profile);
   const qualificationType =
     QUALIFICATION_TYPES.find(
@@ -27,6 +27,7 @@ export function ProfileDetails({ account, profile }) {
     ["Mother’s name (given name only)", profile.motherName],
     ["Date of birth", profile.dateOfBirth],
     ["Address", profile.address],
+    ...(showContacts ? [
     [
       phone.legacyInvalid
         ? `Phone — unverified / legacy invalid number (${phone.countryName})`
@@ -37,6 +38,7 @@ export function ProfileDetails({ account, profile }) {
       `Individual email — ${contactLabel(profile.contactStatus?.email)}, contact only`,
       profile.email,
     ],
+    ] : []),
     ["Departments", profile.departments?.join(", ")],
     ["Employment start date", profile.employmentStartDate],
     ["Qualification type", qualificationType],
@@ -151,7 +153,7 @@ export default function StaffProfile({
     setNotice(
       result.testOnly
         ? "Automated TEST result only. No real contact was verified."
-        : `Email verified and saved. Recovery remains unavailable.${result.notificationWarning ? " The old-contact notification could not be sent." : ""}`,
+        : `Email verified and saved.${result.notificationWarning ? " The old-contact notification could not be sent." : ""}`,
     );
 
     return refreshProfile();
@@ -193,6 +195,13 @@ export default function StaffProfile({
       }
     }
   }
+  const phone = savedPhone(record?.profile);
+  function openEmail(verify) {
+    setVerifySavedEmail(verify);
+    setEmailOpen(true);
+    setError("");
+  }
+
   return (
     <section
       ref={page}
@@ -207,12 +216,6 @@ export default function StaffProfile({
         Every role can view its own complete profile. Your identity,
         qualifications and work details are read-only here. Only another Admin
         may change identity or qualifications.
-      </p>
-      <p className="staff-help">
-        Legacy contacts remain unverified unless possession was confirmed
-        through delivery. Phone changes are unavailable until real WhatsApp
-        delivery is configured and successfully tested. No simulated delivery
-        verifies your saved contacts or enables recovery.
       </p>
       {error && (
         <p className="staff-error" role="alert">
@@ -239,41 +242,35 @@ export default function StaffProfile({
         </div>
       ) : (
         <>
-          <ProfileDetails account={record.account} profile={record.profile} />
-          {!editing && record.profile.contactStatus?.email !== "verified" && (
-            <button
-              ref={changeEmail}
-              className="staff-button"
-              type="button"
-              disabled={busy || phoneOpen || passwordOpen}
-              onClick={() => {
-                setVerifySavedEmail(true);
-                setEmailOpen(true);
-                setError("");
-              }}
-            >
-              Verify email
-            </button>
-          )}
-          {!editing && record.profile.contactStatus?.phone !== "verified" && (
-            <button
-              ref={verifyPhone}
-              className="staff-button"
-              type="button"
-              disabled={
-                busy ||
-                emailOpen ||
-                passwordOpen ||
-                savedPhone(record.profile).legacyInvalid
-              }
-              onClick={() => {
-                setPhoneOpen(true);
-                setError("");
-              }}
-            >
-              Verify phone number
-            </button>
-          )}
+          <ProfileDetails account={record.account} profile={record.profile} showContacts={false} />
+          <section className="staff-contact-editor" aria-labelledby={`${id}-contacts`}>
+            <h2 id={`${id}-contacts`}>Contact details</h2>
+            <div className="staff-field">
+              <strong>Email</strong>
+              <span>{record.profile.email || "Not recorded"} · {contactLabel(record.profile.contactStatus?.email)}</span>
+              {typeof record.canRecoverByEmail === "boolean" && (
+                <p className="staff-help">
+                  {record.canRecoverByEmail
+                    ? "This account is eligible for password recovery by email."
+                    : "Password recovery by email is unavailable for this account."}
+                </p>
+              )}
+              <div className="staff-actions">
+                <button ref={changeEmail} className="staff-button" type="button" disabled={busy || phoneOpen || passwordOpen} onClick={() => openEmail(false)}>Change email</button>
+                {record.profile.email && record.profile.contactStatus?.email !== "verified" && (
+                  <button className="staff-button" type="button" disabled={busy || phoneOpen || passwordOpen} onClick={() => openEmail(true)}>Verify email</button>
+                )}
+              </div>
+            </div>
+            <div className="staff-field">
+              <strong>Phone</strong>
+              <span>{phone.display || "Not recorded"} · {contactLabel(record.profile.contactStatus?.phone)}</span>
+              {record.profile.phone && phone.legacyInvalid && <p className="staff-help">This saved number is invalid and cannot receive a code.</p>}
+              {record.profile.contactStatus?.phone !== "verified" && (
+                <button ref={verifyPhone} className="staff-button" type="button" disabled={busy || emailOpen || passwordOpen || !phone.display || phone.legacyInvalid} onClick={() => { setPhoneOpen(true); setError(""); }}>Verify on WhatsApp</button>
+              )}
+            </div>
+          </section>
           <button
             ref={changePassword}
             className="staff-button"
@@ -308,91 +305,6 @@ export default function StaffProfile({
                   autoComplete="off"
                 />
               </div>
-              <div className="staff-field">
-                <label htmlFor={`${id}-email`}>
-                  Saved email —{" "}
-                  {contactLabel(record.profile.contactStatus?.email)}
-                </label>
-                <input
-                  id={`${id}-email`}
-                  type="email"
-                  value={record.profile.email}
-                  readOnly
-                />
-                <button
-                  ref={changeEmail}
-                  className="staff-button"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setVerifySavedEmail(
-                      record.profile.contactStatus?.email !== "verified",
-                    );
-                    setEmailOpen(true);
-                    setError("");
-                  }}
-                >
-                  {record.profile.contactStatus?.email === "verified"
-                    ? "Change email"
-                    : "Verify email"}
-                </button>
-                {record.profile.contactStatus?.email !== "verified" && (
-                  <button
-                    className="staff-button"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setVerifySavedEmail(false);
-                      setEmailOpen(true);
-                      setError("");
-                    }}
-                  >
-                    Change email
-                  </button>
-                )}
-              </div>
-              <div className="staff-field">
-                <label htmlFor={`${id}-phone`}>
-                  Saved phone —{" "}
-                  {contactLabel(record.profile.contactStatus?.phone)}
-                  {savedPhone(record.profile).legacyInvalid
-                    ? ` / legacy invalid number (${savedPhone(record.profile).countryName})`
-                    : ` (${savedPhone(record.profile).countryName})`}
-                </label>
-                <input
-                  id={`${id}-phone`}
-                  type="tel"
-                  value={record.profile.phone}
-                  readOnly
-                />
-                <p className="staff-help">
-                  Phone replacement is not available yet.
-                </p>
-                {record.profile.contactStatus?.phone !== "verified" && (
-                  <button
-                    ref={verifyPhone}
-                    className="staff-button"
-                    type="button"
-                    disabled={busy || savedPhone(record.profile).legacyInvalid}
-                    onClick={() => {
-                      setPhoneOpen(true);
-                      setError("");
-                    }}
-                  >
-                    Verify phone number
-                  </button>
-                )}
-                {savedPhone(record.profile).legacyInvalid && (
-                  <p className="staff-help">
-                    This saved legacy number has invalid country numbering
-                    structure and cannot be verified.
-                  </p>
-                )}
-              </div>
-              <p className="staff-help">
-                This form never changes saved email or phone. No password, role
-                or account-status change is made.
-              </p>
               {addressConflict && (
                 <div className="staff-state" role="alert">
                   <p>
@@ -476,7 +388,7 @@ export default function StaffProfile({
               roles={record.account.roles}
               onSaved={async () => {
                 setNotice(
-                  "Phone verified. Phone replacement remains unavailable.",
+                  "Phone verified.",
                 );
                 return refreshProfile();
               }}

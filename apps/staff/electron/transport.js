@@ -103,7 +103,8 @@ export function createBroker({
                 : 20000
               : path === "/lab" && body?.action === "preview-report"
                 ? 30000
-                : path.startsWith("/contacts/")
+                : path.startsWith("/contacts/") ||
+                      path.startsWith("/assistant/")
                   ? 20000
                   : 5000,
         ),
@@ -542,6 +543,13 @@ export function createBroker({
     },
     bookingSessions: (payload) => call("/bookings/sessions", payload, true),
     lab: (payload) => call("/lab", payload, true),
+    assistantMessage: (payload) => call("/assistant/message", payload, true),
+    assistantAlternatives: (payload) =>
+      call("/assistant/alternatives", payload, true),
+    assistantChats: () => call("/assistant/chats", {}, true),
+    assistantChat: (payload) => call("/assistant/chat", payload, true),
+    assistantDelete: (payload) => call("/assistant/delete", payload, true),
+    assistantOutcome: (payload) => call("/assistant/outcome", payload, true),
     queueTransition: (payload) => call("/queue/transition", payload, true),
     queueSessions: (payload) => call("/queue/sessions", payload, true),
     queueAdmit: (payload) => call("/queue/admit", payload, true),
@@ -551,6 +559,9 @@ export function createBroker({
     confirmBooking: (payload) => call("/bookings/confirm", payload, true),
     listBookings: (payload) => call("/bookings/list", payload, true),
     cancelBooking: (payload) => call("/bookings/cancel", payload, true),
+    upcomingBookings: (payload) => call("/bookings/upcoming", payload, true),
+    rescheduleBooking: (payload) =>
+      call("/bookings/reschedule", payload, true),
     affectedBookings: (payload) => call("/bookings/affected", payload, true),
     searchPatients: (payload) => call("/patients/search", payload, true),
     readPatient: (payload) => call("/patients/read", payload, true),

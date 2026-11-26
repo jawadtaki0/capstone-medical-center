@@ -6,6 +6,15 @@ import { labNotice, labMessage } from "../../staff/shared/lab-notice.js";
 import { canonicalPhone } from "../../staff/shared/contact-input.js";
 
 const allowed = ["Admin", "Lab Admin", "Receptionist"];
+export function labExportFilename(order, version, corrected) {
+  const patient = order.patientName
+    ?.normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+  const name = Array.from(patient || "patient").slice(0, 70).join("");
+  return `${name}-results-${order._id.slice(0, 8)}-v${version}${corrected ? "-corrected" : ""}.pdf`;
+}
 const fail = (message, status = 400) => {
   throw new StaffError("lab_action", message, status);
 };
@@ -192,7 +201,7 @@ export function createLabService({
           "contact-confirm",
         ].includes(action)
       ) {
-        requireRole(reception);
+        requireRole(reception || lab);
         const patient = await db
           .collection("patients")
           .findOne({ _id: order.patientId }, options);
@@ -348,7 +357,7 @@ export function createLabService({
               )
                 fail("The released PDF could not be verified.", 409);
               draft.pdf = stored.pdf;
-              draft.filename = stored.filename;
+              draft.filename = labExportFilename(order, notice.report.version, notice.report.corrected);
             }
             order.noticeDelivery[notice.id] = {
               phone: recipient,
@@ -422,10 +431,15 @@ export function createLabService({
             options,
           );
           requireState(stored, "This PDF is no longer available.");
+          const selected = readableDraft ? preview : current;
           return {
             pdf: stored.pdf,
             digest: stored.digest,
-            filename: stored.filename,
+            filename: labExportFilename(
+              order,
+              selected.version,
+              selected.corrected,
+            ),
           };
         }
         if (action === "release-report") {
@@ -604,7 +618,10 @@ export function createLabService({
               corrected,
               version,
             };
-            draft = { pdf: bytes.toString("base64"), filename };
+            draft = {
+              pdf: bytes.toString("base64"),
+              filename: labExportFilename(order, version, corrected),
+            };
           } else {
             const preview = order.reportPreview;
             requireState(

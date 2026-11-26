@@ -6,6 +6,7 @@ import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import { BookingNoticeButton } from "./RequestNoticeDialog.jsx";
 import { centerToday } from "../lib/operations.js";
 import { isAccessError } from "../lib/staffManagement.js";
+import { patientAgeLabel } from "../../shared/patient-input.js";
 import "./bookings.css";
 
 export default function BookingPanel({
@@ -266,7 +267,7 @@ export default function BookingPanel({
             <li key={p.id}>
               <p>
                 {p.firstName} {p.fatherName} {p.lastName} · {p.patientNumber} ·
-                DOB {p.dateOfBirth}
+                DOB {p.dateOfBirth} · Age: {patientAgeLabel(p.dateOfBirth)}
               </p>
               <button
                 type="button"

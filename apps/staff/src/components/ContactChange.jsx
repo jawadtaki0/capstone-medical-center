@@ -101,7 +101,9 @@ export default function ContactChange({
       await callback();
     } catch (failure) {
       if (live.current) {
-        report(failure);
+        if (phone && phase === "code" && failure.code === "contact_verification_failed")
+          setError("This code is incorrect, expired, or already used. Check the latest WhatsApp message or start a new request.");
+        else report(failure);
         if (
           refreshOnFailure &&
           !["contact_email_already_verified", "contact_email_in_use"].includes(
@@ -429,14 +431,7 @@ export default function ContactChange({
                   Original expiry: {handoffExpiry(status.pending.expiresAt)}.
                   Saved contact has not changed.
                 </p>
-                {phone && (
-                  <p>
-                    Ask another Admin to open your Staff Directory record and
-                    send the phone verification code through WhatsApp. Opening
-                    WhatsApp is not proof of delivery. Keep this sign-in open
-                    and enter the code you receive on your phone.
-                  </p>
-                )}
+                {phone && <p role="status">Waiting for an authorized colleague to send your code</p>}
                 {status.pending.testOnly && (
                   <p>Automated TEST delivery only — not real verification.</p>
                 )}
@@ -453,7 +448,7 @@ export default function ContactChange({
                   <div className="staff-field">
                     <label htmlFor={`${id}-code`}>
                       {phone
-                        ? "Eight-digit code received through WhatsApp"
+                        ? "Enter code"
                         : "Eight-digit code from the proposed email"}
                     </label>
                     <input
@@ -545,7 +540,7 @@ export default function ContactChange({
         disabled={busy}
         onClick={cancel}
       >
-        {phase === "saved" ? "Close email dialog" : "Cancel email change"}
+        {phase === "saved" ? "Close" : phone ? "Cancel phone verification" : "Cancel email change"}
       </button>
     </dialog>
   );

@@ -1,3 +1,4 @@
+import { createStaffEmailDelivery } from "./contact-ses.js";
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { StaffError, unavailable } from "./errors.js";
 import {
@@ -14,7 +15,7 @@ import { validRoles } from "../../../shared/staff-roles.mjs";
 import { contactStatus, reservesEmail } from "./contact-status.js";
 import {
   normalizeEmail,
-  createGmailDelivery,
+
   safeDeliveryError,
 } from "./contact-delivery.js";
 
@@ -127,7 +128,7 @@ export function createContactService({
             },
           },
         }
-      : { email: createGmailDelivery() });
+      : { email: createStaffEmailDelivery() });
   const requests = () => db.collection("contact_requests");
   const counters = () => db.collection("contact_counters");
   const budgets = () => db.collection("contact_delivery_budgets");
@@ -296,7 +297,7 @@ export function createContactService({
     const providerId =
       provider.mode === "test"
         ? `test-${provider.provider}`
-        : provider.provider;
+        : provider.provider === "ses" ? "gmail" : provider.provider;
     const ids =
       type === "phone"
         ? []
