@@ -57,6 +57,43 @@ const bookingCue =
   /\b(?:book\w*|reserv\w*|appointment|slot|online|confirm\w*|request|website|site|arrange|7aj[ez]\w*|e7je?z|2akked|ouzkor)\b|حجز|احجز|موعد|طلب|تاكيد|يثبت|موكد|اونلاين|الموقع/u;
 const clinicWords = /\b(?:clinic|doctor|3iyade)\b|عياده|دكتور|طبيب/u;
 
+// Commas and semicolons join one request unless two clauses each ask something.
+const asks =
+  /^(?:and )?(?:is|are|am|can|could|will|should|must|may|tell|show|give|list|check|find)\b|\b(?:what|when|which|who|where|how|do i|does|is there|until|shu|emta|aymta|kif|ade|addesh|2adesh|hal|fiye|wen|aya)\b|(?<!\p{L})و?(?:شو|متي|امتي|ايمتي|كيف|قديش|قديه|بكم|كم|هل|وين|مين|فيني|في)(?!\p{L})/u;
+const greeting =
+  /^(?:hi|hello|hey|please|thanks|thank you|good (?:morning|afternoon|evening)|marhaba|salam|مرحبا|سلام|لو سمحت|من فضلك|صباح الخير|مسا الخير)$/u;
+const topicCues = [
+  hoursCue,
+  priceCue,
+  preparationCue,
+  bookingCue,
+  priceSubject,
+  labWords,
+  audioWords,
+  centerWords,
+  clinicWords,
+];
+const aboutCedar = (clause) => topicCues.some((cue) => cue.test(clause));
+
+function requestText(message, date) {
+  const clauses = canon(message)
+    .split(/[,،;؛]+/u)
+    .map((clause) => clause.replace(/[.!?؟\s]+$/u, "").trim())
+    .filter(Boolean);
+  if (clauses.length > 1) {
+    const questions = clauses.filter(
+      (clause) => asks.test(clause) && aboutCedar(clause),
+    );
+    const related = (clause) =>
+      greeting.test(clause) ||
+      aboutCedar(clause) ||
+      Boolean(catalogueIntent(clause)) ||
+      resolveBeirutDate(clause, date).specified;
+    if (questions.length > 1 || !clauses.every(related)) return "";
+  }
+  return singleRequest(message.replace(/[,،;؛]+/gu, " "));
+}
+
 const reference = (route, fields) => ({ kind: "reference", route, fields });
 const reviewed = (id, lang) =>
   publicContent.find((record) => record.id === id + "-" + lang).answer;
@@ -163,7 +200,7 @@ function bookingRequest(text, lang) {
 
 // Returns the published request the visitor asked for, or null for Reception.
 export function resolvePublicIntent(intent, message, turn, picked = false) {
-  const text = singleRequest(message);
+  const text = requestText(message, turn.date);
   if (
     !text ||
     personal.test(text) ||

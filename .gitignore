@@ -21,3 +21,6 @@ npm-debug.log*
 /apps/staff/test-results/
 /apps/staff/playwright-report/
 /Lab PDFs/
+
+# Fetched at build time; too large for Git.
+/apps/web/intent-model/
