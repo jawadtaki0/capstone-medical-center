@@ -1,0 +1,56 @@
+/* Reuses the workspace theme; only conversation layout is new. */
+.assistant-panel {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  max-width: 56rem;
+}
+.assistant-panel > .staff-eyebrow,
+.assistant-panel > .staff-intro {
+  margin: 0;
+}
+.assistant-turns {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.assistant-turn {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.assistant-question {
+  justify-self: end;
+  max-width: min(36rem, 100%);
+  padding: 0.7rem 1rem;
+  border-radius: var(--staff-radius);
+  background: var(--staff-pale);
+  color: var(--staff-deep);
+  overflow-wrap: anywhere;
+}
+.assistant-reply > p:first-child {
+  margin-top: 0;
+}
+.assistant-reply ol {
+  margin: 0.8rem 0 0;
+  padding-inline-start: 1.3rem;
+  line-height: 1.8;
+}
+.assistant-sessions {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.assistant-sessions li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.25rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--staff-line);
+  border-radius: 12px;
+}
+.assistant-actions {
+  margin-top: 1rem;
+}

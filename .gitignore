@@ -21,3 +21,6 @@ npm-debug.log*
 /apps/staff/test-results/
 /apps/staff/playwright-report/
 /Lab PDFs/
+
+# Locally fetched Staff AI model files.
+/apps/staff-api/intent-model/

@@ -21,9 +21,7 @@ beforeEach(async () => {
   await f.reset();
   authority = await seedPublicationAuthority(f);
   const monday = new Date(`${beirutClock(f.clock()).date}T12:00:00Z`);
-  monday.setUTCDate(
-    monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7),
-  );
+  monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
   date = monday.toISOString().slice(0, 10);
   good(await authority.publish(null));
 });

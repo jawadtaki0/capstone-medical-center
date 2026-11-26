@@ -2,7 +2,11 @@ import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createMatcher } from "../src/assistant/matcher.js";
 import { routeMessage } from "../src/assistant/routing.js";
-import { TOPIC_IDS, capabilitiesFor, allowedTopics } from "../src/assistant/topics.js";
+import {
+  TOPIC_IDS,
+  capabilitiesFor,
+  allowedTopics,
+} from "../src/assistant/topics.js";
 
 // Needs the pinned local model: npm run intent-model --workspace @medical-center/staff-api
 let matcher;
@@ -30,7 +34,10 @@ test("routes normal English requests", async (t) => {
     ["any openings tomorrow", "sessions"],
     ["how can I check a patient in when they arrive", "checkin_help"],
     ["how do I make an appointment for someone", "book_help"],
-    ["a patient wants to cancel their visit, what do I do", "cancel_booking_help"],
+    [
+      "a patient wants to cancel their visit, what do I do",
+      "cancel_booking_help",
+    ],
     ["how do I move a booking to another day", "reschedule_help"],
     ["how do I add a new patient to the system", "patient_help"],
     ["how do I start a new lab order", "lab_order_help"],

@@ -1,0 +1,406 @@
+// One entry per thing the assistant understands. `needs` is a capability the
+// server computed for this person; `examples` train the local matcher.
+const topic = (id, needs, view, examples, en, ar) => ({
+  id,
+  needs,
+  view,
+  examples,
+  en,
+  ar,
+});
+const text = (label, reply, steps = []) => ({ label, reply, steps });
+
+export const TOPICS = [
+  topic(
+    "capabilities",
+    null,
+    null,
+    [
+      "what can you do",
+      "how can you help me",
+      "what can I ask you",
+      "شو فيك تعمل",
+      "كيف فيك تساعدني",
+      "ماذا يمكنك أن تفعل",
+    ],
+    text("What can you do?", "Here is what I can help your role with."),
+    text("ماذا يمكنك أن تفعل؟", "هذا ما يمكنني المساعدة فيه حسب دورك."),
+  ),
+  topic(
+    "sessions",
+    "bookingView",
+    "bookings",
+    [
+      "which sessions have openings today",
+      "which doctors have free places",
+      "are there available slots tomorrow",
+      "show me today's clinic sessions",
+      "is there space on Monday",
+      "شو الجلسات المتاحة اليوم",
+      "مين من الأطباء عنده مكان فاضي",
+      "في أماكن فاضية بكرا",
+      "ما هي المواعيد المتوفرة",
+    ],
+    text("Sessions with openings", "Published clinic sessions for"),
+    text("الجلسات المتاحة", "جلسات العيادة المنشورة بتاريخ"),
+  ),
+  topic(
+    "patient_help",
+    "patients",
+    "patients",
+    [
+      "how do I register a new patient",
+      "add a patient to the system",
+      "how do I find a patient record",
+      "search for a patient",
+      "كيف بسجل مريض جديد",
+      "كيف أضيف مريض",
+      "كيف بلاقي ملف المريض",
+      "ابحث عن مريض",
+    ],
+    text("Find or register a patient", "To find or register a patient:", [
+      "Open Patients.",
+      "Search for the patient first to avoid a duplicate record.",
+      "If there is no match, choose Register new patient and fill in every field.",
+      "Review the duplicate check, then save.",
+    ]),
+    text("البحث عن مريض أو تسجيله", "للبحث عن مريض أو تسجيله:", [
+      "افتح صفحة Patients.",
+      "ابحث عن المريض أولاً لتجنب تكرار الملف.",
+      "إذا لم تجد نتيجة، اختر Register new patient واملأ كل الحقول.",
+      "راجع فحص التكرار ثم احفظ.",
+    ]),
+  ),
+  topic(
+    "book_help",
+    "book",
+    "bookings",
+    [
+      "how do I book an appointment",
+      "make a booking for a patient",
+      "reserve a place with a doctor",
+      "schedule an appointment for someone",
+      "كيف بحجز موعد",
+      "احجز موعد لمريض عند الدكتور",
+      "كيف أعمل حجز جديد",
+    ],
+    text("Book an appointment", "To book an appointment:", [
+      "Open Bookings and search for the patient, then choose Open patient.",
+      "Pick the date and load sessions, then choose the professional and session.",
+      "Choose Review booking, check the details, then Confirm booking.",
+    ]),
+    text("حجز موعد", "لحجز موعد:", [
+      "افتح Bookings وابحث عن المريض ثم اختر Open patient.",
+      "اختر التاريخ وحمّل الجلسات، ثم اختر الطبيب والجلسة.",
+      "اختر Review booking، راجع التفاصيل، ثم Confirm booking.",
+    ]),
+  ),
+  topic(
+    "cancel_booking_help",
+    "book",
+    "bookings",
+    [
+      "how do I cancel a booking",
+      "the patient wants to cancel their appointment",
+      "remove an appointment",
+      "cancel a visit",
+      "كيف بلغي حجز",
+      "المريض بدو يلغي الموعد",
+      "إلغاء موعد",
+    ],
+    text("Cancel a booking", "To cancel a booking:", [
+      "Open Bookings and load the session date.",
+      "In the booking list, choose Cancel booking next to the right booking.",
+      "Enter the reason, then Confirm cancellation.",
+    ]),
+    text("إلغاء حجز", "لإلغاء حجز:", [
+      "افتح Bookings وحمّل تاريخ الجلسة.",
+      "في قائمة الحجوزات اختر Cancel booking بجانب الحجز الصحيح.",
+      "أدخل السبب ثم Confirm cancellation.",
+    ]),
+  ),
+  topic(
+    "reschedule_help",
+    "book",
+    "bookings",
+    [
+      "how do I reschedule an appointment",
+      "move a booking to another date",
+      "change the appointment day",
+      "the patient needs a different time",
+      "كيف بغير موعد الحجز",
+      "نقل الموعد ليوم تاني",
+      "تأجيل الموعد",
+    ],
+    text("Reschedule a booking", "To move a booking to another session:", [
+      "Open Bookings and book the new session first.",
+      "Then cancel the old booking with a reason.",
+      "Booking first keeps the old place if the new session cannot be confirmed.",
+    ]),
+    text("تغيير موعد حجز", "لنقل حجز إلى جلسة أخرى:", [
+      "افتح Bookings واحجز الجلسة الجديدة أولاً.",
+      "بعدها ألغِ الحجز القديم مع ذكر السبب.",
+      "الحجز أولاً يحافظ على الموعد القديم إذا تعذّر تأكيد الجديد.",
+    ]),
+  ),
+  topic(
+    "checkin_help",
+    "queue",
+    "queue",
+    [
+      "how do I check in a patient",
+      "the patient has arrived, what now",
+      "add the patient to the queue",
+      "record a patient arrival",
+      "كيف بعمل تشيك إن للمريض",
+      "وصل المريض، شو بعمل",
+      "تسجيل حضور المريض",
+      "إضافة المريض إلى الدور",
+    ],
+    text("Check in a patient", "To check in a patient:", [
+      "Open Queue.",
+      "Select the professional and the session.",
+      "Find the booking and choose Check in. Queue order follows arrival order.",
+    ]),
+    text("تسجيل وصول مريض", "لتسجيل وصول مريض:", [
+      "افتح Queue.",
+      "اختر الطبيب والجلسة.",
+      "ابحث عن الحجز واختر Check in. الترتيب في الدور حسب وقت الوصول.",
+    ]),
+  ),
+  topic(
+    "requests_help",
+    "requests",
+    "requests",
+    [
+      "how do I handle website requests",
+      "confirm an online appointment request",
+      "reject a request from the website",
+      "كيف بتعامل مع طلبات الموقع",
+      "تأكيد طلب موعد من الموقع",
+    ],
+    text("Website requests", "To handle a website request:", [
+      "Open Website requests and open the request.",
+      "Link it to the right patient record, or create one.",
+      "Review the session, then confirm or reject the request.",
+      "Send any WhatsApp notice yourself from Messages to send.",
+    ]),
+    text("طلبات الموقع", "للتعامل مع طلب من الموقع:", [
+      "افتح Website requests ثم افتح الطلب.",
+      "اربطه بملف المريض الصحيح أو أنشئ ملفاً.",
+      "راجع الجلسة ثم أكّد الطلب أو ارفضه.",
+      "أرسل رسالة WhatsApp بنفسك من Messages to send.",
+    ]),
+  ),
+  topic(
+    "lab_order_help",
+    "labOrder",
+    "lab",
+    [
+      "how do I create a lab order",
+      "add blood tests for a patient",
+      "start a new laboratory order",
+      "كيف بعمل طلب مختبر",
+      "طلب فحوصات دم لمريض",
+      "إنشاء طلب فحص مخبري",
+    ],
+    text("Create a Lab order", "To create a Lab order:", [
+      "Open Lab and choose New order.",
+      "Find the patient and choose the tests.",
+      "Choose Create order.",
+    ]),
+    text("إنشاء طلب مختبر", "لإنشاء طلب مختبر:", [
+      "افتح Lab واختر New order.",
+      "ابحث عن المريض واختر الفحوصات.",
+      "اختر Create order.",
+    ]),
+  ),
+  topic(
+    "lab_collect_help",
+    "labOrder",
+    "lab",
+    [
+      "how do I record specimen collection",
+      "mark the sample as collected",
+      "the blood sample was taken",
+      "كيف بسجل أخذ العينة",
+      "تم سحب الدم من المريض",
+      "تسجيل جمع العينة",
+    ],
+    text("Record specimen collection", "To record collection:", [
+      "Open Lab and open the order.",
+      "Check every required specimen.",
+      "Choose Mark collected.",
+    ]),
+    text("تسجيل أخذ العينة", "لتسجيل أخذ العينة:", [
+      "افتح Lab ثم افتح الطلب.",
+      "علّم على كل العينات المطلوبة.",
+      "اختر Mark collected.",
+    ]),
+  ),
+  topic(
+    "lab_cancel_help",
+    "labOrder",
+    "lab",
+    [
+      "how do I cancel a lab order",
+      "remove a laboratory order",
+      "كيف بلغي طلب المختبر",
+      "إلغاء طلب الفحص المخبري",
+    ],
+    text("Cancel a Lab order", "To cancel a Lab order:", [
+      "Open Lab and open the order.",
+      "Choose Cancel order and enter the reason.",
+      "Reception can cancel only an order that has not been collected.",
+    ]),
+    text("إلغاء طلب مختبر", "لإلغاء طلب مختبر:", [
+      "افتح Lab ثم افتح الطلب.",
+      "اختر Cancel order وأدخل السبب.",
+      "الاستقبال يلغي فقط الطلب الذي لم تؤخذ عينته بعد.",
+    ]),
+  ),
+  topic(
+    "lab_release_help",
+    "labRelease",
+    "lab",
+    [
+      "how do I release a result",
+      "send the lab report to the patient",
+      "publish the result PDF",
+      "كيف بصدر نتيجة الفحص",
+      "إرسال نتيجة المختبر للمريض",
+      "نشر تقرير النتيجة",
+    ],
+    text("Release a result PDF", "To release a finalized result:", [
+      "Open Lab and open the order that is Ready to release.",
+      "Preview the exact PDF version.",
+      "Enter the patient number and order ID shown on it, then Release report.",
+      "An eligible verified email gets the report-ready message. WhatsApp stays manual.",
+    ]),
+    text("إصدار تقرير النتيجة", "لإصدار نتيجة نهائية:", [
+      "افتح Lab ثم الطلب الذي حالته Ready to release.",
+      "عاين نسخة PDF نفسها.",
+      "أدخل رقم المريض ورقم الطلب الظاهرين فيها، ثم Release report.",
+      "تصل رسالة جاهزية التقرير إلى البريد المؤكد المؤهل. WhatsApp يبقى يدوياً.",
+    ]),
+  ),
+  topic(
+    "schedule_help",
+    "schedules",
+    "schedule",
+    [
+      "how do I change a doctor's schedule",
+      "edit clinic hours",
+      "close the clinic on one date",
+      "publish the weekly timetable",
+      "كيف بغير دوام الدكتور",
+      "تعديل جدول العيادة",
+      "نشر الجدول الأسبوعي",
+    ],
+    text("Change schedules", "To change a schedule:", [
+      "Open Schedules.",
+      "Edit the weekly sessions or one date.",
+      "Review the changes, then publish them.",
+    ]),
+    text("تعديل الدوام", "لتعديل الدوام:", [
+      "افتح Schedules.",
+      "عدّل الجلسات الأسبوعية أو تاريخاً واحداً.",
+      "راجع التغييرات ثم انشرها.",
+    ]),
+  ),
+  topic(
+    "staff_help",
+    "directory",
+    "directory",
+    [
+      "how do I create a staff account",
+      "add a new employee",
+      "disable a staff member's access",
+      "change someone's role",
+      "كيف بعمل حساب موظف",
+      "إضافة موظف جديد",
+      "تغيير صلاحيات موظف",
+    ],
+    text("Manage staff accounts", "To manage staff accounts:", [
+      "Open Staff Directory.",
+      "Create a staff account, or open a profile to change roles or access.",
+      "Protected changes ask you to verify your password again.",
+    ]),
+    text("إدارة حسابات الموظفين", "لإدارة حسابات الموظفين:", [
+      "افتح Staff Directory.",
+      "أنشئ حساباً جديداً، أو افتح ملفاً لتغيير الدور أو الوصول.",
+      "التغييرات المحمية تطلب تأكيد كلمة السر من جديد.",
+    ]),
+  ),
+  topic(
+    "account_help",
+    null,
+    "profile",
+    [
+      "how do I change my password",
+      "update my own email or phone",
+      "edit my profile",
+      "كيف بغير كلمة السر",
+      "تعديل ملفي الشخصي",
+      "تغيير رقم تلفوني أو إيميلي",
+    ],
+    text("My account", "To change your own details or password:", [
+      "Open My Profile.",
+      "Use Change password, or the contact section for email and phone.",
+    ]),
+    text("حسابي", "لتعديل بياناتك أو كلمة السر:", [
+      "افتح My Profile.",
+      "استخدم Change password، أو قسم التواصل للبريد والهاتف.",
+    ]),
+  ),
+];
+
+export const TOPIC_IDS = TOPICS.map((t) => t.id);
+
+// Matched only to refuse: never offered as buttons.
+export const REFUSALS = {
+  clinical: [
+    "what medicine should the patient take",
+    "is this test result dangerous",
+    "what does this high value mean for the patient",
+    "diagnose these symptoms",
+    "what dose should I give",
+    "شو الدوا المناسب للمريض",
+    "هل نتيجة الفحص خطيرة",
+    "ما هو تشخيص هذه الأعراض",
+    "قديش جرعة الدوا",
+  ],
+  outside: [
+    "what is the weather like",
+    "tell me a joke",
+    "who won the football match",
+    "write me a poem",
+    "what is the capital of France",
+    "how do I cook rice",
+    "كيف الطقس اليوم",
+    "خبرني نكتة",
+    "مين ربح المباراة",
+    "اكتب لي قصيدة",
+  ],
+};
+
+export function capabilitiesFor(roles, summary, labEnabled) {
+  const has = (...names) => names.some((name) => roles.includes(name));
+  return {
+    patients: summary.patients === true,
+    book: summary.book === true,
+    bookingView: summary.bookingView === true,
+    queue: summary.queue === true,
+    requests: summary.requests === true,
+    directory: summary.directory === true,
+    schedules: summary.schedules === true,
+    labOrder: labEnabled && has("Lab Admin", "Receptionist"),
+    labRelease: labEnabled && has("Admin", "Lab Admin", "Receptionist"),
+  };
+}
+
+export function allowedTopics(capabilities) {
+  return TOPICS.filter((t) => !t.needs || capabilities[t.needs]).map(
+    (t) => t.id,
+  );
+}

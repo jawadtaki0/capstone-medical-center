@@ -2,6 +2,7 @@ import WebsiteRequests from "./WebsiteRequests.jsx";
 import RequestScreenBoundary from "./RequestScreenBoundary.jsx";
 import BookingPanel from "./BookingPanel.jsx";
 import LabPanel from "./LabPanel.jsx";
+import AssistantPanel from "./AssistantPanel.jsx";
 import QueuePanel from "./QueuePanel.jsx";
 import { useEffect, useRef, useState } from "react";
 import StaffDirectory from "./StaffDirectory.jsx";
@@ -205,6 +206,7 @@ export default function Workspace({
         <p className="staff-eyebrow">YOUR WORKSPACE</p>
         {[
           ["today", "Today"],
+          ["assistant", "AI Assistant"],
           ["profile", "My Profile"],
           ...(capabilities.requests ? [["requests", "Website requests"]] : []),
           ...(patientsAllowed ? [["patients", "Patients"]] : []),
@@ -334,6 +336,13 @@ export default function Workspace({
               countsError={Boolean(summaryError)}
             />
           </RequestScreenBoundary>
+        ) : view === "assistant" ? (
+          <AssistantPanel
+            api={api}
+            lab={labAllowed}
+            onError={onError}
+            onNavigate={navigate}
+          />
         ) : view === "lab" && labAllowed ? (
           <LabPanel api={api} roles={roles} onError={onError} />
         ) : view === "queue" && capabilities.queue ? (

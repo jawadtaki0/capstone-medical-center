@@ -30,6 +30,7 @@ import { createEmergencyRecovery } from "./emergency-recovery.js";
 import { createOperationsService } from "./operations.js";
 import { createBookingService } from "./bookings.js";
 import { createLabService } from "./lab.js";
+import { createAssistantService } from "./assistant/service.js";
 import { createQueueService } from "./queue.js";
 import { createPatientService } from "./patients.js";
 
@@ -145,6 +146,8 @@ export function createAuthService({
   testPasswordWork,
   publicationDeliveryConfigured = false,
   publicationDeliveryBlocked = false,
+  assistantMatcher = null,
+  labEnabled = false,
 }) {
   if (!db || !client?.startSession || !vault?.encrypt || !vault?.decrypt)
     throw unavailable();
@@ -729,7 +732,7 @@ export function createAuthService({
 
   // Health/setup validation must not touch unrelated registry collections.
   // Initialize private services only when their named authenticated route is used.
-  let bookings, patients, websiteRequests, queue, lab;
+  let bookings, patients, websiteRequests, queue, lab, assistant;
   const operations = createOperationsService({
     db,
     transaction,
@@ -910,6 +913,18 @@ export function createAuthService({
         authenticated,
         now,
         hostedLab: requestIntegration?.transport.lab,
+      }));
+    },
+    get assistant() {
+      const services = this;
+      return (assistant ??= createAssistantService({
+        transaction,
+        authenticated,
+        now,
+        summary: () => services.summary,
+        bookings: () => services.bookings,
+        matcher: assistantMatcher,
+        labEnabled,
       }));
     },
     get patients() {

@@ -9,6 +9,7 @@ const names = [
   "openStaffPhoneWhatsApp",
   "bookingSessions",
   "lab",
+  "assistantMessage",
   "queueTransition",
   "queueAdmit",
   "queueSessions",
