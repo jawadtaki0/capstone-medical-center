@@ -12,6 +12,10 @@ const labels = {
     cedar: "Cedar",
     you: "You",
     title: "Cedar assistant",
+    welcome: "How can we help?",
+    allTopics: "All topics",
+    personal: "My account and care",
+    language: "Language",
     help: "Ask about public Clinic sessions and Lab information. Keep personal details out of chat.",
     input: "Your question",
     topicsLabel: "Guided help",
@@ -53,6 +57,10 @@ const labels = {
     cedar: "سيدر",
     you: "أنت",
     title: "مساعد سيدر",
+    welcome: "كيف يمكننا المساعدة؟",
+    allTopics: "كل المواضيع",
+    personal: "حسابي ورعايتي",
+    language: "اللغة",
     help: "اسأل عن جلسات العيادة المنشورة ومعلومات المختبر. تجنّب كتابة معلومات شخصية.",
     input: "سؤالك",
     topicsLabel: "مساعدة حسب الموضوع",
@@ -101,7 +109,16 @@ export default function PublicAssistant() {
   const [turns, setTurns] = useState([]);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showTopics, setShowTopics] = useState(false);
   const copy = labels[language];
+  const latest = turns.at(-1);
+  // One emergency line, always in view. The urgent reply already says it.
+  const footerLanguage = latest?.replyLanguage ?? language;
+  const urgentShown =
+    latest &&
+    (latest.answer.parts ?? [latest.answer]).every(
+      (part) => part.kind === "emergency",
+    );
   function close() {
     setOpen(false);
     opener.current.focus();
@@ -132,9 +149,10 @@ export default function PublicAssistant() {
   useEffect(() => {
     if (!open) return;
     const log = history.current;
-    if (!busy && turns.at(-1)?.topic && latestReply.current) {
+    // Start reading at the top of the newest exchange.
+    if (!busy && latestReply.current) {
       log.scrollTop +=
-        latestReply.current.getBoundingClientRect().top -
+        latestReply.current.parentElement.getBoundingClientRect().top -
         log.getBoundingClientRect().top;
     } else {
       log.scrollTop = log.scrollHeight;
@@ -150,6 +168,7 @@ export default function PublicAssistant() {
     menu,
   ) {
     if (busy || !value) return;
+    setShowTopics(false);
     const messages = [
       ...turns
         .filter((turn) => !turn.topic && !turn.menu)
@@ -203,6 +222,46 @@ export default function PublicAssistant() {
   const choose = (menu, label) =>
     send(label, undefined, undefined, undefined, undefined, undefined, menu);
 
+  const topicButton = ([topic, label], className, onClick) => (
+    <button
+      key={topic}
+      type="button"
+      className={"button " + className}
+      disabled={busy}
+      onClick={() => onClick(topic, label)}
+    >
+      {label}
+    </button>
+  );
+  const { urgent, ...personal } = copy.topics;
+  const topicList = (
+    <>
+      <div
+        className="cedar-assistant-menu"
+        role="group"
+        aria-label={copy.menuLabel}
+      >
+        {Object.entries(copy.menu).map((entry) =>
+          topicButton(entry, "cedar-assistant-topic", (topic, label) =>
+            choose({ topic }, label),
+          ),
+        )}
+      </div>
+      <p className="cedar-assistant-group-title">{copy.personal}</p>
+      <div
+        className="cedar-assistant-personal"
+        role="group"
+        aria-label={copy.topicsLabel}
+      >
+        {Object.entries(personal).map((entry) =>
+          topicButton(entry, "cedar-assistant-quiet", (topic, label) =>
+            send(label, topic),
+          ),
+        )}
+      </div>
+    </>
+  );
+
   return (
     <>
       <button
@@ -233,6 +292,15 @@ export default function PublicAssistant() {
         >
           <div className="cedar-assistant-header">
             <h2 id="cedar-assistant-title">{copy.title}</h2>
+            <select
+              aria-label={copy.language}
+              value={language}
+              disabled={busy}
+              onChange={(event) => setLanguage(event.target.value)}
+            >
+              <option value="en">English</option>
+              <option value="ar">العربية</option>
+            </select>
             <div className="cedar-assistant-controls">
               <button
                 type="button"
@@ -273,18 +341,6 @@ export default function PublicAssistant() {
               </button>
             </div>
           </div>
-          <label>
-            Language / اللغة{" "}
-            <select
-              value={language}
-              disabled={busy}
-              onChange={(event) => setLanguage(event.target.value)}
-            >
-              <option value="en">English</option>
-              <option value="ar">العربية</option>
-            </select>
-          </label>
-          {!turns.length && <p>{copy.help}</p>}
           <div
             ref={history}
             className="cedar-assistant-turns"
@@ -294,17 +350,24 @@ export default function PublicAssistant() {
             tabIndex={0}
             aria-label={copy.title}
           >
-            {turns.map(({ question, answer, topic, replyLanguage }, index) => (
+            {!turns.length && (
+              <div className="cedar-assistant-welcome">
+                <h3>{copy.welcome}</h3>
+                <p>{copy.help}</p>
+                {topicList}
+              </div>
+            )}
+            {turns.map(({ question, answer, replyLanguage }, index) => (
               <section key={index}>
                 <div className="cedar-assistant-question">
-                  <strong>{copy.you}</strong>
+                  <span className="cedar-assistant-hidden">{copy.you}</span>
                   <p dir="auto">{question}</p>
                 </div>
                 <div
                   className="cedar-assistant-reply"
                   ref={index === turns.length - 1 ? latestReply : null}
                 >
-                  <strong>{copy.cedar}</strong>
+                  <span className="cedar-assistant-hidden">{copy.cedar}</span>
                   {(answer.parts ?? [answer]).map((part, partIndex) => (
                     <div
                       key={partIndex}
@@ -347,7 +410,7 @@ export default function PublicAssistant() {
                         ))}
                       </div>
                       {part.page && (
-                        <a href={part.page}>
+                        <a className="cedar-assistant-more" href={part.page}>
                           {part.page === "/account"
                             ? copy.account
                             : part.page === "/schedule"
@@ -515,18 +578,6 @@ export default function PublicAssistant() {
                         )}
                     </div>
                   ))}
-                  {!topic &&
-                    !(answer.parts ?? [answer]).every(
-                      (part) => part.kind === "emergency",
-                    ) && (
-                      <p
-                        className="cedar-assistant-safety"
-                        lang={replyLanguage}
-                        dir="auto"
-                      >
-                        {emergencyLine[replyLanguage]}
-                      </p>
-                    )}
                 </div>
               </section>
             ))}
@@ -541,39 +592,25 @@ export default function PublicAssistant() {
               </div>
             )}
           </div>
-          <div
-            className="cedar-assistant-chips cedar-assistant-menu"
-            role="group"
-            aria-label={copy.menuLabel}
-          >
-            {Object.entries(copy.menu).map(([topic, label]) => (
+          {turns.length > 0 && showTopics && (
+            <div className="cedar-assistant-drawer">{topicList}</div>
+          )}
+          <div className="cedar-assistant-bar">
+            {turns.length > 0 && (
               <button
-                key={topic}
                 type="button"
-                className="button button-primary"
-                disabled={busy}
-                onClick={() => choose({ topic }, label)}
+                className="button cedar-assistant-quiet cedar-assistant-topics-toggle"
+                aria-expanded={showTopics}
+                onClick={() => setShowTopics((value) => !value)}
               >
-                {label}
+                {copy.allTopics}
               </button>
-            ))}
-          </div>
-          <div
-            className="cedar-assistant-chips"
-            role="group"
-            aria-label={copy.topicsLabel}
-          >
-            {Object.entries(copy.topics).map(([topic, label]) => (
-              <button
-                key={topic}
-                type="button"
-                className="button button-secondary"
-                disabled={busy}
-                onClick={() => send(label, topic)}
-              >
-                {label}
-              </button>
-            ))}
+            )}
+            {topicButton(
+              ["urgent", urgent],
+              "cedar-assistant-urgent",
+              (topic, label) => send(label, topic),
+            )}
           </div>
           <form
             onSubmit={(event) => {
@@ -581,10 +618,16 @@ export default function PublicAssistant() {
               send(question.trim());
             }}
           >
-            <label htmlFor="cedar-assistant-question">{copy.input}</label>
+            <label
+              className="cedar-assistant-hidden"
+              htmlFor="cedar-assistant-question"
+            >
+              {copy.input}
+            </label>
             <input
               id="cedar-assistant-question"
               value={question}
+              placeholder={copy.input}
               dir="auto"
               onChange={(event) => setQuestion(event.target.value)}
               maxLength={400}
@@ -608,6 +651,15 @@ export default function PublicAssistant() {
               </svg>
             </button>
           </form>
+          {!urgentShown && (
+            <p
+              className="cedar-assistant-footer"
+              lang={footerLanguage}
+              dir={footerLanguage === "ar" ? "rtl" : "ltr"}
+            >
+              {emergencyLine[footerLanguage]}
+            </p>
+          )}
         </aside>
       )}
     </>
