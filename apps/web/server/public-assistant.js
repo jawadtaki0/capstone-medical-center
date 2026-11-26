@@ -3,6 +3,7 @@ import {
   fixedDemoIntent,
   standaloneArabizi,
   symptomRequest,
+  mergeDateNotes,
   splitDemoRequests,
 } from "./public-assistant-demo.js";
 import {
@@ -235,10 +236,11 @@ export function createAssistant({
       )
     )
       return freeTextPolicy ? handoff() : reply("reception");
-    const latest = messages.at(-1);
+    let latest = messages.at(-1);
     const demoTurn = demo && freeTextPolicy;
     const protectedCategory = protectedGate(latest);
-    const partsToAnswer = demoTurn ? splitDemoRequests(latest) : [];
+    const sentences = demoTurn ? splitDemoRequests(latest) : [];
+    const partsToAnswer = mergeDateNotes(sentences);
     const publicPreparation =
       isExactPublicPreparation(latest) ||
       (demoTurn && isNamedTestPreparation(latest));
@@ -310,6 +312,8 @@ export function createAssistant({
         parts,
       });
     }
+    if (partsToAnswer.length === 1 && sentences.length > 1)
+      latest = partsToAnswer[0];
     const demoPublic =
       demoTurn &&
       !category &&
@@ -351,7 +355,7 @@ export function createAssistant({
     )
       return handoff();
     if (selectedDate) publicContext.selectedDate = selectedDate;
-    const dateOptions = async (intent, filters) => {
+    const dateOptions = async (intent, filters, unread) => {
       const options = await eligibleDemoDates({
         intent,
         filters,
@@ -371,7 +375,7 @@ export function createAssistant({
         datePicker: { requestHash, intent, options },
       };
       return reply("dateOptions", {
-        text: demoCopy[lang].date,
+        text: demoCopy[lang][unread ? "unread" : "date"],
         dateOptions: options,
       });
     };
@@ -430,7 +434,11 @@ export function createAssistant({
       }
     }
     if (classified.kind === "unavailableDate")
-      return dateOptions(classified.intent, classified.filters);
+      return dateOptions(
+        classified.intent,
+        classified.filters,
+        classified.unread,
+      );
     if (classified.kind === "reference")
       return reply(classified.route, classified.fields);
     if (classified.kind === "ambiguousService")

@@ -1,5 +1,6 @@
 import { fixedIntentExamples } from "./public-assistant-fixed-bank.js";
 import { canon } from "./public-assistant-language.js";
+import { cedarToday, resolveDay } from "./public-assistant-dates.js";
 import { receptionHandoff } from "../src/public-assistant-safety.js";
 
 export const demoCopy = {
@@ -11,6 +12,7 @@ export const demoCopy = {
     offTopic:
       "I can only help with Cedar's services, hours, doctors and bookings.",
     date: "That date is unavailable. Choose an available date below.",
+    unread: "I couldn’t read that date. Choose a date below.",
     noDates: "That date is unavailable. " + receptionHandoff.en,
   },
   ar: {
@@ -21,6 +23,7 @@ export const demoCopy = {
     offTopic:
       "يمكنني مساعدتك فقط في خدمات سيدر وساعات العمل والأطباء والحجوزات.",
     date: "هذا التاريخ غير متاح. اختر أحد التواريخ المتاحة أدناه.",
+    unread: "لم أتمكن من قراءة التاريخ. اختر تاريخًا أدناه.",
     noDates: "هذا التاريخ غير متاح. " + receptionHandoff.ar,
   },
 };
@@ -72,6 +75,26 @@ export function fixedDemoIntent(message, gateCategory) {
   return gateCategory === "unrelated" || unrelated.test(text)
     ? "offTopic"
     : null;
+}
+
+const asksSomething =
+  /\b(?:what|when|which|who|how|is|are|can|do|does|hours?|open\w*|clos\w*|price|cost|book\w*|prepar\w*|results?)\b|شو|قديش|متي|امتي|كيف|هل|وين|مين|اي ساعه|دوام|ساعات|سعر|فحص|نتيج/u;
+
+// "I'm coming Friday. When do you close?" is one request: keep its date.
+export function mergeDateNotes(sentences) {
+  const merged = [];
+  let note = "";
+  for (const sentence of sentences) {
+    const text = canon(sentence);
+    if (!asksSomething.test(text) && resolveDay(text, cedarToday()).specified) {
+      note = (note + " " + sentence).trim();
+      continue;
+    }
+    merged.push((note + " " + sentence).trim());
+    note = "";
+  }
+  if (note) merged.push([merged.pop(), note].filter(Boolean).join(" "));
+  return merged;
 }
 
 export function splitDemoRequests(message) {

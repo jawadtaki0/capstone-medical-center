@@ -358,7 +358,28 @@ export function privateResultRequest(value) {
     /\b(?:pull|fetch|get|send|show|display|look up|retrieve|share|access|download)\b|جيب|ابعث|ابعت|ارسل|اعرض|فرجي|ورجي|(?:ط|تط)لع|(?:تحمل|حمل|نزل)(?:لي|ولي|وا)?|\b(?:jib\w*|tjib\w*|b3at\w*|farji\w*|warji\w*)\b/u;
   const owner =
     /\b(?:my|our|another|their|his|her|patient'?s|someone else)\b|تبع|(?<!\p{L})ل?(?:بيي|امي|خيي|اختي|مرتي|جوزي|زوجي|زوجتي)(?!\p{L})|(?:مرت|زوج|ابن|بنت|والد|خال|عم|اخ|اخت|رفيق|رفيق[ته])\p{L}*|\b(?:taba3|ta3|ekhte|ekhti|khayye|bayye|emme|mart[ei])\b/u;
-  return result.test(text) && retrieval.test(text) && owner.test(text);
+  return (
+    (result.test(text) && retrieval.test(text) && owner.test(text)) ||
+    ownResultStatus(text)
+  );
+}
+
+// Asking whether the visitor's own test or report has arrived.
+function ownResultStatus(text) {
+  return (
+    /\b(?:my|for me|under my name|i (?:did|took|had|gave))\b|تبعي|(?:فحوصاتي|تحاليلي|فحصي|تحليلي)/u.test(
+      text,
+    ) &&
+    /\b(?:tests?|results?|reports?|blood ?work)\b|فحص|فحوصات|تحليل|تحاليل|نتيج|نتايج|تقرير/u.test(
+      text,
+    ) &&
+    /\b(?:ready|out|arrived|c[oa]me (?:back|in)|look(?:ed)? up|under my name)\b|جهز|جاهز|طلع|وصل|شوف/u.test(
+      text,
+    ) &&
+    !/\b(?:(?:get|getting|be) ready|ready (?:for|before)|prepar\w*|before|fast\w*)\b|تحضير|حضر|صيام|صوم|قبل/u.test(
+      text,
+    )
+  );
 }
 
 const cedarDomain =

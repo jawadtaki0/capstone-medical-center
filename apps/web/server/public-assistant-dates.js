@@ -142,8 +142,65 @@ export function sameDayReference(value) {
   return text.replace(sameDayWords, "") !== text;
 }
 
+const monthNames = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+// Lebanese and Gregorian Arabic month names, in canonical spelling.
+const arabicMonths = [
+  /كانون الثاني|كانون التاني|يناير/gu,
+  /شباط|فبراير/gu,
+  /اذار|مارس/gu,
+  /نيسان|ابريل/gu,
+  /ايار|مايو/gu,
+  /حزيران|يونيو/gu,
+  /تموز|يوليو/gu,
+  /اغسطس|(?<=\d )اب(?!\p{L})/gu,
+  /ايلول|سبتمبر/gu,
+  /تشرين الاول|اكتوبر/gu,
+  /تشرين الثاني|تشرين التاني|نوفمبر/gu,
+  /كانون الاول|ديسمبر/gu,
+];
+function readableDates(value) {
+  let text = value;
+  for (const [index, pattern] of arabicMonths.entries())
+    text = text.replace(pattern, monthNames[index]);
+  return (
+    text
+      .replace(
+        /(?<!\p{L})(?:ال)?اول (?:من )?(?=january|february|march|april|may|june|july|august|september|october|november|december)/gu,
+        "1 ",
+      )
+      // Day first, as written in Lebanon.
+      .replace(
+        /(?<![\d/.-])(?!24\/7)(\d{1,2})(?:\/(\d{1,2})(?:\/(\d{4}))?|[.-](\d{1,2})[.-](\d{4}))(?![\d/])/g,
+        (match, day, month, year, otherMonth, otherYear) => {
+          const name = monthNames[Number(month ?? otherMonth) - 1];
+          return name
+            ? [day, name, year ?? otherYear].filter(Boolean).join(" ")
+            : match;
+        },
+      )
+  );
+}
+const dayAlone =
+  /\b(?:the|on|on the) (\d{1,2})(?:st|nd|rd|th)\b(?! (?:floor|test|time|opinion))|\bon the (\d{1,2})(?![\d:])|\bnhar (\d{1,2})(?![\d:])|(?:يوم|نهار|بتاريخ|تاريخ) (\d{1,2})(?![\d:])|(?<![\d:])(\d{1,2}) (?:من )?(?:هال|ال)شهر/u;
+const daysAhead =
+  /\bin (two|three|four|2|3|4) days\b|بعد (يومين|تلات[ةه]? ايام|3 ايام)/u;
+
 export function resolveDay(value, date) {
-  const text = scheduleText(canon(value).replace(sameDayWords, "")).replace(
+  const written = scheduleText(canon(value).replace(sameDayWords, ""));
+  const text = readableDates(written).replace(
     /\b(?:jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\.?(?=\s+\d|\s*$)/g,
     (short) =>
       ({
@@ -160,9 +217,6 @@ export function resolveDay(value, date) {
         dec: "december",
       })[short.replace(".", "")],
   );
-  const textWithLebaneseMonths = text.replace(/تشرين التاني/gu, "تشرين الثاني");
-  if (textWithLebaneseMonths !== text)
-    return resolveDay(textWithLebaneseMonths, date);
   const weekdays = [
     /sunday|الاحد/,
     /monday|الاثنين/,
@@ -180,7 +234,7 @@ export function resolveDay(value, date) {
   if (namedWeekdays.length > 1) return { day: null, specified: true };
   const [namedWeekday = -1] = namedWeekdays;
   const months =
-    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b|تشرين الثاني|كانون الاول|كانون الثاني|شباط/iu;
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/iu;
   const month = months.exec(text);
   const numberedDay = /(?:^|\s)(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?$/u;
   const spokenOrdinals = [
@@ -232,7 +286,11 @@ export function resolveDay(value, date) {
     /\b(?:the )?day after tomorrow\b|بعد\s+بكر[اه]|\bba3d (?:bokra|bukra|boukra)\b/gu;
   const withoutDayAfter = text.replace(dayAfterPhrase, " ");
   const relativeOffsets = [];
-  if (/\b(?:today|l(?:yom|youm)|el ?yom)\b|اليوم|هاليوم/u.test(withoutDayAfter))
+  if (
+    /\b(?:today|tonight|this (?:morning|afternoon|evening)|l(?:yom|youm)|el ?yom)\b|اليوم|هاليوم/u.test(
+      withoutDayAfter,
+    )
+  )
     relativeOffsets.push(0);
   if (
     /\btomorrow\b|بكر[اه]|(?<!\p{L})غدا?(?!\p{L})|\b(?:bokra|bukra|boukra)\b/u.test(
@@ -241,6 +299,12 @@ export function resolveDay(value, date) {
   )
     relativeOffsets.push(1);
   if (text !== withoutDayAfter) relativeOffsets.push(2);
+  const ahead = daysAhead.exec(text);
+  if (ahead)
+    relativeOffsets.push(
+      { two: 2, three: 3, four: 4, يومين: 2 }[ahead[1] ?? ahead[2]] ??
+        (Number.parseInt(ahead[1] ?? ahead[2], 10) || 3),
+    );
   if (relativeOffsets.length > 1) return { day: null, specified: true };
   const [offset] = relativeOffsets;
   const relativeDate = offset === undefined ? null : addDays(date, offset);
@@ -260,7 +324,12 @@ export function resolveDay(value, date) {
       ? Number(
           /(?:^|\s)(\d{1,2})(?:st|nd|rd|th)(?=$|[\s,?.])/u.exec(text)?.[1],
         ) || null
-      : null;
+      : !month && relativeDate === null
+        ? Number(dayAlone.exec(text)?.slice(1).find(Boolean)) || null
+        : null;
+  // A month without a day must not fall back to the coming weekday.
+  if (month && !monthDay && !explicit && !["may", "march"].includes(month[0]))
+    return { day: null, specified: true };
   if (explicit || monthDay || ordinal) {
     const candidate = explicit
       ? new Date(explicit + "T12:00:00Z")
@@ -290,17 +359,7 @@ export function resolveDay(value, date) {
           ].indexOf(month[0])
         : -1;
       if (monthDay)
-        candidate.setUTCMonth(
-          requestedMonth >= 0
-            ? requestedMonth
-            : {
-                "تشرين الثاني": 10,
-                "كانون الاول": 11,
-                "كانون الثاني": 0,
-                شباط: 1,
-              }[month[0]],
-          requestedDay,
-        );
+        candidate.setUTCMonth(requestedMonth, requestedDay);
       else {
         candidate.setUTCDate(requestedDay);
         if (candidate < day) {

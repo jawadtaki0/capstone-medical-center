@@ -140,8 +140,8 @@ export function demoReferenceIntent(value) {
   return null;
 }
 
-function unavailableDate(intent, filters) {
-  return { kind: "unavailableDate", intent, filters };
+function unavailableDate(intent, filters, unread = false) {
+  return { kind: "unavailableDate", intent, filters, unread };
 }
 
 function hoursRequest(
@@ -182,12 +182,12 @@ function hoursRequest(
   if (
     demo &&
     (unsupportedDate.test(text) ||
-      bareMonth.test(text) ||
+      (bareMonth.test(text) && !day.day) ||
       (day.specified && !day.day))
   )
-    return unavailableDate(intent);
+    return unavailableDate(intent, undefined, true);
   if (!hours.weekend && !day.specified && unreadDate.test(text))
-    return demo ? unavailableDate(intent) : null;
+    return demo ? unavailableDate(intent, undefined, true) : null;
   const { hourDays, conflict } = resolveTurnDates(
     message,
     message,
@@ -231,10 +231,11 @@ function sessionRequest(message, text, { date, context, demo, selectedDate }) {
       unsupportedDate.test(text) ||
       bareMonth.test(text))
   )
-    return unavailableDate("clinicSchedule", {
-      professional: clinician,
-      specialty,
-    });
+    return unavailableDate(
+      "clinicSchedule",
+      { professional: clinician, specialty },
+      !day,
+    );
   if (!day && !selectedDate && !demo) return null;
   return {
     kind: "sessions",
