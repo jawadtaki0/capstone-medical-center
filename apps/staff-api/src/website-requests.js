@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { prepareAvailability } from "./session-availability.js";
+import {
+  invalidateAvailability,
+  prepareAvailability,
+} from "./session-availability.js";
 import { availabilitySlot } from "../../../shared/session-availability.mjs";
 import { StaffError } from "./errors.js";
 import { validRoles } from "./permissions.js";
@@ -22,6 +25,7 @@ import {
 import {
   digest,
   requestCrypto,
+  guestCancellationPath,
   consumeCounter,
 } from "../../../shared/website-request-security.mjs";
 import { websiteNoticeText } from "../../../shared/website-notice.mjs";
@@ -195,6 +199,19 @@ export function createWebsiteRequestService({
     input.patientMode
       ? digest({ booking: input.booking, patientMode: input.patientMode })
       : digest(input.booking);
+  const confirmationCancellationLink = (r, kind, at) =>
+    kind === "confirmed" &&
+    r.status === "confirmed" &&
+    Number.isSafeInteger(r.guestCancellationExpiresAt) &&
+    r.guestCancellationExpiresAt >= +at
+      ? config.publicBase +
+        guestCancellationPath(
+          crypto,
+          r._id,
+          r.guestCancellationExpiresAt,
+          r.generation,
+        )
+      : null;
   async function notice(session, r, kind, at) {
     await notices.updateMany(
       { requestId: r._id, state: { $in: ["pending", "call_required"] } },
@@ -254,7 +271,13 @@ export function createWebsiteRequestService({
   async function ingest(batch) {
     exact(
       batch,
-      ["schemaVersion", "requests", "cursor", "availabilityDates"],
+      [
+        "schemaVersion",
+        "requests",
+        "cursor",
+        "availabilityDates",
+        "patientCancellations",
+      ],
       ["schemaVersion", "requests", "cursor"],
     );
     if (batch.availabilityDates !== undefined) {
@@ -357,6 +380,9 @@ export function createWebsiteRequestService({
             expiresAt: new Date(item.expiresAt),
             generation: item.generation,
             tokenEnvelope: item.tokenEnvelope,
+            ...(Number.isSafeInteger(item.guestCancellationExpiresAt)
+              ? { guestCancellationExpiresAt: item.guestCancellationExpiresAt }
+              : {}),
             phoneReview: item.phoneReview,
             status: "awaiting",
             searchKeys: [
@@ -383,6 +409,71 @@ export function createWebsiteRequestService({
           );
       });
     }
+  }
+  async function applyPatientCancellation(input) {
+    exact(input, ["requestId", "at", "channel", "reasons"]);
+    if (
+      typeof input.requestId !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(input.requestId) ||
+      !Number.isFinite(Date.parse(input.at)) ||
+      !["account", "guest_link"].includes(input.channel) ||
+      !Array.isArray(input.reasons) ||
+      input.reasons.length > 7 ||
+      input.reasons.some(
+        (reason) =>
+          !reason ||
+          typeof reason.code !== "string" ||
+          (reason.note !== undefined &&
+            (typeof reason.note !== "string" || reason.note.length > 200)),
+      )
+    )
+      throw Error("Invalid patient cancellation.");
+    return transaction(async (session) => {
+      await guard(session);
+      const r = await rows.findOne({ _id: input.requestId }, { session });
+      if (!r) return false;
+      if (r.patientCancellation) return true;
+      const at = new Date(input.at);
+      if (r.bookingId) {
+        const bookings = db.collection("bookings");
+        const b = await bookings.findOne(
+          { _id: r.bookingId, scopeId: r.scopeId },
+          { session },
+        );
+        if (!b || b.queue) return false;
+        if (b.status === "confirmed") {
+          await bookings.updateOne(
+            { _id: b._id, status: "confirmed" },
+            {
+              $set: {
+                status: "cancelled",
+                cancelledAt: at,
+                cancelledBy: null,
+                cancellationReason: "Cancelled by patient",
+              },
+            },
+            { session },
+          );
+          await invalidateAvailability(db, session, b.date);
+        }
+      }
+      r.status = "cancelled_by_patient";
+      r.patientCancellation = {
+        at,
+        channel: input.channel,
+        reasons: input.reasons,
+        seenAt: null,
+      };
+      r.revision++;
+      r.sequence++;
+      r.syncedSequence = r.sequence;
+      await rows.replaceOne({ _id: r._id }, r, { session });
+      await notice(session, r, "cancelled_by_patient", at);
+      await audit(session, r, { system: true }, "cancelled_by_patient", at, {
+        channel: input.channel,
+      });
+      return true;
+    });
   }
   async function completeRotation(session, r, result, ctx, at) {
     if (
@@ -454,7 +545,21 @@ export function createWebsiteRequestService({
       (await db.collection("website_request_sync").findOne({ _id: "cursor" }))
         ?.value ?? 0;
     if (exhausted()) return summary();
-    await ingest(await config.transport.pull(cursor, options()));
+    const batch = await config.transport.pull(cursor, options());
+    await ingest(batch);
+    if (
+      !Array.isArray(batch.patientCancellations ?? []) ||
+      (batch.patientCancellations?.length ?? 0) > 25
+    )
+      throw Error("Invalid patient cancellation batch.");
+    for (const pending of batch.patientCancellations ?? []) {
+      if (exhausted()) return summary();
+      if (await applyPatientCancellation(pending))
+        await config.transport.event(
+          { requestId: pending.requestId, patientCancelled: true },
+          options(),
+        );
+    }
     if (exhausted()) return summary();
     // Background reconciliation is a system action, not an employee impersonation.
     const ended = await rows
@@ -922,13 +1027,22 @@ export function createWebsiteRequestService({
           query.searchKeys = { $elemMatch: { $gte: q, $lt: `${q}\uffff` } };
         }
         if (input.status) {
-          if (
-            !["awaiting", "confirmed", "rejected", "cancelled"].includes(
-              input.status,
+          if (input.status === "unread_cancellations") {
+            query.status = "cancelled_by_patient";
+            query["patientCancellation.seenAt"] = null;
+          } else {
+            if (
+              ![
+                "awaiting",
+                "confirmed",
+                "rejected",
+                "cancelled",
+                "cancelled_by_patient",
+              ].includes(input.status)
             )
-          )
-            throw fail("request_input", "Choose a valid status.", 400);
-          query.status = input.status;
+              throw fail("request_input", "Choose a valid status.", 400);
+            query.status = input.status;
+          }
         }
         if (input.date) query["selection.date"] = text(input.date, 10);
         if (input.cursor !== undefined) {
@@ -951,6 +1065,16 @@ export function createWebsiteRequestService({
           .toArray();
         return {
           requests: found.slice(0, 20).map(dto),
+          unreadCancellations: await rows.countDocuments(
+            {
+              scopeId: query.scopeId,
+              purgedAt: query.purgedAt,
+              source: query.source,
+              status: "cancelled_by_patient",
+              "patientCancellation.seenAt": null,
+            },
+            { session },
+          ),
           nextCursor: found.length > 20 ? found[19].ordinal : null,
         };
       }),
@@ -961,6 +1085,20 @@ export function createWebsiteRequestService({
       const result = await pump();
       return { ...result, refreshed: !result.partial };
     },
+    markCancellationSeen: (token, input) =>
+      run(token, true, async (session, ctx, a, at) => {
+        exact(input, ["id"]);
+        const r = await target(session, ctx, a, input);
+        if (!r.patientCancellation)
+          throw fail("request_input", "Patient cancellation unavailable.", 404);
+        if (!r.patientCancellation.seenAt)
+          await rows.updateOne(
+            { _id: r._id },
+            { $set: { "patientCancellation.seenAt": at } },
+            { session },
+          );
+        return { seen: true };
+      }),
     detail: (token, input) =>
       run(token, false, async (session, ctx, a) => {
         exact(input, ["id"]);
@@ -1492,8 +1630,14 @@ export function createWebsiteRequestService({
           n.generation !== r.generation ||
           n.state === "superseded";
         if (input.action === "preview") {
-          const language = input.language ?? n.language ?? r.language;
-          if (!["ar", "en"].includes(language))
+          const language =
+            n.kind === "cancelled_by_patient"
+              ? r.language
+              : (input.language ?? n.language ?? r.language);
+          if (
+            n.kind !== "cancelled_by_patient" &&
+            !["ar", "en"].includes(language)
+          )
             throw fail("request_input", "Choose a language.", 400);
           const phone = phoneNumber(r.patient.phone, "LB");
           return {
@@ -1515,6 +1659,11 @@ export function createWebsiteRequestService({
                 reference: r.reference,
                 bookingReference: r.bookingReference,
                 status: n.kind,
+                guestCancellationLink: confirmationCancellationLink(
+                  r,
+                  n.kind,
+                  at,
+                ),
                 professional: r.selection.professionalName,
                 kind: r.selection.kind,
                 ...r.selection,
@@ -1538,8 +1687,14 @@ export function createWebsiteRequestService({
             "request_notice_stale",
             "This notice is outdated or a link replacement is pending. Review the current notice.",
           );
-        const language = input.language ?? n.language ?? r.language;
-        if (!["ar", "en"].includes(language))
+        const language =
+          n.kind === "cancelled_by_patient"
+            ? r.language
+            : (input.language ?? n.language ?? r.language);
+        if (
+          n.kind !== "cancelled_by_patient" &&
+          !["ar", "en"].includes(language)
+        )
           throw fail("request_input", "Choose Arabic or English.", 400);
         if (input.action === "configure") {
           const p = r.linkedPatientId
@@ -1652,6 +1807,11 @@ export function createWebsiteRequestService({
               reference: r.reference,
               bookingReference: r.bookingReference,
               status: n.kind,
+              guestCancellationLink: confirmationCancellationLink(
+                r,
+                n.kind,
+                at,
+              ),
               professional: r.selection.professionalName,
               kind: r.selection.kind,
               ...r.selection,
@@ -1659,7 +1819,7 @@ export function createWebsiteRequestService({
               trackingLink,
               contact: config.contact,
             },
-            language,
+            n.kind === "cancelled_by_patient" ? r.language : language,
           );
           return {
             noticeId: n._id,

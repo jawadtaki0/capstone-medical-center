@@ -384,6 +384,7 @@ export function createBroker({
           "notices",
           "refresh",
           "detail",
+          "markCancellationSeen",
           "link",
           "createPatient",
           "notes",

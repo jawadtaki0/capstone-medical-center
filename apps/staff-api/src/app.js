@@ -230,6 +230,7 @@ export function createApp({
     "notices",
     "refresh",
     "detail",
+    "markCancellationSeen",
     "link",
     "createPatient",
     "notes",

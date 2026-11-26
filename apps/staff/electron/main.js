@@ -58,6 +58,7 @@ function validatePayload(name, payload) {
       phoneVerification: ["phoneAction", "id"],
       refresh: [],
       detail: ["id"],
+      markCancellationSeen: ["id"],
       link: [
         "id",
         "revision",

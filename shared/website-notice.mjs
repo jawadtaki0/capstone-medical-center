@@ -1,3 +1,4 @@
+import { patientCancellationMessage } from "./patient-cancellation-message.mjs";
 import { REQUEST_REASONS } from "./website-request-contract.mjs";
 export function websiteNoticeLocationText(localReviewOnly = true) {
   return (
@@ -21,10 +22,16 @@ export function websiteNoticeText(
     endTime,
     reason,
     trackingLink,
+    guestCancellationLink,
     contact,
   },
   language,
 ) {
+  if (status === "cancelled_by_patient")
+    return patientCancellationMessage(
+      { professional, date, startTime, endTime, contact },
+      language,
+    ).text;
   const ar = language === "ar",
     ltr = (v) => (ar ? `\u2066${v}\u2069` : v);
   const statuses = {
@@ -50,6 +57,10 @@ export function websiteNoticeText(
         : "",
     `${ar ? "للتواصل مع المركز" : "Center contact"}: ${ltr(contact)}`,
     trackingLink ?? "",
+    status === "confirmed" && guestCancellationLink
+      ? (ar ? "إلغاء هذا الموعد: " : "Cancel this appointment: ") +
+        guestCancellationLink
+      : "",
     ar ? "مركز سيدر للخدمات الطبية CMC" : "Cedar Medical Center CMC",
   ]
     .filter(Boolean)

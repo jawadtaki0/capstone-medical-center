@@ -6,6 +6,18 @@ import {
 
 export const patientLinkLifetimeMinutes = 30;
 const messages = {
+  "lab-report-ready": {
+    en: [
+      "Your report is ready",
+      "Sign in to Cedar",
+      "Sign in to Cedar to view your report under Lab results.",
+    ],
+    ar: [
+      "تقريرك جاهز",
+      "تسجيل الدخول إلى سيدر",
+      "سجّل الدخول إلى سيدر للاطّلاع على تقريرك ضمن نتائج المختبر.",
+    ],
+  },
   activate: {
     en: [
       "Activate your Cedar account",
@@ -53,14 +65,14 @@ export function patientLinkEmail({ purpose, link, language }) {
   const lang = language === "ar" ? "ar" : "en";
   const [subject, action, instruction] = messages[purpose][lang];
   const minutes = patientLinkLifetimeMinutes;
-  const expiry =
+  const expiry = purpose === "lab-report-ready" ? "" :
     lang === "ar"
       ? `يمكن استخدام الرابط مرة واحدة، وتنتهي صلاحيته بعد ${minutes.toLocaleString("ar", { numberingSystem: "arab" })} دقيقة.`
       : `This link can be used once and expires after ${minutes} minutes.`;
   const brand = lang === "ar" ? "مركز سيدر الطبي" : "Cedar Medical Center";
   return {
     subject,
-    text: [brand, subject, instruction, `${action}: ${url.href}`, expiry].join(
+    text: [brand, subject, instruction, `${action}: ${url.href}`, expiry].filter(Boolean).join(
       "\n\n",
     ),
     html: cedarEmailLayout({
@@ -74,7 +86,7 @@ export function patientLinkEmail({ purpose, link, language }) {
             <a href="${escapeHtml(url.href)}" style="display: inline-block; padding: 11px 20px; border: 1px solid #226b9d; border-radius: 6px; background-color: #226b9d; color: #ffffff; font-weight: 700; text-decoration: none;">${escapeHtml(action)}</a>
           </td></tr>
         </table>
-        ${paragraph(expiry, "margin-bottom: 0; color: #526979; font-size: 14px;")}`,
+        ${expiry ? paragraph(expiry, "margin-bottom: 0; color: #526979; font-size: 14px;") : ""}`,
     }),
   };
 }

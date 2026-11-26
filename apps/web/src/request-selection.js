@@ -17,8 +17,21 @@ export function selectionKey(session) {
     : "";
 }
 
-export function validatedPreselection(search, sessions) {
+function sessionLinkParameters(search) {
   const params = new URLSearchParams(search);
+  const languages = params.getAll("lang");
+  if (
+    languages.length > 1 ||
+    (languages.length && !["ar", "en"].includes(languages[0]))
+  )
+    return null;
+  params.delete("lang");
+  return params;
+}
+
+export function validatedPreselection(search, sessions) {
+  const params = sessionLinkParameters(search);
+  if (!params) return null;
   if (
     [...params.keys()].some(
       (k) => !["professional", "date", "session", "start", "end"].includes(k),
@@ -85,7 +98,8 @@ export function requestSelectionUrl(session) {
 }
 
 export function preselectionDate(search) {
-  const params = new URLSearchParams(search);
+  const params = sessionLinkParameters(search);
+  if (!params) return null;
   const date = params.get("date");
   if (
     [...params.keys()].some(

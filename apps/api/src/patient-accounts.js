@@ -134,6 +134,7 @@ export function patientAccountRouter({
   db,
   client,
   publicOrigin,
+  linkOrigin = publicOrigin,
   deliver,
   intake,
   phoneKey,
@@ -161,6 +162,13 @@ export function patientAccountRouter({
   const accounts = db.collection("patient_accounts");
   const signups = db.collection("patient_account_signups");
   const limits = db.collection("patient_account_limits");
+  const audit = (row, profileId, type) =>
+    db.collection("patient_account_access_audit").insertOne({
+      accountId: row._id,
+      profileId,
+      type,
+      at: clock(),
+    });
   let passwordJobs = 0;
 
   async function hash(value, salt = randomBytes(16).toString("hex")) {
@@ -238,7 +246,7 @@ export function patientAccountRouter({
   }
 
   function send(to, purpose, token, language) {
-    const link = new URL("/account", publicOrigin);
+    const link = new URL("/account", linkOrigin);
     if (language === "ar") link.searchParams.set("lang", "ar");
     link.hash = new URLSearchParams({ action: purpose, token }).toString();
     return deliver({
@@ -280,7 +288,7 @@ export function patientAccountRouter({
       accounts,
       key: phoneKey,
       clock,
-      publicOrigin,
+      publicOrigin: linkOrigin,
       change,
       ErrorType: AccountError,
     });
@@ -324,7 +332,9 @@ export function patientAccountRouter({
     post("/lab-reports", async (body, req) => {
       exact(body, ["patientId"]);
       const { row } = await current(req);
-      return { reports: await familyAccess.list(row, body.patientId) };
+      const reports = await familyAccess.list(row, body.patientId);
+      await audit(row, body.patientId, "lab_list");
+      return { reports };
     });
     const download = async (req, res, { patientId, reportId }) => {
       const { row } = await current(req);
@@ -336,6 +346,7 @@ export function patientAccountRouter({
       );
       if ((await current(req)).row.revision !== row.revision)
         throw new AccountError("profile_unavailable", 404);
+      await audit(row, patientId, "lab_download");
       res.set("Cache-Control", "private, no-store");
       res.set("X-Content-Type-Options", "nosniff");
       res.attachment(filename).type("application/pdf").send(bytes);
@@ -398,7 +409,10 @@ export function patientAccountRouter({
 
   function ownedProfile(row, id) {
     const profile = (row.profiles ?? []).find(
-      (item) => item.id === id && !item.revokedAt,
+      (item) =>
+        item.id === id &&
+        !item.revokedAt &&
+        ["self", "child"].includes(item.relationship),
     );
     if (!profile) throw new AccountError("profile_unavailable", 404);
     return profile;
@@ -487,14 +501,47 @@ export function patientAccountRouter({
     const { row } = await current(req);
     const profile = ownedProfile(row, body.profileId);
     if (!intake) throw new AccountError("try_later", 503);
-    return {
-      requests: await intake.profileRequests({
-        accountId: row._id,
-        profileId: profile.id,
-      }),
-    };
+    const requests = await intake.profileRequests({
+      accountId: row._id,
+      profileId: profile.id,
+    });
+    await audit(row, profile.id, "booking_list");
+    return { requests };
   });
 
+  post("/cancel-booking", async (body, req) => {
+    exact(
+      body,
+      ["profileId", "reference", "confirmed", "reasons", "note"],
+      ["profileId", "reference", "confirmed"],
+    );
+    const { row, guard } = await current(req);
+    const { profileId, reference, ...confirmation } = body;
+    ownedProfile(row, profileId);
+    if (!intake?.cancelProfileRequest) throw new AccountError("try_later", 503);
+    return intake.cancelProfileRequest(
+      { accountId: row._id, profileId },
+      reference,
+      confirmation,
+      async (_request, session) =>
+        Boolean(await accounts.findOne(guard, { session })),
+    );
+  });
+  post("/guest-cancellation", async (body, req) => {
+    exact(body, ["proof"]);
+    if (!intake?.guestCancellation) throw new AccountError("try_later", 503);
+    return intake.guestCancellation(body.proof, sourceReader(req));
+  });
+  post("/guest-cancel-booking", async (body, req) => {
+    exact(
+      body,
+      ["proof", "confirmed", "reasons", "note"],
+      ["proof", "confirmed"],
+    );
+    if (!intake?.cancelGuestRequest) throw new AccountError("try_later", 503);
+    const { proof, ...confirmation } = body;
+    return intake.cancelGuestRequest(proof, sourceReader(req), confirmation);
+  });
   post("/book", async (body, req) => {
     exact(body, [
       "profileId",
@@ -572,8 +619,10 @@ export function patientAccountRouter({
       throw new AccountError("invalid_username");
     const passwordHash = await hash(password(body.password, 12));
     const session = client.startSession();
+    let stage = "claim";
     try {
       await session.withTransaction(async () => {
+        stage = "claim";
         const signup = await signups.findOneAndDelete(
           { _id: key, expiresAt: { $gt: clock() } },
           { session },
@@ -583,6 +632,7 @@ export function patientAccountRouter({
         const profiles = signup.profile
           ? [{ ...signup.profile, id: randomUUID() }]
           : [];
+        stage = "account";
         await accounts.insertOne(
           {
             email: signup.email,
@@ -599,13 +649,24 @@ export function patientAccountRouter({
           },
           { session },
         );
+        stage = "profile_sync";
         if (familyAccess)
           await familyAccess.sync(accountId, profiles, clock(), session);
+        stage = "cleanup";
         await signups.deleteMany({ email: signup.email }, { session });
+        stage = "commit";
       });
     } catch (error) {
       if (error.code === 11000 && error.keyPattern?.username)
         throw new AccountError("username_taken", 409);
+      if (!(error instanceof AccountError)) {
+        console.warn("patient_account_activation_transaction_failed", {
+          stage,
+          code: Number.isSafeInteger(error.code) ? error.code : null,
+          commitUncertain:
+            error.hasErrorLabel?.("UnknownTransactionCommitResult") === true,
+        });
+      }
       throw error;
     } finally {
       await session.endSession();
@@ -720,8 +781,11 @@ export function patientAccountRouter({
     await budget(["replacement-mail", to], 5, 60 * 60_000);
     const { token, record } = challenge();
     await change(guard, { $set: { replacement: { ...record, email: to } } });
-    await send(to, "verify-email", token, body.language);
-    return { ok: true };
+    const delivery = await send(to, "verify-email", token, body.language);
+    return {
+      ok: true,
+      ...(delivery?.mailTraceId && { mailTraceId: delivery.mailTraceId }),
+    };
   });
 
   post("/verify-email", async (body) => {

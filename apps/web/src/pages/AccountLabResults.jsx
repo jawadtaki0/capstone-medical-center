@@ -5,7 +5,9 @@ import "./account-lab-results.css";
 export default function AccountLabResults({ language }) {
   const ar = language === "ar";
   const t = (en, arabic) => (ar ? arabic : en);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(
+    () => window.location.hash === "#lab-results",
+  );
   const [profiles, setProfiles] = useState([]);
   const [selected, setSelected] = useState("");
   const [results, setResults] = useState(null);
@@ -61,7 +63,7 @@ export default function AccountLabResults({ language }) {
     );
   const visible = results?.patientId === selected ? results : null;
   return (
-    <section className="account-lab">
+    <section className="account-lab" id="lab-results">
       <header className="account-lab-title">
         <h2>{t("Lab results", "نتائج المختبر")}</h2>
         <button

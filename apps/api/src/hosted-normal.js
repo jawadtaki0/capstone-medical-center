@@ -16,6 +16,8 @@ import {
 } from "./patient-accounts.js";
 import { validateHostedNormalConfig } from "../../../shared/hosted-normal-config.mjs";
 
+export const CEDAR_LINK_ORIGIN = "https://cmc-cedar.site";
+
 export function loadHostedNormalEnvironment(e = process.env) {
   const c = validateHostedNormalConfig({
     mode: "normal-hosted",
@@ -70,9 +72,13 @@ export function loadHostedNormalEnvironment(e = process.env) {
     )
       throw Error("Strict TLS is required.");
   }
+  const cutoff = e.CEDAR_PATIENT_CANCEL_CUTOFF_MINUTES ?? "120";
+  if (!/^\d{1,5}$/u.test(cutoff))
+    throw Error("Invalid patient cancellation cutoff.");
   return {
     ...c,
     uri,
+    cancellationCutoffMinutes: Number(cutoff),
     publicationToken: token,
     requestCredential: credential,
     key: Buffer.from(key, "base64url"),
@@ -112,6 +118,7 @@ export function createHostedNormalApplication({
   sourceReader,
   makeClient,
   patientAccountDelivery,
+  labReportDelivery,
   phoneKey,
 } = {}) {
   validateHostedNormalConfig(config);
@@ -161,6 +168,9 @@ export function createHostedNormalApplication({
         client,
         key: config.key,
         localReviewOnly: false,
+        cancellationContact: config.contact,
+        cancellationCutoffMinutes: config.cancellationCutoffMinutes,
+        deliverCancellationEmail: patientAccountDelivery,
         sessionReader: (date) => receiver.requestSessions(date),
         professionalReader: (date) => receiver.requestProfessionals(date),
         upcomingReader: (input) => receiver.requestUpcoming(input),
@@ -175,9 +185,12 @@ export function createHostedNormalApplication({
           phoneKey,
           sourceReader,
           publicOrigin: config.publicBase,
+          linkOrigin: CEDAR_LINK_ORIGIN,
           deliver: patientAccountDelivery,
           familyAccess: createHostedLab({
             db,
+            deliverReportNotice: labReportDelivery,
+            signInUrl: new URL("/account", CEDAR_LINK_ORIGIN).href,
             key: createHmac("sha256", config.key)
               .update("cedar-hosted-lab-v1")
               .digest(),
@@ -189,6 +202,7 @@ export function createHostedNormalApplication({
   });
   return createHostedApp({
     config,
+    clientOrigin: [config.publicBase, CEDAR_LINK_ORIGIN],
     runtime,
     sourceReader,
     accountsEnabled,

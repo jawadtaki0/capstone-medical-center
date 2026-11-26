@@ -1,3 +1,7 @@
+import CancellationForm, {
+  cancellationUnavailable,
+} from "../components/CancellationForm.jsx";
+import { bookingStatus } from "../components/AssistantAccountCards.jsx";
 import { useState } from "react";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
@@ -126,7 +130,10 @@ export function AddProfiles({ account, language, t, onSaved, onCancel }) {
 
 export function AccountProfiles({ account, language, t }) {
   const [expanded, setExpanded] = useState(null);
+  const [cancelling, setCancelling] = useState(null);
+  const ar = language === "ar";
   async function viewRequests(id) {
+    setCancelling(null);
     setExpanded({ id });
     try {
       const { requests } = await accountRequest("profile-requests", {
@@ -185,9 +192,41 @@ export function AccountProfiles({ account, language, t }) {
                         {request.startTime}–{request.endTime}
                       </bdi>
                       {" · "}
-                      {t(request.status)}
+                      {bookingStatus(request.status, ar) || t(request.status)}
                       {" · "}
                       <bdi>{request.reference}</bdi>
+                      {request.cancellation?.reason &&
+                        !["cancelled", "cancelled_by_patient"].includes(
+                          request.status,
+                        ) && (
+                          <p>
+                            {cancellationUnavailable(
+                              request.cancellation.reason,
+                              ar,
+                            )}
+                          </p>
+                        )}
+                      {request.cancellation?.eligible &&
+                        (cancelling === request.reference ? (
+                          <CancellationForm
+                            ar={ar}
+                            onBack={() => setCancelling(null)}
+                            submit={async (confirmation) => {
+                              await accountRequest("cancel-booking", {
+                                profileId: profile.id,
+                                reference: request.reference,
+                                ...confirmation,
+                              });
+                              await viewRequests(profile.id);
+                            }}
+                          />
+                        ) : (
+                          <Button
+                            onClick={() => setCancelling(request.reference)}
+                          >
+                            {ar ? "إلغاء الموعد" : "Cancel booking"}
+                          </Button>
+                        ))}
                     </li>
                   ))}
                 </ul>

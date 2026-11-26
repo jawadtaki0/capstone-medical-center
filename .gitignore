@@ -22,5 +22,8 @@ npm-debug.log*
 /apps/staff/playwright-report/
 /Lab PDFs/
 
+# Fetched at build time; too large for Git.
+/apps/web/intent-model/
+
 # Locally fetched Staff AI model files.
 /apps/staff-api/intent-model/

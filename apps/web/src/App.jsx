@@ -5,6 +5,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import LoadingStatus from "../../../shared/ui/LoadingStatus.jsx";
 import PublicPage from "./components/PublicPage.jsx";
 import PublicShell from "./components/PublicShell.jsx";
+import PublicAssistant from "./components/PublicAssistant.jsx";
 import PhoneVerificationNotice from "./components/PhoneVerificationNotice.jsx";
 import { requestSelectionUrl } from "./request-selection.js";
 import { isHomepageDemo, isHomepageDemoSession } from "./homepage-preview.js";
@@ -17,6 +18,9 @@ import { services } from "./data/homeContent.js";
 
 const patientAccounts = import.meta.env.VITE_PATIENT_ACCOUNTS === "1";
 const PatientAccountPage = lazy(() => import("./pages/PatientAccountPage.jsx"));
+const GuestCancellationPage = lazy(
+  () => import("./pages/GuestCancellationPage.jsx"),
+);
 
 export default function App() {
   const dialog = useRef(null);
@@ -28,15 +32,16 @@ export default function App() {
   const onDoctorsPage = pathname === "/doctors";
   const onHomePage = pathname === "";
   const onAccountPage = patientAccounts && pathname === "/account";
+  const onGuestCancellation = pathname === "/cancel";
   useEffect(() => {
     if (!patientAccounts) return;
     let current = true;
     accountRequest("session").then(
       (result) => {
-        if (current) setAccount(result.account);
+        if (current) setAccount((value) => value === undefined ? result.account : value);
       },
       () => {
-        if (current) setAccount(null);
+        if (current) setAccount((value) => value === undefined ? null : value);
       },
     );
     return () => {
@@ -126,7 +131,11 @@ export default function App() {
         }
         overlay={<PrototypeDialog dialogRef={dialog} action={previewAction} />}
       >
-        {onAccountPage ? (
+        {onGuestCancellation ? (
+          <Suspense fallback={<LoadingStatus label="Loading cancellation…" />}>
+            <GuestCancellationPage />
+          </Suspense>
+        ) : onAccountPage ? (
           <Suspense fallback={<LoadingStatus label="Loading account…" />}>
             <PatientAccountPage account={account} onAccount={setAccount} />
           </Suspense>
@@ -168,6 +177,12 @@ export default function App() {
           </PublicPage>
         )}
       </PublicShell>
+      {import.meta.env.VITE_CEDAR_PUBLIC_ASSISTANT === "1" && (
+        <PublicAssistant
+          account={patientAccounts ? account : null}
+          onAccount={setAccount}
+        />
+      )}
     </>
   );
 }

@@ -28,7 +28,7 @@ export function createRequestListLoader() {
             "The server returned an unreadable list. Please retry.",
           );
         }
-        commit(rows, response.nextCursor ?? null);
+        commit(rows, response.nextCursor ?? null, response.unreadCancellations);
       } catch (error) {
         if (current === generation) fail(error);
       } finally {

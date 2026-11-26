@@ -99,9 +99,13 @@ export function createRequestClient({
               ? typeof data.reference === "string" &&
                 /^[A-Za-z0-9_-]{43}$/.test(data.trackingToken)
               : typeof data.reference === "string" &&
-                ["awaiting", "confirmed", "rejected", "cancelled"].includes(
-                  data.status,
-                ) &&
+                [
+                  "awaiting",
+                  "confirmed",
+                  "rejected",
+                  "cancelled",
+                  "cancelled_by_patient",
+                ].includes(data.status) &&
                 Array.isArray(data.events);
       if (!valid) throw unavailableError(action === "submit");
       return data;

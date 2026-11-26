@@ -13,6 +13,8 @@ const names = {
   confirmed: "Confirmed",
   rejected: "Rejected",
   cancelled: "Cancelled",
+  cancelled_by_patient: "Cancelled by patient",
+  unread_cancellations: "Unread patient cancellations",
 };
 const noticeNames = {
   pending: "Message not sent",
@@ -72,6 +74,7 @@ export default function WebsiteRequests({
   const [storedRows, setRows] = useState([]),
     [rowsKey, setRowsKey] = useState(null),
     [listLoading, setListLoading] = useState(true),
+    [unreadCancellations, setUnreadCancellations] = useState(0),
     [listError, setListError] = useState(""),
     [view, setView] = useState(
       initialView === "notices" ? "messages" : initialView,
@@ -160,7 +163,8 @@ export default function WebsiteRequests({
           : { state: noticeState }),
         ...(c !== null ? { cursor: c } : {}),
       },
-      (items, nextCursor) => {
+      (items, nextCursor, unread) => {
+        if (Number.isSafeInteger(unread)) setUnreadCancellations(unread);
         setRows(items);
         setRowsKey(listKey);
         setNext(nextCursor);
@@ -406,6 +410,17 @@ export default function WebsiteRequests({
               </label>
               <label className="request-field">
                 Status
+                {unreadCancellations > 0 && (
+                  <span
+                    className="request-status-pill"
+                    aria-label={
+                      unreadCancellations + " unread patient cancellations"
+                    }
+                  >
+                    {unreadCancellations} unread patient cancellation
+                    {unreadCancellations === 1 ? "" : "s"}
+                  </span>
+                )}
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
@@ -602,6 +617,48 @@ export default function WebsiteRequests({
               <fieldset className="request-fields" disabled={busy}>
                 <div className="request-alert">
                   <strong>{names[r.status]}</strong>
+                  {r.patientCancellation && (
+                    <div>
+                      <p>
+                        Cancelled at{" "}
+                        {new Date(r.patientCancellation.at).toLocaleString(
+                          "en-GB",
+                          { timeZone: "Asia/Beirut" },
+                        )}{" "}
+                        Beirut time ·{" "}
+                        {r.patientCancellation.channel === "account"
+                          ? "My account"
+                          : "Guest link"}
+                      </p>
+                      <ul>
+                        {r.patientCancellation.reasons.map(({ code, note }) => (
+                          <li key={code}>
+                            {code.replaceAll("_", " ")}
+                            {note ? ": " + note : ""}
+                          </li>
+                        ))}
+                      </ul>
+                      {r.patientCancellation.seenAt ? (
+                        <p>Seen</p>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={async () => {
+                            if (
+                              await run("markCancellationSeen", { id: r.id })
+                            ) {
+                              await open(r.id);
+                              await load(cursor);
+                            }
+                          }}
+                        >
+                          Mark seen
+                        </button>
+                      )}
+                      <p>To restore service, create a new booking.</p>
+                    </div>
+                  )}
                   <p>
                     {!r.trackingExpired && r.syncedSequence === r.sequence
                       ? "Tracking synchronized"

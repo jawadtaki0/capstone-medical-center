@@ -1,4 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { patientCancellationMessage } from "../../../shared/patient-cancellation-message.mjs";
+import { randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  cancellationEligibility,
+  cancellationReasons,
+} from "./patient-cancellation.js";
 import {
   availabilitySlot,
   publicAvailability,
@@ -18,6 +23,7 @@ import {
 } from "../../../shared/website-request-contract.mjs";
 import {
   requestCrypto,
+  guestCancellationPath,
   randomToken,
   digest,
   requestTransaction,
@@ -61,7 +67,15 @@ export function createPublicIntake({
   clock = () => new Date(),
   limits = {},
   localReviewOnly = true,
+  cancellationCutoffMinutes = 120,
+  deliverCancellationEmail,
+  cancellationContact,
 }) {
+  if (
+    !Number.isSafeInteger(cancellationCutoffMinutes) ||
+    cancellationCutoffMinutes < 0
+  )
+    throw Error("Invalid patient cancellation cutoff.");
   if (typeof localReviewOnly !== "boolean")
     throw Error("An explicit review-location flag is required.");
   const crypto = requestCrypto(key),
@@ -88,6 +102,7 @@ export function createPublicIntake({
     generation: 1,
     tokenEnvelope: 1,
     phoneReview: 1,
+    owner: 1,
   };
   async function count(source, type, limit, ms = 60000) {
     await consumeCounter(
@@ -115,7 +130,160 @@ export function createPublicIntake({
       expiresAt: r.expiresAt,
       selection: r.selection,
       language: r.language,
+      ...guestCancellationLink(r),
     };
+  }
+  const unavailableCancellation = () =>
+    requestFail(
+      "cancellation_unavailable",
+      "This cancellation is unavailable. Contact Reception for help.",
+      404,
+    );
+  const cancelState = (row) =>
+    cancellationEligibility(row, clock(), cancellationCutoffMinutes);
+  const bookingDto = (row) => ({
+    ...publicRequest(row, clock(), { localReviewOnly }),
+    specialty: row.selection.specialty ?? null,
+    cancellation: cancelState(row),
+  });
+  const guestExpiry = (row) =>
+    Math.min(
+      +row.expiresAt,
+      +beirutEnd(row.selection.date, row.selection.startTime) -
+        cancellationCutoffMinutes * 60_000,
+    );
+  const guestPath = (row) =>
+    guestCancellationPath(crypto, row._id, guestExpiry(row), row.generation);
+  const guestProof = (row) => guestPath(row).slice("/cancel#".length);
+  const guestCancellationLink = (row) =>
+    !row.owner && cancelState(row).eligible
+      ? { cancellationLink: guestPath(row) }
+      : {};
+  async function applyCancellation(filter, input, actor, authorize) {
+    exact(input, ["confirmed", "reasons", "note"], ["confirmed"]);
+    if (input.confirmed !== true)
+      throw requestFail(
+        "cancellation_confirmation",
+        "Confirm the cancellation before continuing.",
+        400,
+      );
+    const reasons = cancellationReasons(input.reasons, input.note);
+    return tx(async (session) => {
+      const row = await requests.findOne(filter, { session });
+      if (
+        !row ||
+        row.purgedAt ||
+        row.expiresAt <= clock() ||
+        !(await authorize(row, session))
+      )
+        throw unavailableCancellation();
+      if (row.status === "cancelled_by_patient" && actor.channel === "account")
+        return { status: row.status };
+      const eligibility = cancelState(row);
+      if (!eligibility.eligible)
+        throw requestFail(
+          "cancellation_" + eligibility.reason,
+          "Online cancellation is unavailable for this booking. Contact Reception for help.",
+          409,
+        );
+      const at = clock();
+      const cancellation = { at, ...actor, reasons };
+      await requests.updateOne(
+        { _id: row._id },
+        {
+          $set: {
+            status: "cancelled_by_patient",
+            patientCancellation: cancellation,
+            cancellationSyncPending: true,
+            ...(actor.channel === "account" && deliverCancellationEmail
+              ? { cancellationEmailState: "pending" }
+              : {}),
+          },
+          $push: { events: { status: "cancelled_by_patient", at } },
+        },
+        { session },
+      );
+      return { status: "cancelled_by_patient" };
+    });
+  }
+  const ownedBy = (owner, reference) => ({
+    reference,
+    "owner.accountId": owner.accountId,
+    "owner.profileId": owner.profileId,
+  });
+  async function guestRow(proof, source) {
+    await count(source, "cancel-guest-source", 12);
+    if (
+      typeof proof !== "string" ||
+      !/^[a-f0-9]{64}\.\d{13}\.[a-f0-9]{64}$/u.test(proof)
+    )
+      throw unavailableCancellation();
+    const [id, expiry] = proof.split(".");
+    await count(id, "cancel-guest-request", 6);
+    if (Number(expiry) < +clock()) throw unavailableCancellation();
+    return {
+      filter: { _id: id, owner: { $exists: false } },
+      verify: (row) => {
+        const expected = guestProof(row);
+        return (
+          proof.length === expected.length &&
+          timingSafeEqual(Buffer.from(proof), Buffer.from(expected)) &&
+          row.status !== "cancelled_by_patient"
+        );
+      },
+    };
+  }
+  async function sendPatientCancellationEmail(requestId) {
+    if (!deliverCancellationEmail) return;
+    // Claim before calling the sender. An uncertain outcome requires review;
+    // repeating a Gmail send after a timeout could send two emails.
+    const row = await requests.findOneAndUpdate(
+      {
+        _id: requestId,
+        status: "cancelled_by_patient",
+        cancellationEmailState: "pending",
+      },
+      { $set: { cancellationEmailState: "sending" } },
+      { returnDocument: "after" },
+    );
+    if (!row) return;
+    let state = "failed";
+    try {
+      const account = await db.collection("patient_accounts").findOne({
+        _id: row.owner.accountId,
+        emailVerifiedAt: { $exists: true },
+      });
+      if (account?.email) {
+        const {
+          professionalName: professional,
+          date,
+          startTime,
+          endTime,
+        } = row.selection;
+        const { subject, text: message } = patientCancellationMessage(
+          {
+            professional,
+            date,
+            startTime,
+            endTime,
+            contact: cancellationContact,
+          },
+          row.language,
+        );
+        await deliverCancellationEmail({
+          to: account.email,
+          purpose: "booking-cancellation",
+          subject,
+          message,
+        });
+        state = "sent";
+      }
+    } finally {
+      await requests.updateOne(
+        { _id: row._id, cancellationEmailState: "sending" },
+        { $set: { cancellationEmailState: state } },
+      );
+    }
   }
   async function availability(sessions) {
     const states = db.collection("website_request_state"),
@@ -333,8 +501,51 @@ export function createPublicIntake({
         .sort({ createdAt: -1 })
         .limit(50)
         .toArray();
-      return rows.map((row) =>
-        publicRequest(row, clock(), { localReviewOnly }),
+      return rows.map(bookingDto);
+    },
+    async cancelProfileRequest(owner, reference, input, authorize) {
+      await count(owner.accountId, "cancel-account", 10);
+      if (
+        typeof reference !== "string" ||
+        !/^WR-[A-F0-9]{16}$/u.test(reference)
+      )
+        throw unavailableCancellation();
+      return applyCancellation(
+        ownedBy(owner, reference),
+        input,
+        { channel: "account", ...owner },
+        authorize,
+      );
+    },
+    async guestCancellation(proof, source) {
+      const { filter, verify } = await guestRow(proof, source);
+      const row = await requests.findOne(filter);
+      if (!row || row.purgedAt || row.expiresAt <= clock() || !verify(row))
+        throw unavailableCancellation();
+      const {
+        professional,
+        specialty,
+        date,
+        startTime,
+        endTime,
+        cancellation,
+      } = bookingDto(row);
+      return {
+        professional,
+        specialty,
+        date,
+        startTime,
+        endTime,
+        cancellation,
+      };
+    },
+    async cancelGuestRequest(proof, source, input) {
+      const { filter, verify } = await guestRow(proof, source);
+      return applyCancellation(
+        filter,
+        input,
+        { channel: "guest_link" },
+        verify,
       );
     },
     async track(token, source) {
@@ -343,7 +554,10 @@ export function createPublicIntake({
       const r = await requests.findOne({ tokenHash: digest(token) });
       alive(r);
       await count(r._id, "tracking-token", policy.trackingToken);
-      return publicRequest(r, clock(), { localReviewOnly });
+      return {
+        ...publicRequest(r, clock(), { localReviewOnly }),
+        ...guestCancellationLink(r),
+      };
     },
     async pull(cursor = 0) {
       if (!Number.isSafeInteger(cursor) || cursor < 0)
@@ -361,10 +575,29 @@ export function createPublicIntake({
         .limit(25)
         .maxTimeMS(2000)
         .toArray();
+      const patientCancellations = (
+        await requests
+          .find(
+            { cancellationSyncPending: true, purgedAt: { $exists: false } },
+            { projection: { patientCancellation: 1 } },
+          )
+          .sort({ ordinal: 1 })
+          .limit(25)
+          .toArray()
+      ).map((row) => ({
+        requestId: row._id,
+        at: row.patientCancellation.at,
+        channel: row.patientCancellation.channel,
+        reasons: row.patientCancellation.reasons,
+      }));
       return {
         schemaVersion: 1,
-        requests: rows,
+        requests: rows.map(({ owner, ...row }) => ({
+          ...row,
+          ...(!owner ? { guestCancellationExpiresAt: guestExpiry(row) } : {}),
+        })),
         cursor: rows.at(-1)?.ordinal ?? cursor,
+        ...(patientCancellations.length ? { patientCancellations } : {}),
         availabilityDates: (
           await db
             .collection("website_request_state")
@@ -424,6 +657,20 @@ export function createPublicIntake({
       });
     },
     async accept(event) {
+      if (event?.patientCancelled === true) {
+        exact(event, ["requestId", "patientCancelled"]);
+        if (
+          typeof event.requestId !== "string" ||
+          !/^[a-f0-9]{64}$/u.test(event.requestId)
+        )
+          throw unavailableCancellation();
+        await sendPatientCancellationEmail(event.requestId).catch(() => {});
+        await requests.updateOne(
+          { _id: event.requestId, status: "cancelled_by_patient" },
+          { $unset: { cancellationSyncPending: "" } },
+        );
+        return { accepted: true, patientCancelled: true };
+      }
       exact(event, [
         "requestId",
         "sequence",
@@ -458,6 +705,8 @@ export function createPublicIntake({
       return tx(async (session) => {
         const r = await requests.findOne({ _id: event.requestId }, { session });
         alive(r);
+        if (r.status === "cancelled_by_patient")
+          return { accepted: true, sequence: event.sequence, digest: claimed };
         if (event.sequence < r.publicVersion)
           return {
             accepted: true,
