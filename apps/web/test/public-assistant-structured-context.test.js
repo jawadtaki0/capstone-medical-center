@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { assistantHandler } from "../api/public-assistant.js";
 import { createPublicAssistant } from "../server/public-assistant.js";
 import { privateAccountIntent } from "../server/public-assistant-account.js";
+import { browserPublicRequest } from "../server/public-assistant-context.js";
 
 const date = "2026-12-05";
 const prior = {
@@ -74,8 +75,12 @@ const invoke = async (handle, body, headers = {}) => {
   );
   return { status: res.statusCode, body: res.body };
 };
+// The browser turns typed text into public fields before anything is sent.
 const turn = (message, context = null, language = "en") => ({
-  message,
+  message:
+    typeof message === "string"
+      ? browserPublicRequest(message, context, "2026-12-03")
+      : message,
   context,
   language,
 });

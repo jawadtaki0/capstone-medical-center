@@ -1,3 +1,4 @@
+import { browserPublicRequest } from "../server/public-assistant-context.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { assistantHandler } from "../api/public-assistant.js";
@@ -38,7 +39,7 @@ test("assistant boundary refuses credentials without calling routing", async () 
 test("ordinary public question still reaches routing", async () => {
   const response = await invoke({
     language: "en",
-    message: hours,
+    message: browserPublicRequest(hours, null, "2026-11-25"),
     context: null,
   });
   assert.equal(response.status, 200);

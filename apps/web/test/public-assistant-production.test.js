@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as api from "../api/public-assistant.js";
 import { createPublicAssistant } from "../server/public-assistant.js";
+import { browserPublicRequest } from "../server/public-assistant-context.js";
 import { containsPrivateAccountText } from "../server/public-assistant-account.js";
 
 const today = "2026-11-25";
@@ -104,10 +105,12 @@ for (const [language, question, service] of [
     const handle = api.assistantHandler(
       createPublicAssistant({ ...data, demo: true }),
     );
+    const context =
+      service === "center" ? previous : { ...previous, date: saturday };
     const [status, result] = await call(
       handle,
-      question,
-      service === "center" ? previous : { ...previous, date: saturday },
+      browserPublicRequest(question, context, today),
+      context,
       language,
     );
     assert.equal(status, 200);
@@ -128,7 +131,7 @@ test("short schedule refinement retains the last published clinician", async () 
   };
   const [, result] = await call(
     handle,
-    "Could we make it Saturday instead?",
+    browserPublicRequest("Could we make it Saturday instead?", context, today),
     context,
   );
   assert.equal(result.kind, "sessions");
@@ -165,7 +168,11 @@ test("hosted guided control works across instances and expires", async () => {
   });
   const [, issued] = await call(
     issuer,
-    "Show published Dentistry sessions on November 30, 2025",
+    browserPublicRequest(
+      "Show published Dentistry sessions on November 30, 2025",
+      null,
+      today,
+    ),
   );
   assert.equal(issued.kind, "dateOptions");
   assert.ok(issued.dateOptions.includes(saturday));

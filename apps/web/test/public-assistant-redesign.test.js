@@ -394,16 +394,13 @@ for (const invalid of ["other-topic", "constructor", null, ["urgent"]])
       assert.equal(calls, 0);
     },
   );
-test("chips allowlist leaves the existing free-text request contract intact", async () => {
-  const payload = {
-    language: "en",
-    message: "Which lab tests are listed?",
-    context: null,
-  };
+test("chips allowlist leaves the public request contract intact", async () => {
+  const request = { intent: "hours", service: "laboratory", date: null };
+  const payload = { language: "en", message: request, context: null };
   const handler = assistantHandler(async (body) => {
     assert.deepEqual(body, {
       language: payload.language,
-      messages: [payload.message],
+      publicRequest: request,
       publicTurnContext: null,
     });
     return {

@@ -209,7 +209,7 @@ test("lookup failure uses the same approved bilingual handoff and footer with ze
   }
 });
 
-test("the API keeps the four guided replies exact and adds the footer only to free text", async () => {
+test("the API keeps the four guided replies exact and rejects typed text", async () => {
   const { answer, calls } = fixture();
   const handler = assistantHandler(answer);
   const post = async (body) => {
@@ -223,8 +223,7 @@ test("the API keeps the four guided replies exact and adds the footer only to fr
       { method: "POST", headers: { "content-type": "application/json" }, body },
       result,
     );
-    assert.equal(result.statusCode, 200);
-    return result.body;
+    return { status: result.statusCode, ...result.body };
   };
   for (const language of ["en", "ar"]) {
     for (const [topic, key] of [
@@ -238,6 +237,7 @@ test("the API keeps the four guided replies exact and adds the footer only to fr
         message: { topic },
         context: null,
       });
+      assert.equal(result.status, 200);
       assert.equal(result.text, rulesCopy[language][key]);
       assert.deepEqual(result.cards ?? [], []);
       assert.ok(!Object.hasOwn(result, "emergencyLine"));
@@ -248,9 +248,7 @@ test("the API keeps the four guided replies exact and adds the footer only to fr
     message: "I cannot breathe.",
     context: null,
   });
-  assert.equal(result.kind, "emergency");
-  assert.equal(result.text, rulesCopy.en.emergency);
-  assert.equal(result.emergencyLine, emergencyLine.en);
+  assert.equal(result.status, 400);
   assert.deepEqual(calls, []);
 });
 
