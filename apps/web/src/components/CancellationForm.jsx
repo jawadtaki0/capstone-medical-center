@@ -18,6 +18,25 @@ const reasons = [
   ["other", "Other", "سبب آخر"],
 ];
 
+const unavailable = {
+  cutoff: [
+    "The online cancellation deadline has passed. Contact Cedar Reception for help.",
+    "انتهت مهلة الإلغاء عبر الإنترنت. تواصل مع استقبال سيدر للمساعدة.",
+  ],
+  past: [
+    "This appointment time has passed. Contact Cedar Reception for help.",
+    "مرّ وقت هذا الموعد. تواصل مع استقبال سيدر للمساعدة.",
+  ],
+  status: [
+    "This booking’s status does not allow online cancellation. Contact Cedar Reception for help.",
+    "لا تسمح حالة هذا الموعد بإلغائه عبر الإنترنت. تواصل مع استقبال سيدر للمساعدة.",
+  ],
+};
+
+export function cancellationUnavailable(reason, ar) {
+  return (unavailable[reason] ?? unavailable.status)[ar ? 1 : 0];
+}
+
 export default function CancellationForm({ ar, submit, onBack }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);

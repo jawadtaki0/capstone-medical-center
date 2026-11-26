@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import CancellationForm from "../components/CancellationForm.jsx";
+import CancellationForm, {
+  cancellationUnavailable,
+} from "../components/CancellationForm.jsx";
 import { accountRequest } from "../patient-account-client.js";
 
 export default function GuestCancellationPage() {
@@ -85,10 +87,7 @@ export default function GuestCancellationPage() {
             />
           ) : (
             <p>
-              {t(
-                "Online cancellation is unavailable for this booking. Contact Cedar Reception.",
-                "لا يمكن إلغاء هذا الموعد عبر الإنترنت. تواصل مع استقبال سيدر.",
-              )}
+              {cancellationUnavailable(request.cancellation.reason, arabic)}
             </p>
           )}
         </>

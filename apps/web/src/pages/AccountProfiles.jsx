@@ -1,4 +1,6 @@
-import CancellationForm from "../components/CancellationForm.jsx";
+import CancellationForm, {
+  cancellationUnavailable,
+} from "../components/CancellationForm.jsx";
 import { bookingStatus } from "../components/AssistantAccountCards.jsx";
 import { useState } from "react";
 import Button from "@mui/material/Button";
@@ -193,6 +195,17 @@ export function AccountProfiles({ account, language, t }) {
                       {bookingStatus(request.status, ar) || t(request.status)}
                       {" · "}
                       <bdi>{request.reference}</bdi>
+                      {request.cancellation?.reason &&
+                        !["cancelled", "cancelled_by_patient"].includes(
+                          request.status,
+                        ) && (
+                          <p>
+                            {cancellationUnavailable(
+                              request.cancellation.reason,
+                              ar,
+                            )}
+                          </p>
+                        )}
                       {request.cancellation?.eligible &&
                         (cancelling === request.reference ? (
                           <CancellationForm

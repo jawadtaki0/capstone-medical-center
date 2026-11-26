@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { accountRequest } from "../patient-account-client.js";
-import CancellationForm from "./CancellationForm.jsx";
+import CancellationForm, {
+  cancellationUnavailable,
+} from "./CancellationForm.jsx";
 
 const statusText = {
   awaiting: ["Pending", "قيد المراجعة"],
@@ -216,6 +218,14 @@ export default function AssistantAccountCards({
                   {record.date} · {record.startTime}–{record.endTime}
                 </bdi>{" "}
                 {bookingStatus(record.status, ar)} · <bdi>{label(profile)}</bdi>
+                {record.cancellation?.reason &&
+                  !["cancelled", "cancelled_by_patient"].includes(
+                    record.status,
+                  ) && (
+                    <p>
+                      {cancellationUnavailable(record.cancellation.reason, ar)}
+                    </p>
+                  )}
                 {cancelling === record.reference ? (
                   <CancellationForm
                     ar={ar}
