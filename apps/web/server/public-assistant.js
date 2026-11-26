@@ -25,6 +25,7 @@ import {
   medicationQuestion,
   resolvePublicIntent,
 } from "./public-assistant-intent-resolve.js";
+import { guidedMenu } from "./public-assistant-guided-menu.js";
 import { laboratoryTests } from "../src/data/labAudioContent.js";
 import {
   emergencyDisclosure,
@@ -151,6 +152,7 @@ export function createAssistant({
       intentChoice,
       selectedDate,
       partIndex,
+      menu,
     },
     { observe = defaultObserve, trace = () => {} } = {},
   ) {
@@ -183,6 +185,25 @@ export function createAssistant({
       reception: true,
       fallback: true,
     });
+    // Button choices carry no free text, so there is nothing to classify.
+    if (demo && menu !== undefined) {
+      const result = await guidedMenu(menu, {
+        lang,
+        today: today(),
+        readHours,
+        readSessions,
+        deadline,
+      }).catch(() => ({
+        kind: "reception",
+        text: receptionHandoff[lang],
+        reception: true,
+      }));
+      return {
+        ...result,
+        searchContext: null,
+        emergencyLine: emergencyLine[lang],
+      };
+    }
     const guide = guidedTopic(topic);
     const freeTextPolicy = publishedOnly && !guide;
     let providerFallback = false;

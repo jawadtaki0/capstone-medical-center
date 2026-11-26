@@ -213,3 +213,6 @@
     animation: none;
   }
 }
+.cedar-assistant-chips.cedar-assistant-menu {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}

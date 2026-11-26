@@ -160,6 +160,8 @@ const arabicSpecialties = {
   "General Surgery": "الجراحة العامة",
 };
 
+export const arabicSpecialty = (label) => arabicSpecialties[label] ?? label;
+
 export function renderClinicSummary(cards, language) {
   const ar = language === "ar";
   const windows = cards.map(({ professional, specialty, date, start, end }) =>

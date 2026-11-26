@@ -15,6 +15,17 @@ const labels = {
     help: "Ask about public Clinic sessions and Lab information. Keep personal details out of chat.",
     input: "Your question",
     topicsLabel: "Guided help",
+    menuLabel: "Choose a topic",
+    menu: {
+      hours: "Hours",
+      doctor: "Find a doctor",
+      prices: "Prices",
+      preparation: "Preparation",
+      register: "Register",
+      about: "About Ask Cedar",
+    },
+    pick: "Choose",
+    schedule: "Open the schedule",
     topics: {
       urgent: "Urgent help",
       private: "My results",
@@ -45,6 +56,17 @@ const labels = {
     help: "اسأل عن جلسات العيادة المنشورة ومعلومات المختبر. تجنّب كتابة معلومات شخصية.",
     input: "سؤالك",
     topicsLabel: "مساعدة حسب الموضوع",
+    menuLabel: "اختر موضوعًا",
+    menu: {
+      hours: "ساعات العمل",
+      doctor: "ابحث عن طبيب",
+      prices: "الأسعار",
+      preparation: "التحضير",
+      register: "تسجيل طلب",
+      about: "عن اسأل سيدر",
+    },
+    pick: "اختر",
+    schedule: "افتح الجدول",
     topics: {
       urgent: "مساعدة طارئة",
       private: "نتائجي",
@@ -125,13 +147,16 @@ export default function PublicAssistant() {
     selectedDate,
     partIndex,
     selectionContext,
+    menu,
   ) {
     if (busy || !value) return;
     const messages = [
-      ...turns.filter((turn) => !turn.topic).map((turn) => turn.question),
+      ...turns
+        .filter((turn) => !turn.topic && !turn.menu)
+        .map((turn) => turn.question),
       value,
     ].slice(-8);
-    if (!topic && !intentChoice && !selectedDate) setQuestion("");
+    if (!topic && !intentChoice && !selectedDate && !menu) setQuestion("");
     setBusy(true);
     let answer;
     try {
@@ -148,6 +173,7 @@ export default function PublicAssistant() {
           ...(intentChoice ? { intentChoice } : {}),
           ...(selectedDate ? { selectedDate } : {}),
           ...(partIndex !== undefined ? { partIndex } : {}),
+          ...(menu ? { menu } : {}),
         }),
         signal: AbortSignal.timeout(55_000),
       });
@@ -163,10 +189,13 @@ export default function PublicAssistant() {
     }
     setTurns((current) => [
       ...current,
-      { question: value, answer, topic, replyLanguage: language },
+      { question: value, answer, topic, menu, replyLanguage: language },
     ]);
     setBusy(false);
   }
+
+  const choose = (menu, label) =>
+    send(label, undefined, undefined, undefined, undefined, undefined, menu);
 
   return (
     <>
@@ -313,11 +342,13 @@ export default function PublicAssistant() {
                       </div>
                       {part.page && (
                         <a href={part.page}>
-                          {part.page === "/account#lab-results"
-                            ? copy.labResults
-                            : part.kind === "private"
-                              ? copy.account
-                              : copy.details}
+                          {part.page === "/schedule"
+                            ? copy.schedule
+                            : part.page === "/account#lab-results"
+                              ? copy.labResults
+                              : part.kind === "private"
+                                ? copy.account
+                                : copy.details}
                         </a>
                       )}
                       {([
@@ -370,6 +401,56 @@ export default function PublicAssistant() {
                         )}
 
                       {index === turns.length - 1 &&
+                        Boolean(part.menuOptions?.length) &&
+                        (part.menuOptions.length > 6 ? (
+                          <label>
+                            {copy.pick}
+                            <select
+                              value=""
+                              disabled={busy}
+                              onChange={(event) => {
+                                const option = part.menuOptions.find(
+                                  ({ choice }) => choice === event.target.value,
+                                );
+                                choose(
+                                  {
+                                    topic: option.topic,
+                                    choice: option.choice,
+                                  },
+                                  option.label,
+                                );
+                              }}
+                            >
+                              <option value="" disabled>
+                                {copy.pick}
+                              </option>
+                              {part.menuOptions.map(({ choice, label }) => (
+                                <option key={choice} value={choice}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : (
+                          <div className="cedar-assistant-chips">
+                            {part.menuOptions.map(
+                              ({ topic, choice, label }) => (
+                                <button
+                                  key={choice}
+                                  type="button"
+                                  className="button button-secondary"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    choose({ topic, choice }, label)
+                                  }
+                                >
+                                  {label}
+                                </button>
+                              ),
+                            )}
+                          </div>
+                        ))}
+                      {index === turns.length - 1 &&
                         Boolean(part.dateOptions?.length) && (
                           <label>
                             {replyLanguage === "ar"
@@ -379,14 +460,22 @@ export default function PublicAssistant() {
                               value=""
                               disabled={busy}
                               onChange={(event) =>
-                                send(
-                                  question,
-                                  undefined,
-                                  undefined,
-                                  event.target.value,
-                                  answer.parts ? partIndex : undefined,
-                                  part.searchContext,
-                                )
+                                part.menu
+                                  ? choose(
+                                      {
+                                        ...part.menu,
+                                        date: event.target.value,
+                                      },
+                                      event.target.value,
+                                    )
+                                  : send(
+                                      question,
+                                      undefined,
+                                      undefined,
+                                      event.target.value,
+                                      answer.parts ? partIndex : undefined,
+                                      part.searchContext,
+                                    )
                               }
                             >
                               <option value="" disabled>
@@ -440,6 +529,23 @@ export default function PublicAssistant() {
                 {copy.busy}
               </div>
             )}
+          </div>
+          <div
+            className="cedar-assistant-chips cedar-assistant-menu"
+            role="group"
+            aria-label={copy.menuLabel}
+          >
+            {Object.entries(copy.menu).map(([topic, label]) => (
+              <button
+                key={topic}
+                type="button"
+                className="button button-primary"
+                disabled={busy}
+                onClick={() => choose({ topic }, label)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
           <div
             className="cedar-assistant-chips"
