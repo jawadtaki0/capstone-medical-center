@@ -78,7 +78,7 @@ export function registerAnswer(lang, message = "") {
 const accountCue =
   /\b(?:sign(?:ing)? (?:in|up)|log ?in|(?:create|open|make|register) (?:an? )?(?:new )?account|new account)\b|حساب جديد|(?:اعمل|بعمل|انشاء|انشئ|افتح|بفتح) حساب|تسجيل الدخول|سجل الدخول/u;
 const registerCue =
-  /\bregist(?:er|ering|ration)\b|(?<!\p{L})(?:ب?سجل|اسجل|تسجيل|التسجيل)(?!\p{L})/u;
+  /\bregist(?:er|ering|ration)\b|\bhow (?:can|do) i request (?:a |an )?(?:clinic )?(?:visit|appointment)\b|(?<!\p{L})(?:ب?سجل|اسجل|تسجيل|التسجيل)(?!\p{L})/u;
 const meetCue =
   /\b(?:book\w*|appointment|see|visit|available|availability|when|schedule)\b|احجز|حجز|موعد|متي|امتي|ايمتي|متاح|موجود/u;
 

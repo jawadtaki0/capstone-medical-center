@@ -179,7 +179,7 @@ const serviceNames = [
   ["laboratory", /\b(?:lab|laboratory)\b|(?<!\p{L})ب?المختبر(?!\p{L})/gu],
   [
     "audiometry",
-    /\b(?:audiometry|hearing tests?)\b|(?<!\p{L})(?:(?:فحوصات|فحص|قياس) (?:ال)?سمع)(?!\p{L})/gu,
+    /\b(?:audiometry|hearing tests?)\b|(?<!\p{L})(?:(?:(?:فحوصات|فحص|قياس) (?:ال)?)?سمع|السمع)(?!\p{L})/gu,
   ],
   [
     "center",
@@ -195,7 +195,7 @@ export function resolvePublicFollowup(message, previous, today) {
     .replace(/[؟?!.,]+$/gu, "")
     .trim()
     .replace(
-      /^(?:(?:could|can) (?:you|we) (?:check|make it)|how about|what about|and|طيب|وكمان|كمان|وعندن)\s+|^و(?=(?:نهار|يوم|ال|فحوصات|فحص|قياس))/u,
+      /^(?:(?:could|can) (?:you|we) (?:check|make it)|how about|what about|and|طيب|وكمان|كمان|وعندن)\s+|^و(?=(?:نهار|يوم|ال|فحوصات|فحص|قياس|بكرا|اليوم))/u,
       "",
     )
     .replace(/\s+(?:instead of|rather than|بدل)\s+.*$/u, "")

@@ -51,6 +51,36 @@ export const identityQuestion = (value) =>
   /\b(?:who are you|what are you|what can you do|are you (?:a bot|human|cedar))\b|من انت|مين انت|هل انت روبوت|meen ent[ae]|min ent[ae]/iu.test(
     normalize(value),
   );
+// Everyday names for the published specialties.
+const layWords = [
+  [
+    "Gastroenterology",
+    /\b(?:stomach|digestive) (?:doctor|specialist)\b|(?:طبيب|دكتور) (?:ال)?معد[هة]/u,
+  ],
+  [
+    "Speech, Language, and Swallowing Therapist",
+    /\bspeech therapist\b|معالج[هة]? (?:ال)?نطق/u,
+  ],
+  [
+    "Urology",
+    /\b(?:kidney|bladder) (?:doctor|specialist)\b|دكتور (?:ال)?كل[ىي](?!\p{L})/u,
+  ],
+  ["ENT", /\bear,? nose,? (?:and )?throat\b|دكتور (?:ال)?[اأ]ذن/u],
+  ["Gynecology", /\bwomen'?s (?:doctor|health specialist)\b|دكتور[هة] نسا/u],
+  [
+    "Pediatrics, Neonatology, and General Health",
+    /\b(?:child|baby) (?:doctor|specialist)\b/u,
+  ],
+  ["Dentistry", /\b(?:teeth|tooth) doctor\b|دكتور (?:ال)?سنان/u],
+  ["Dermatology", /دكتور (?:ال)?جلد(?!\p{L})/u],
+  ["Dietitian", /(?:دكتور|اخصا\S{1,4}|اختصاصي\S?) (?:ال)?تغذي[هة]/u],
+  ["Endocrinology & Diabetes", /دكتور (?:ال)?سكري/u],
+  [
+    "General Surgery",
+    /(?<!\b(?:eye|dental) )\bsurge(?:on\b|ry (?=on |today|tomorrow))|دكتور (?:ال)?جراح[هة]/u,
+  ],
+];
+
 export function scheduleSpecialty(value) {
   const text = scheduleText(value);
   const heart =
@@ -102,6 +132,11 @@ export function scheduleSpecialty(value) {
   };
   for (const { id, label } of specialtyDefinitions)
     if (colloquial[id]?.test(text)) matches.add(label);
+  for (const [label, words] of layWords)
+    if (words.test(text)) matches.add(label);
+  // "Speech therapist" is not also the general therapist.
+  if (matches.has("Speech, Language, and Swallowing Therapist"))
+    matches.delete("Therapist");
   if (
     matches.has("Ophthalmology & Eye Surgery") &&
     /\beye surgery\b/u.test(text) &&

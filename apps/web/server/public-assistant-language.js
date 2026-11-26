@@ -425,7 +425,7 @@ export function clinicalConcept(value) {
     )
     .replace(/(?:فحص|تحليل)\s+(?:ال)?فيتامين\s+[\p{L}\p{N}]+/gu, "");
   const advice =
-    /\b(?:should|which|what|do i|need|take|use|start|stop|skip|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|فيني|بوقف|بغير|بضاعف|بخفف|بزيد|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
+    /\b(?:should|which|what|do i|need|take|use|start|stop|skip|safe|double|halve|combine|mix|increase|lower|recommend|best|prescribe)\b|لازم|شو|اي|فيني|بوقف|بغير|بضاعف|بخفف|بزيد|بآخد|باخد|اخد|آخد|اخذ|استعمل|بستعمل|بتنصح|انصح|منيح|ينفع|\b(?:lezem|shu|eh|ekhod|2ekhod|bekhod)\b/u;
   const result =
     /\b(?:results?|levels?|readings?|values?|counts?|numbers?)\b|نتيجه|نتيجتي|تحليل|نسبه|معدل|مستوى|\b(?:natije|ta7lil|nesbe)\b/u;
   const abnormal =
@@ -438,7 +438,7 @@ export function clinicalConcept(value) {
     /\b(?:sugar|glucose|blood pressure|cholesterol|h(?:a)?emoglobin)\b|سكر|ضغط|كوليسترول/u;
   return (
     remedy.test(text) ||
-    (reading.test(text) && /\d{2,}/u.test(text) && meaning.test(text)) ||
+    (reading.test(text) && /\d/u.test(text) && meaning.test(text)) ||
     (medicine.test(medicationText) && advice.test(text)) ||
     (result.test(text) &&
       abnormal.test(text) &&

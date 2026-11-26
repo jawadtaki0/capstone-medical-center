@@ -311,7 +311,7 @@ function bookingRequest(text, lang) {
 const clearClinicRequest =
   /\b(?:windows?|slots?|sessions?|appointments?|availability|available|roster|visits?|schedule|listed|published)\b|جلس|مواعيد|موعد|وقت|الفتره|جدول|منشور|متاح|(?:فيني|بدي) شوف/u;
 const hoursRequestCue =
-  /\b(?:hours?|hrs|open\w*|clos\w*|shut\w*|first and last|timetable|timings?)\b|دو+ام|ساعات|وقت فتح|بتفتح|افتح|يفتح|بيفتح|سكر/u;
+  /\b(?:hours?|hrs|open\w*|clos\w*|shut\w*|first and last|timetable|timings?)\b|فاتح|دو+ام|ساعات|وقت فتح|بتفتح|افتح|يفتح|بيفتح|سكر/u;
 
 export function exactDemoPublicRequest(message, turn) {
   const text = canon(message);
