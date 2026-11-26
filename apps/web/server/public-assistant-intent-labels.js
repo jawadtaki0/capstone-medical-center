@@ -5,6 +5,8 @@ export const intentLabels = {
   clinicSchedule: { en: "Clinic schedule", ar: "جدول العيادة" },
   prices: { en: "Published prices", ar: "الأسعار المنشورة" },
   preparation: { en: "Test preparation", ar: "التحضير للفحص" },
+  registration: { en: "Clinic registration", ar: "تسجيل طلب العيادة" },
+  resultsTiming: { en: "Lab results timing", ar: "وقت صدور نتائج المختبر" },
   bookingPolicy: { en: "Booking policy", ar: "سياسة الحجز" },
 };
 

@@ -118,13 +118,20 @@ export default function PublicAssistant() {
       log.scrollTop = log.scrollHeight;
     }
   }, [open, turns, busy]);
-  async function send(value, topic, intentChoice) {
+  async function send(
+    value,
+    topic,
+    intentChoice,
+    selectedDate,
+    partIndex,
+    selectionContext,
+  ) {
     if (busy || !value) return;
     const messages = [
       ...turns.filter((turn) => !turn.topic).map((turn) => turn.question),
       value,
     ].slice(-8);
-    if (!topic && !intentChoice) setQuestion("");
+    if (!topic && !intentChoice && !selectedDate) setQuestion("");
     setBusy(true);
     let answer;
     try {
@@ -136,9 +143,11 @@ export default function PublicAssistant() {
         body: JSON.stringify({
           language,
           messages,
-          searchContext: searchContext.current,
+          searchContext: selectionContext ?? searchContext.current,
           ...(topic ? { topic } : {}),
           ...(intentChoice ? { intentChoice } : {}),
+          ...(selectedDate ? { selectedDate } : {}),
+          ...(partIndex !== undefined ? { partIndex } : {}),
         }),
         signal: AbortSignal.timeout(55_000),
       });
@@ -261,83 +270,150 @@ export default function PublicAssistant() {
                   ref={index === turns.length - 1 ? latestReply : null}
                 >
                   <strong>{copy.cedar}</strong>
-                  <p dir="auto">{answer.text}</p>
-                  <div className="cedar-assistant-cards">
-                    {answer.cards?.map((card) => (
-                      <article key={card.href ?? card.id}>
-                        <h3 dir="auto">{card.professional ?? card.name}</h3>
-                        {card.href ? (
-                          <>
-                            <p dir="auto">{card.specialty}</p>
-                            <p dir="ltr">
-                              {card.date} · {card.start}–{card.end}
-                            </p>
-                            <a
-                              className="button button-secondary"
-                              href={card.href}
-                            >
-                              {copy.choose}
-                            </a>
-                          </>
-                        ) : (
-                          <>
-                            <p dir="auto">{card.description}</p>
-                            <p>
-                              {copy.sample}: <bdi>{card.sample}</bdi>
-                            </p>
-                            {card.source && (
-                              <a href={card.source}>{copy.source}</a>
+                  {(answer.parts ?? [answer]).map((part, partIndex) => (
+                    <div
+                      key={partIndex}
+                      className="cedar-assistant-answer-part"
+                    >
+                      <p dir="auto">{part.text}</p>
+                      <div className="cedar-assistant-cards">
+                        {part.cards?.map((card) => (
+                          <article key={card.href ?? card.id}>
+                            <h3 dir="auto">{card.professional ?? card.name}</h3>
+                            {card.href ? (
+                              <>
+                                <p dir="auto">{card.specialty}</p>
+                                <p dir="ltr">
+                                  {card.date} · {card.start}–{card.end}
+                                </p>
+                                <a
+                                  className="button button-secondary"
+                                  href={card.href}
+                                >
+                                  {copy.choose}
+                                </a>
+                              </>
+                            ) : (
+                              <>
+                                <p dir="auto">{card.description}</p>
+                                <p>
+                                  {copy.sample}: <bdi>{card.sample}</bdi>
+                                </p>
+                                {card.source && (
+                                  <a href={card.source}>{copy.source}</a>
+                                )}
+                              </>
                             )}
-                          </>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                  {answer.page && (
-                    <a href={answer.page}>
-                      {answer.page === "/account#lab-results"
-                        ? copy.labResults
-                        : answer.kind === "private"
-                          ? copy.account
-                          : copy.details}
-                    </a>
-                  )}
-                  {([
-                    "failure",
-                    "unavailable",
-                    "empty",
-                    "reception",
-                    "laboratory",
-                    "labs",
-                    "private",
-                    "clinical",
-                  ].includes(answer.kind) ||
-                    answer.reception) && (
-                    <p>
-                      <a className="cedar-assistant-reception" href="/#contact">
-                        {copy.reception}{" "}
-                        <span aria-hidden="true">
-                          {language === "ar" ? "←" : "→"}
-                        </span>
-                      </a>
-                    </p>
-                  )}
-                  {index === turns.length - 1 &&
-                    !!answer.intentOptions?.length && (
-                      <div className="cedar-assistant-chips">
-                        {answer.intentOptions.map(({ id, label }) => (
-                          <button
-                            key={id}
-                            type="button"
-                            className="button button-secondary"
-                            disabled={busy}
-                            onClick={() => send(question, undefined, id)}
-                          >
-                            {label}
-                          </button>
+                          </article>
                         ))}
                       </div>
-                    )}
+                      {part.page && (
+                        <a href={part.page}>
+                          {part.page === "/account#lab-results"
+                            ? copy.labResults
+                            : part.kind === "private"
+                              ? copy.account
+                              : copy.details}
+                        </a>
+                      )}
+                      {([
+                        "failure",
+                        "unavailable",
+                        "empty",
+                        "reception",
+                        "laboratory",
+                        "labs",
+                        "private",
+                        "clinical",
+                      ].includes(part.kind) ||
+                        part.reception) && (
+                        <p>
+                          <a
+                            className="cedar-assistant-reception"
+                            href="/#contact"
+                          >
+                            {copy.reception}{" "}
+                            <span aria-hidden="true">
+                              {language === "ar" ? "←" : "→"}
+                            </span>
+                          </a>
+                        </p>
+                      )}
+                      {index === turns.length - 1 &&
+                        !!part.intentOptions?.length && (
+                          <div className="cedar-assistant-chips">
+                            {part.intentOptions.map(({ id, label }) => (
+                              <button
+                                key={id}
+                                type="button"
+                                className="button button-secondary"
+                                disabled={busy}
+                                onClick={() =>
+                                  send(
+                                    question,
+                                    undefined,
+                                    id,
+                                    undefined,
+                                    answer.parts ? partIndex : undefined,
+                                    part.searchContext,
+                                  )
+                                }
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                      {index === turns.length - 1 &&
+                        Boolean(part.dateOptions?.length) && (
+                          <label>
+                            {replyLanguage === "ar"
+                              ? "اختر تاريخًا متاحًا"
+                              : "Choose an available date"}
+                            <select
+                              value=""
+                              disabled={busy}
+                              onChange={(event) =>
+                                send(
+                                  question,
+                                  undefined,
+                                  undefined,
+                                  event.target.value,
+                                  answer.parts ? partIndex : undefined,
+                                  part.searchContext,
+                                )
+                              }
+                            >
+                              <option value="" disabled>
+                                {replyLanguage === "ar" ? "التاريخ" : "Date"}
+                              </option>
+                              {part.dateOptions.map((date) => (
+                                <option key={date} value={date}>
+                                  {date}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                      {index === turns.length - 1 &&
+                        Boolean(part.topicOptions?.length) && (
+                          <div className="cedar-assistant-chips">
+                            {part.topicOptions.map((id) => (
+                              <button
+                                key={id}
+                                type="button"
+                                className="button button-secondary"
+                                disabled={busy}
+                                onClick={() => send(copy.topics[id], id)}
+                              >
+                                {copy.topics[id]}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                    </div>
+                  ))}
                   {!topic && (
                     <p
                       className="cedar-assistant-safety"

@@ -81,7 +81,7 @@ export function scheduleSpecialty(value) {
   if (skin) matches.add("Dermatology");
   if (/\bpediatrics?|pediatrician\b|اطفال/u.test(text))
     matches.add("Pediatrics, Neonatology, and General Health");
-  if (/\bdentist\b|اسنان/u.test(text)) matches.add("Dentistry");
+  if (/\b(?:dentists?|dental)\b|اسنان/u.test(text)) matches.add("Dentistry");
   const colloquial = {
     pediatrics:
       /\b(?:child(?:ren)?'s|kids?) (?:clinic|doctor|specialist)\b|(?:عياده|طبيب|دكتور) (?:ال)?(?:اطفال|ولاد)/u,

@@ -4,7 +4,7 @@ import { intentModel, intentModelDirectory } from "../scripts/intent-model.mjs";
 import precomputed from "./public-assistant-intent-vectors.json" with { type: "json" };
 import { publicIntentBank } from "./public-assistant-intent-bank.js";
 
-export const intentThresholds = { high: 0.87, middle: 0.86, margin: 0.01 };
+export const intentThresholds = { high: 0.87, middle: 0.855, margin: 0.01 };
 
 export function intentBand(ranking, thresholds = intentThresholds) {
   const [best, second] = ranking;

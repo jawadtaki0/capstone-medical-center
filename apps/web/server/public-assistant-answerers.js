@@ -2,7 +2,7 @@ import { laboratoryTests } from "../src/data/labAudioContent.js";
 import { arabicLabContent } from "../src/data/publicLabArabic.js";
 import { nameScore } from "./public-assistant-language.js";
 import { scheduleSpecialty } from "./public-assistant-routing.js";
-import { timePattern } from "./public-assistant-dates.js";
+import { addDays, timePattern } from "./public-assistant-dates.js";
 
 const localLab = (test, language) =>
   language === "ar" ? { ...test, ...arabicLabContent[test.id] } : test;
@@ -142,4 +142,56 @@ export async function publishedHourFacts(question, days, readHours, deadline) {
       return { day, state: "open", services };
     }),
   );
+}
+
+export async function eligibleDemoDates({
+  intent,
+  filters = {},
+  date,
+  readHours,
+  readSessions,
+  deadline,
+}) {
+  const days = Array.from({ length: 7 }, (_, index) => addDays(date, index));
+  const checked = await Promise.all(
+    days.map(async (day) => {
+      if (intent === "clinicSchedule") {
+        try {
+          const hours = await readHours?.(day, { deadline });
+          if (
+            hours?.centerClosed ||
+            hours?.publicationStatus !== "published" ||
+            hours.date !== day
+          )
+            return null;
+          const { matches } = await clinicWindowFacts({
+            days: [day],
+            readSessions,
+            deadline,
+            ...filters,
+            strictProfessional: true,
+          });
+          return matches.length ? day : null;
+        } catch {
+          return null;
+        }
+      }
+      const services = {
+        center: intent === "centerHours",
+        lab: intent === "labHours",
+        audio: intent === "audioHours",
+      };
+      const [facts] = await publishedHourFacts(
+        services,
+        [day],
+        readHours,
+        deadline,
+      );
+      return facts.state === "open" &&
+        facts.services.every((service) => service.hours)
+        ? day
+        : null;
+    }),
+  );
+  return checked.filter(Boolean);
 }

@@ -1,4 +1,12 @@
 import {
+  demoCopy,
+  creatorQuestion,
+  standaloneArabizi,
+  symptomRequest,
+  demoFixedIdentity,
+  splitDemoRequests,
+} from "./public-assistant-demo.js";
+import {
   intentLabels,
   intentQuestion,
 } from "./public-assistant-intent-labels.js";
@@ -10,7 +18,12 @@ import {
   confidentPublicRequest,
   isExactPublicPreparation,
 } from "./public-assistant-confidence.js";
-import { resolvePublicIntent } from "./public-assistant-intent-resolve.js";
+import {
+  demoReferenceIntent,
+  isNamedTestPreparation,
+  medicationQuestion,
+  resolvePublicIntent,
+} from "./public-assistant-intent-resolve.js";
 import { laboratoryTests } from "../src/data/labAudioContent.js";
 import {
   emergencyDisclosure,
@@ -18,7 +31,12 @@ import {
   protectedGate,
   rulesCopy,
 } from "./public-assistant-gate.js";
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { publicContent } from "./public-assistant-content.js";
 import { classifyPublicTurn } from "./public-assistant-classify.js";
@@ -33,6 +51,7 @@ import {
 import {
   catalogueFacts,
   clinicWindowFacts,
+  eligibleDemoDates,
   publishedHourFacts,
   norm,
   specialtyWords,
@@ -115,16 +134,25 @@ export function createAssistant({
   readHours,
   publishedOnly = false,
   matchIntent,
+  demo = false,
   observe: defaultObserve = () => {},
   today = cedarToday,
   now = Date.now,
   contextKey = process.env.GEMINI_API_KEY || localContextKey,
 }) {
   const tokens = searchTokens(contextKey);
-  return async (
-    { language, messages, searchContext, topic, intentChoice },
+  return async function answer(
+    {
+      language,
+      messages,
+      searchContext,
+      topic,
+      intentChoice,
+      selectedDate,
+      partIndex,
+    },
     { observe = defaultObserve, trace = () => {} } = {},
-  ) => {
+  ) {
     const deadline = Date.now() + turnBudgetMs - fallbackReserveMs;
     const lang = language === "ar" ? "ar" : "en";
     const words = copy[lang];
@@ -208,13 +236,82 @@ export function createAssistant({
     )
       return freeTextPolicy ? handoff() : reply("reception");
     const latest = messages.at(-1);
+    const demoTurn = demo && freeTextPolicy;
     const protectedCategory = protectedGate(latest);
+    const partsToAnswer = demoTurn ? splitDemoRequests(latest) : [];
+    const publicPreparation =
+      isExactPublicPreparation(latest) ||
+      (demoTurn && isNamedTestPreparation(latest));
     const category =
       freeTextPolicy &&
       ["clinical", "override"].includes(protectedCategory) &&
-      isExactPublicPreparation(latest)
+      publicPreparation
         ? null
         : protectedCategory;
+    if (
+      demoTurn &&
+      category !== "emergency" &&
+      (standaloneArabizi(latest) || /<[^>]*>/u.test(latest)) &&
+      !["private", "cancel", "clinical", "override"].includes(category)
+    )
+      return handoff();
+    if (
+      demoTurn &&
+      partsToAnswer.length > 1 &&
+      !["emergency", "override"].includes(category)
+    ) {
+      if (partIndex !== undefined) {
+        if (!Number.isInteger(partIndex) || !partsToAnswer[partIndex])
+          return handoff();
+        return answer(
+          {
+            language,
+            messages: [...messages.slice(0, -1), partsToAnswer[partIndex]],
+            searchContext,
+            intentChoice,
+            selectedDate,
+          },
+          { observe, trace },
+        );
+      }
+      const parts = await Promise.all(
+        partsToAnswer.map((part) =>
+          answer(
+            {
+              language,
+              messages: [...messages.slice(0, -1), part],
+              searchContext,
+            },
+            { observe, trace },
+          ),
+        ),
+      );
+      return reply("multipart", {
+        text: parts.map((part) => part.text).join("\n"),
+        parts,
+      });
+    }
+    if (
+      demoTurn &&
+      !["emergency", "private", "cancel", "override"].includes(category) &&
+      symptomRequest(latest) &&
+      !medicationQuestion(latest)
+    )
+      return handoff();
+    if (demoTurn && (!category || category === "unrelated")) {
+      if (demoFixedIdentity(latest))
+        return reply("demoIdentity", { text: demoCopy[lang].identity });
+      if (creatorQuestion(latest))
+        return reply("demoCreator", { text: demoCopy[lang].creator });
+      if (
+        category === "unrelated" ||
+        /(?:^|\s)(?:joke|نكت[هة])(?:[.!؟?\s]|$)/iu.test(latest)
+      )
+        return reply("demoOffTopic", {
+          text: demoCopy[lang].offTopic,
+          topicOptions: ["urgent", "private", "cancel", "clinical"],
+        });
+    }
     const early =
       category === "cancel" ? "private" : (category ?? socialRoute(latest));
     if (early) {
@@ -235,18 +332,67 @@ export function createAssistant({
       );
     }
     const date = today();
-    const publicContext = { date, lang, context, activeSearch };
+    const publicContext = { date, lang, context, activeSearch, demo: demoTurn };
+    const requestHash =
+      demoTurn && createHash("sha256").update(latest).digest("hex");
+    if (
+      selectedDate !== undefined &&
+      (!demoTurn ||
+        context?.datePicker?.requestHash !== requestHash ||
+        !context.datePicker.options.includes(selectedDate))
+    )
+      return handoff();
+    if (selectedDate) publicContext.selectedDate = selectedDate;
+    const dateOptions = async (intent, filters) => {
+      const options = await eligibleDemoDates({
+        intent,
+        filters,
+        date,
+        readHours,
+        readSessions,
+        deadline,
+      });
+      if (!options.length)
+        return reply("dateOptions", {
+          text: demoCopy[lang].noDates,
+          reception: true,
+        });
+      carried = {
+        at,
+        remaining: 1,
+        datePicker: { requestHash, intent, options },
+      };
+      return reply("dateOptions", {
+        text: demoCopy[lang].date,
+        dateOptions: options,
+      });
+    };
     let classified = classifyPublicTurn(latest, publicContext);
     if (freeTextPolicy) {
-      if (matchIntent) {
+      if (selectedDate) {
+        classified = resolvePublicIntent(
+          context.datePicker.intent,
+          latest,
+          publicContext,
+          true,
+        );
+        if (!classified) return handoff();
+      } else if (matchIntent) {
         let match;
         try {
-          match = await matchIntent(latest);
+          const fixedIntent = demoTurn && demoReferenceIntent(latest);
+          match = fixedIntent
+            ? { band: "high", intents: [fixedIntent] }
+            : await matchIntent(latest);
         } catch {
           return handoff();
         }
         const choices = (match?.intents ?? [])
-          .filter((id) => Object.hasOwn(intentLabels, id))
+          .filter(
+            (id) =>
+              Object.hasOwn(intentLabels, id) &&
+              (!demoTurn || resolvePublicIntent(id, latest, publicContext)),
+          )
           .slice(0, 3);
         if (
           match?.band === "middle" &&
@@ -273,6 +419,8 @@ export function createAssistant({
         return handoff();
       }
     }
+    if (classified.kind === "unavailableDate")
+      return dateOptions(classified.intent, classified.filters);
     if (classified.kind === "reference")
       return reply(classified.route, classified.fields);
     if (classified.kind === "ambiguousService")
@@ -327,6 +475,10 @@ export function createAssistant({
         readHours,
         deadline,
       );
+      if (demoTurn && facts.some(({ state }) => state === "closed"))
+        return dateOptions(
+          hours.lab ? "labHours" : hours.audio ? "audioHours" : "centerHours",
+        );
       const result = renderHours(
         {
           days: facts,
@@ -654,6 +806,11 @@ export function createAssistant({
         startsAtOrAfter,
         nextSession,
       });
+      if (
+        demoTurn &&
+        (await readHours?.(from, { deadline }).catch(() => null))?.centerClosed
+      )
+        return dateOptions("clinicSchedule", { professional, specialty });
       if (matchCount !== null) {
         carried = {
           remaining,

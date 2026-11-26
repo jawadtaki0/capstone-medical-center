@@ -48,6 +48,12 @@ export function catalogueIntent(message) {
         ) ||
         (id === "vitamin-d" &&
           /(?<!\p{L})(?:ال|ل)?فيتامين (?:د|دال)(?!\p{L})/u.test(query)) ||
+        (id === "cbc" &&
+          /(?<!\p{L})ل?تعداد(?: خلايا)? الدم(?!\p{L})/u.test(canon(query))) ||
+        (id === "fasting-glucose" &&
+          /(?<!\p{L})(?:تحليل|فحص) (?:سكر الدم الصايم|السكر الصايم)(?!\p{L})/u.test(
+            canon(query),
+          )) ||
         (id === "urinalysis" &&
           /(?<!\p{L})ل?تحليل البول(?!\p{L})/u.test(query)) ||
         (id === "urine-culture" &&

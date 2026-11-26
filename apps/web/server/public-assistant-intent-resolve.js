@@ -7,12 +7,14 @@ import {
 } from "./public-assistant-facts.js";
 import {
   canon,
+  requestedProfessional,
   nameTokens,
   priceConcept,
 } from "./public-assistant-language.js";
 import {
   resolveBeirutDate,
   resolveTurnDates,
+  sessionDays,
 } from "./public-assistant-dates.js";
 import { scheduleRequest } from "./public-assistant-routing.js";
 import {
@@ -39,7 +41,7 @@ const unreadDate =
   /(?<![\p{L}\p{N}])\d{1,4}(?:st|nd|rd|th)?(?![\p{L}\p{N}])|\b(?:week|weekend|month|days?|date|night|nhar|yom|on the|mon|tues?|wed|thur?s?|fri|sat|ssebt|7ad|a7ad|jem3a|jom3a)\b|نهار|يوم|اسبوع|شهر|تاريخ|ليل/u;
 
 const labWords =
-  /\b(?:lab|laboratory|mokhtabar|moukhtabar|mo5tabar|blood draw)\b|مختبر|اللاب/u;
+  /\b(?:lab|laboratory|mokhtabar|moukhtabar|mo5tabar|blood draw)\b|مختبر|اللاب|(?<!\p{L})لاب(?!\p{L})/u;
 const audioWords = /\b(?:audiometry|hearing|sama3)\b|السمع/u;
 const centerWords =
   /\b(?:cent(?:er|re)|building|clinic|cedar|markaz|mabna|entrance|doors)\b|مركز|المبني|مبني|عياده|سيدر/u;
@@ -54,7 +56,7 @@ const labSubject =
 const preparationCue =
   /\b(?:prepar\w*|ready|fast\w*|eat\w*|drink\w*|avoid|before|ahead|collect\w*|sample|container|specimen|bring|siyam|soum|sawm|2abel|abel|ta7dir|te7dir|jahhez|3elbe)\b|تحضير|حضر|جهز|صيام|صوم|اكل|اشرب|قبل|عينه|جمع|وعاء|علبه/u;
 const bookingCue =
-  /\b(?:book\w*|reserv\w*|appointment|slot|online|confirm\w*|request|website|site|arrange|7aj[ez]\w*|e7je?z|2akked|ouzkor)\b|حجز|احجز|موعد|طلب|تاكيد|يثبت|موكد|اونلاين|الموقع/u;
+  /\b(?:book\w*|reserv\w*|appointment|slot|online|confirm\w*|request|website|site|arrange|7aj[ez]\w*|e7je?z|2akked|ouzkor)\b|حجز|احجز|موعد|طلب|تاكيد|ياكد|اكد|يثبت|موكد|اونلاين|الموقع/u;
 const clinicWords = /\b(?:clinic|doctor|3iyade)\b|عياده|دكتور|طبيب/u;
 
 // Commas and semicolons join one request unless two clauses each ask something.
@@ -98,8 +100,60 @@ const reference = (route, fields) => ({ kind: "reference", route, fields });
 const reviewed = (id, lang) =>
   publicContent.find((record) => record.id === id + "-" + lang).answer;
 
-function hoursRequest(intent, message, text, { date, context }, picked) {
-  if (!hoursCue.test(text) || notHours.test(text)) return null;
+export const medicationQuestion = (value) =>
+  /\b(?:medication|medicine|pills?|drug|antibiotic|dose|dosage|painkiller|take|stop taking)\b|جرعه|الدوا|ادويه|دواء|مضاد|مسكن/u.test(
+    canon(value),
+  );
+
+export function isNamedTestPreparation(value) {
+  const text = canon(value);
+  return (
+    /\b(?:preparation|prep|collection|fasting|fast|specimen|container)\b|تحضير|صيام|صوم|جمع|وعاء/u.test(
+      text,
+    ) &&
+    !/\b(?:your|system|developer|hidden|internal|override|ignore|private|dose|medication|medicine)\b|تعليماتك|السريه|الداخليه|تجاهل|جرعه|الادويه/u.test(
+      text,
+    ) &&
+    catalogueIntent(value)?.tests.length === 1
+  );
+}
+
+export function demoReferenceIntent(value) {
+  const text = canon(value);
+  if (
+    /\b(?:register|registration|steps? to submit|steps? (?:are )?published to register)\b|خطوات التسجيل|خطوات تقديم|تسجيل (?:طلب|زياره)|بسجل/u.test(
+      text,
+    ) &&
+    clinicWords.test(text)
+  )
+    return "registration";
+  if (
+    /\b(?:turnaround|how long|when|released|published time)\b|(?:وقت|مده|صدور|ايمتي|امتي|قديش|كم يوم)/u.test(
+      text,
+    ) &&
+    /\b(?:results?|reports?)\b|نتيج|نتايج|تقارير/u.test(text) &&
+    !/\bmy\b|نتيجتي/u.test(text)
+  )
+    return "resultsTiming";
+  return null;
+}
+
+function unavailableDate(intent, filters) {
+  return { kind: "unavailableDate", intent, filters };
+}
+
+function hoursRequest(
+  intent,
+  message,
+  text,
+  { date, context, demo, selectedDate },
+  picked,
+) {
+  if (
+    (!hoursCue.test(text) && !(demo && /\b(?:lock up|desk)\b/u.test(text))) ||
+    notHours.test(text)
+  )
+    return null;
   let services = [
     labWords.test(text) && "labHours",
     audioWords.test(text) && "audioHours",
@@ -115,8 +169,23 @@ function hoursRequest(intent, message, text, { date, context }, picked) {
     audio: services.includes("audioHours"),
     weekend: center && /\bweekend\b|عطله نهايه الاسبوع/u.test(text),
   };
+  if (selectedDate)
+    return {
+      kind: "hours",
+      hours,
+      hourDays: [selectedDate],
+      hoursMessage: message,
+    };
   const day = resolveBeirutDate(message, date, context);
-  if (!hours.weekend && !day.specified && unreadDate.test(text)) return null;
+  if (
+    demo &&
+    (unsupportedDate.test(text) ||
+      bareMonth.test(text) ||
+      (day.specified && !day.day))
+  )
+    return unavailableDate(intent);
+  if (!hours.weekend && !day.specified && unreadDate.test(text))
+    return demo ? unavailableDate(intent) : null;
   const { hourDays, conflict } = resolveTurnDates(
     message,
     message,
@@ -125,24 +194,49 @@ function hoursRequest(intent, message, text, { date, context }, picked) {
     date,
     context,
   );
+  if (
+    demo &&
+    hourDays.some((day) => !sessionDays({ from: day, through: day }, date))
+  )
+    return unavailableDate(intent);
   return conflict
-    ? null
+    ? demo
+      ? unavailableDate(intent)
+      : null
     : { kind: "hours", hours, hourDays, hoursMessage: message };
 }
 
-function sessionRequest(message, text, { date, context }) {
-  const { day, specialty, clinician, time } = scheduleRequest(
-    message,
-    date,
-    resolveBeirutDate(message, date, context),
-  );
+function sessionRequest(message, text, { date, context, demo, selectedDate }) {
+  const {
+    day,
+    specified,
+    specialty,
+    clinician: parsedClinician,
+    time,
+  } = scheduleRequest(message, date, resolveBeirutDate(message, date, context));
+  const clinician =
+    parsedClinician || (demo && requestedProfessional(message)) || undefined;
   const named = clinician
     ? nameTokens(clinician).length >= 2
     : specialty || bareClinic.test(text);
-  if (!day || !named) return null;
+  if (!named) return null;
+  if (
+    demo &&
+    !selectedDate &&
+    (specified || unsupportedDate.test(text) || bareMonth.test(text)) &&
+    (!day ||
+      !sessionDays({ from: day, through: day }, date) ||
+      unsupportedDate.test(text) ||
+      bareMonth.test(text))
+  )
+    return unavailableDate("clinicSchedule", {
+      professional: clinician,
+      specialty,
+    });
+  if (!day && !selectedDate) return null;
   return {
     kind: "sessions",
-    day,
+    day: selectedDate ?? day,
     specialtyHint: specialty,
     namedProfessional: clinician,
     time,
@@ -180,13 +274,16 @@ function preparationRequest(message, text, lang) {
 }
 
 function bookingRequest(text, lang) {
-  if (!bookingCue.test(text)) return null;
+  if (!bookingCue.test(text) && !/\bappointments?\b/u.test(text)) return null;
   const audio = audioWords.test(text);
   const lab = labWords.test(text);
   if (audio && lab) return null;
   if (audio)
     return reference("library", {
-      text: reviewed("audiometry-booking", lang),
+      text: reviewed("audiometry-booking", lang).replace(
+        "Contact reception",
+        "Contact Reception",
+      ),
       page: "/services/audiometry",
       reception: true,
     });
@@ -205,11 +302,20 @@ export function resolvePublicIntent(intent, message, turn, picked = false) {
     !text ||
     personal.test(text) ||
     bookForMe.test(text) ||
-    unsupportedDate.test(canon(message)) ||
-    bareMonth.test(canon(message))
+    (!turn.demo &&
+      (unsupportedDate.test(canon(message)) || bareMonth.test(canon(message))))
   )
     return null;
   switch (intent) {
+    case "registration":
+      return turn.demo && demoReferenceIntent(message) === "registration"
+        ? reference("library", {
+            text: reviewed("clinic-confirmation", turn.lang),
+            page: "/services/clinic",
+          })
+        : null;
+    case "resultsTiming":
+      return null;
     case "centerHours":
     case "labHours":
     case "audioHours":

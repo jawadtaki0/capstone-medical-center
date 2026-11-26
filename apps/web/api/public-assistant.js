@@ -11,6 +11,7 @@ const publicOrigin =
   process.env.CEDAR_ASSISTANT_PUBLIC_ORIGIN ??
   "https://cedar-cmc-api.onrender.com";
 const assistant = createPublicAssistant({
+  demo: true,
   matchIntent: createLocalIntentMatcher(),
   readSessions: publishedSessions(publicOrigin),
   readHours: publishedHours(publicOrigin),
