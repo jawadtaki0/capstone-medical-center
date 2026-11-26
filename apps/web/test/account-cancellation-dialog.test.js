@@ -15,3 +15,11 @@ test("My account and Ask Cedar render the same appointment cancellation dialog",
     assert.doesNotMatch(component, /<CancellationForm\b/);
   }
 });
+
+test("The shared dialog keeps the attendance window in start-to-end order in RTL", () => {
+  const dialog = source("../src/components/BookingCancellationDialog.jsx");
+  assert.match(
+    dialog,
+    /<bdi dir="ltr">\s*\{record\.startTime\}–\{record\.endTime\}\s*<\/bdi>/u,
+  );
+});
