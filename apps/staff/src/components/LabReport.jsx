@@ -217,7 +217,7 @@ export default function LabReport({ order, catalogue, roles, change }) {
               </button>
             </>
           )}
-          {ready && reception && (
+          {ready && (reception || manage) && (
             <form
               onSubmit={(event) => {
                 event.preventDefault();
