@@ -106,3 +106,70 @@ test("asking changes nothing", async () => {
   good(await ask(authority.admin.token, { topic: "sessions", date }));
   assert.deepEqual(await count(), before);
 });
+
+test("a booking request only pre-fills a form and writes nothing", async () => {
+  const body = good(
+    await ask(authority.admin.token, {
+      text: "book Sami Haddad born 1988-07-04 with Dr. Synthetic on monday",
+    }),
+  );
+  assert.equal(body.task.type, "book");
+  assert.equal(body.task.prefill.firstName, "Sami");
+  assert.equal(body.task.prefill.date, date);
+  assert.equal(body.task.prefill.professionalId, authority.profile.id);
+  assert.equal(await f.db.collection("patients").countDocuments(), 0);
+  assert.equal(await f.db.collection("bookings").countDocuments(), 0);
+});
+
+test("a role that cannot book gets no booking form or alternatives", async () => {
+  const lab = await signInSynthetic(f, ["Lab Admin"]);
+  const body = good(
+    await ask(lab.token, { text: "book an appointment for Sami Haddad" }),
+  );
+  assert.equal(body.kind, "denied");
+  assert.equal(body.task, undefined);
+  const alternatives = await f.request("/assistant/alternatives", {
+    method: "POST",
+    token: lab.token,
+    body: { professionalId: authority.profile.id, date },
+  });
+  assert.equal(alternatives.status, 403);
+});
+
+test("a full session offers the same doctor's later sessions with places", async () => {
+  await f.db.collection("booking_limits").deleteMany({});
+  const sessions = good(
+    await f.request("/bookings/sessions", {
+      method: "POST",
+      token: authority.admin.token,
+      body: { date },
+    }),
+  ).sessions;
+  const full = sessions[0];
+  await f.db.collection("bookings").insertMany(
+    Array.from({ length: full.capacity }, (_, i) => ({
+      _id: `synthetic-full-${i}`,
+      id: `synthetic-full-${i}`,
+      bookingNumber: `B-9000000${i}`,
+      actorId: "synthetic",
+      idempotencyKey: `synthetic-${i}`,
+      datedSessionId: full.id,
+      patientId: `synthetic-patient-${i}`,
+      date,
+      status: "confirmed",
+    })),
+  );
+  const body = good(
+    await f.request("/assistant/alternatives", {
+      method: "POST",
+      token: authority.admin.token,
+      body: { professionalId: full.professionalId, date },
+    }),
+  );
+  assert.ok(body.sessions.length > 0);
+  for (const s of body.sessions) {
+    assert.equal(s.professionalId, full.professionalId);
+    assert.ok(s.remaining > 0);
+    assert.notEqual(s.id, full.id);
+  }
+});

@@ -150,3 +150,16 @@ test("each role is only offered topics its permissions allow", () => {
   for (const id of [...admin, ...clinic, ...lab])
     assert.ok(TOPIC_IDS.includes(id), id);
 });
+
+test("routes requests that carry a patient's details", async (t) => {
+  const misses = await accuracy([
+    ["book Sami Haddad born 1988-07-04 on monday", "book_help"],
+    ["I need an appointment for Lina Khoury tomorrow", "book_help"],
+    ["make a booking for Omar Saad with Dr. Karim", "book_help"],
+    ["احجز موعد لسامي حداد بكرا", "book_help"],
+    ["بدي موعد للمريضة لينا خوري يوم الاثنين", "book_help"],
+  ]);
+  t.diagnostic(JSON.stringify(misses));
+  assert.ok(misses.length <= 1, JSON.stringify(misses));
+  for (const miss of misses) assert.equal(miss.got, "unclear");
+});
