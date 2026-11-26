@@ -26,10 +26,21 @@ const shorthand = {
   opn: "open",
   clos: "close",
   clse: "close",
+  mondy: "monday",
+  tusday: "tuesday",
+  tuesdy: "tuesday",
+  wensday: "wednesday",
+  wednsday: "wednesday",
+  thrsday: "thursday",
+  thurday: "thursday",
+  frdy: "friday",
+  fridy: "friday",
+  saterday: "saturday",
+  satrday: "saturday",
 };
 export const expandShorthand = (message) =>
   message.replace(
-    /\b(?:wat|wen|tym|tme|opn|clos|clse)\b/giu,
+    /\b(?:wat|wen|tym|tme|opn|clos|clse|mondy|tusday|tuesdy|wensday|wednsday|thrsday|thurday|frdy|fridy|saterday|satrday)\b/giu,
     (word) => shorthand[word.toLowerCase()],
   );
 
