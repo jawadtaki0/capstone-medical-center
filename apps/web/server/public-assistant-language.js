@@ -382,7 +382,7 @@ function ownResultStatus(text) {
   );
 }
 
-const cedarDomain =
+export const cedarDomain =
   /\b(?:clinic|clinics|doctors?|dr|appointments?|sessions?|book\w*|schedule|lab|laborator\w*|tests?|blood|urine|stool|audiometry|hearing|cedar|cent(?:er|re)|specialists?|hours|open|close|fasting|sample|results?|reports?|account|health|medical|pediatric\w*|dentist\w*|cardiolog\w*|dermatolog\w*|gyn\w*|urolog\w*|ophthalm\w*|gastro\w*|endocrin\w*|diet\w*|therap\w*|speech|surgery|surgeon|ent|catalogue|catalog|price|cost)\b|عياد|طبيب|دكتور|موعد|مواعيد|حجز|جلس|مختبر|فحص|تحليل|سمع|سيدر|المركز|اختصاص|اخصائي|دوام|نتيج|حساب|\b(?:mokhtabar|maw3ad|7ajz|doktor|daktor|dawam|sama3|fa7s)\b/u;
 const offTopic =
   /\b(?:songs?|playlist|music|movies?|films?|poems?|jokes?|stor(?:y|ies)|recipes?|cook\w*|weather|forecast|football|soccer|basketball|match|scores?|bitcoin|crypto\w*|stocks?|games?|gaming|homework|essay|math|equation|code|coding|program(?:ming)?|travel|flights?|hotels?|vacation|holiday|wedding|birthday|party|restaurants?|cafes?|shopping|outfit|lyrics|news|politics?|elections?)\b|اغاني|اغنيه|افلام|فيلم|قصيده|نكته|طبخ|وصفه|الطقس|كره القدم|مباراه|عرس|حفله|عيد ميلاد|سفر|فندق|مطعم/u;

@@ -189,7 +189,13 @@ export default function PublicAssistant() {
     }
     setTurns((current) => [
       ...current,
-      { question: value, answer, topic, menu, replyLanguage: language },
+      {
+        question: value,
+        answer,
+        topic,
+        menu,
+        replyLanguage: answer.language ?? language,
+      },
     ]);
     setBusy(false);
   }
@@ -342,13 +348,15 @@ export default function PublicAssistant() {
                       </div>
                       {part.page && (
                         <a href={part.page}>
-                          {part.page === "/schedule"
-                            ? copy.schedule
-                            : part.page === "/account#lab-results"
-                              ? copy.labResults
-                              : part.kind === "private"
-                                ? copy.account
-                                : copy.details}
+                          {part.page === "/account"
+                            ? copy.account
+                            : part.page === "/schedule"
+                              ? copy.schedule
+                              : part.page === "/account#lab-results"
+                                ? copy.labResults
+                                : part.kind === "private"
+                                  ? copy.account
+                                  : copy.details}
                         </a>
                       )}
                       {([
@@ -436,7 +444,7 @@ export default function PublicAssistant() {
                             {part.menuOptions.map(
                               ({ topic, choice, label }) => (
                                 <button
-                                  key={choice}
+                                  key={choice ?? topic}
                                   type="button"
                                   className="button button-secondary"
                                   disabled={busy}
@@ -507,15 +515,18 @@ export default function PublicAssistant() {
                         )}
                     </div>
                   ))}
-                  {!topic && (
-                    <p
-                      className="cedar-assistant-safety"
-                      lang={replyLanguage}
-                      dir="auto"
-                    >
-                      {emergencyLine[replyLanguage]}
-                    </p>
-                  )}
+                  {!topic &&
+                    !(answer.parts ?? [answer]).every(
+                      (part) => part.kind === "emergency",
+                    ) && (
+                      <p
+                        className="cedar-assistant-safety"
+                        lang={replyLanguage}
+                        dir="auto"
+                      >
+                        {emergencyLine[replyLanguage]}
+                      </p>
+                    )}
                 </div>
               </section>
             ))}

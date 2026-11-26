@@ -9,11 +9,9 @@ import {
   eligibleDemoDates,
   publishedHourFacts,
 } from "./public-assistant-answerers.js";
-import {
-  audiometryPreparation,
-  publicContent,
-} from "./public-assistant-content.js";
+import { audiometryPreparation } from "./public-assistant-content.js";
 import { demoCopy } from "./public-assistant-demo.js";
+import { registerAnswer } from "./public-assistant-demo-turns.js";
 import { unpublishedPrice } from "./public-assistant-facts.js";
 import {
   arabicSpecialty,
@@ -27,6 +25,7 @@ const words = {
     hours: "Which service?",
     doctor: "Which specialty?",
     preparation: "Which test?",
+    clinic: "Clinic visit",
     date: "Choose a date.",
     center: "Center",
     lab: "Laboratory",
@@ -36,6 +35,7 @@ const words = {
     hours: "أي خدمة؟",
     doctor: "أي اختصاص؟",
     preparation: "أي فحص؟",
+    clinic: "زيارة العيادة",
     date: "اختر تاريخًا.",
     center: "المركز",
     lab: "المختبر",
@@ -73,18 +73,60 @@ export async function guidedMenu(
       : reception;
   const { topic, choice, date } = menu && typeof menu === "object" ? menu : {};
 
+  const testName = (test) =>
+    lang === "ar" ? arabicLabContent[test.id].name : test.name;
+  const testChoices = () =>
+    laboratoryTests.map((test) => [test.id, testName(test)]);
   if (topic === "prices") {
-    const { text: answer, page } = unpublishedPrice(lang, false);
-    return { kind: "reception", text: answer, page, reception: true };
-  }
-  if (topic === "register")
+    if (choice === undefined)
+      return options(text.preparation, [
+        ["clinic", text.clinic],
+        ["audiometry", text.audio],
+        ...testChoices(),
+      ]);
+    const test = laboratoryTests.find(({ id }) => id === choice);
+    if (!test && !["clinic", "audiometry"].includes(choice)) return reception;
+    const { text: answer, page } = unpublishedPrice(lang, Boolean(test));
+    const name = test
+      ? testName(test)
+      : choice === "clinic"
+        ? text.clinic
+        : text.audio;
     return {
-      kind: "library",
-      text: publicContent.find(({ id }) => id === "clinic-confirmation-" + lang)
-        .answer,
-      page: "/schedule",
+      kind: "reception",
+      text: name + ": " + answer,
+      page,
       reception: true,
     };
+  }
+  if (topic === "register") {
+    if (date === undefined)
+      return {
+        kind: "library",
+        text: registerAnswer(lang),
+        page: "/schedule",
+        reception: true,
+      };
+    const eligible = await eligibleDemoDates({
+      intent: "clinicSchedule",
+      date: today,
+      readHours,
+      readSessions,
+      deadline,
+    });
+    if (!eligible.includes(date)) return reception;
+    const { matches } = await clinicWindowFacts({
+      days: [date],
+      readSessions,
+      deadline,
+    });
+    return {
+      kind: "sessions",
+      text: copy[lang].sessions,
+      cards: matches.map(sessionCard),
+      reception: true,
+    };
+  }
   if (topic === "about")
     return {
       kind: "demoIdentity",
@@ -175,12 +217,10 @@ export async function guidedMenu(
   }
 
   if (topic === "preparation") {
-    const name = (test) =>
-      lang === "ar" ? arabicLabContent[test.id].name : test.name;
     if (choice === undefined)
       return options(text.preparation, [
         ["audiometry", text.audio],
-        ...laboratoryTests.map((test) => [test.id, name(test)]),
+        ...testChoices(),
       ]);
     if (choice === "audiometry")
       return {

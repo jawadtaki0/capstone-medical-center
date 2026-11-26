@@ -99,7 +99,7 @@ for (const language of ["en", "ar"]) {
   );
 
   test("prices, preparation, register and about " + language, async () => {
-    const price = await tap({ topic: "prices" }, language);
+    const price = await tap({ topic: "prices", choice: "clinic" }, language);
     assert.match(
       price.text,
       language === "ar" ? /غير منشورة/u : /not published/u,
