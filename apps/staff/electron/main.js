@@ -102,6 +102,7 @@ function validatePayload(name, payload) {
     openPatientPhoneWhatsApp: ["id"],
     bookingSessions: ["date"],
     assistantMessage: ["text", "topic", "language", "date", "lab"],
+    assistantAlternatives: ["professionalId", "date", "specialty"],
     lab: [
       "action",
       "id",

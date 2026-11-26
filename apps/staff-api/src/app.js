@@ -263,12 +263,13 @@ export function createApp({
       "/lab",
       route((service, request) => service.lab(bearer(request), request.body)),
     );
-  app.post(
-    "/assistant/message",
-    route((service, request) =>
-      service.assistant.message(bearer(request), request.body),
-    ),
-  );
+  for (const action of ["message", "alternatives"])
+    app.post(
+      `/assistant/${action}`,
+      route((service, request) =>
+        service.assistant[action](bearer(request), request.body),
+      ),
+    );
   // Fixed, permission-checked staff operations; no generic collection browser.
   for (const action of ["search", "read", "check", "create", "update"]) {
     app.post(

@@ -1,4 +1,6 @@
 import { TOPIC_IDS } from "./topics.js";
+import { plain } from "./text.js";
+import { withoutDetails } from "./prefill.js";
 
 // Below ACCEPT, or this close to the runner-up, the assistant offers buttons
 // instead of guessing.
@@ -10,14 +12,6 @@ export const detectLanguage = (text) =>
   (text.match(/\p{Script=Latin}/gu)?.length ?? 0)
     ? "ar"
     : "en";
-
-// Arabic letters that are commonly typed several ways, and diacritics.
-export const plain = (text) =>
-  text
-    .normalize("NFKC")
-    .replace(/[ً-ٰٟـ]/g, "")
-    .replace(/[أإآ]/g, "ا")
-    .toLowerCase();
 
 const SKIP_CONFIRMATION = [
   /\b(without|skip|no need (for|to)|don'?t|do not|bypass)\b.{0,30}\bconfirm/,
@@ -37,7 +31,8 @@ export async function routeMessage(message, matcher) {
   if (SKIP_CONFIRMATION.some((pattern) => pattern.test(text)))
     return result("confirmation_required");
   if (!matcher) return result("unavailable");
-  const ranked = await matcher.rank(message);
+  // Names and dates say who and when, not what is wanted.
+  const ranked = await matcher.rank(withoutDetails(message));
   const [first, second] = ranked;
   const suggestions = ranked
     .filter((r) => TOPIC_IDS.includes(r.id) && r.id !== "capabilities")

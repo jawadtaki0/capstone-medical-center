@@ -1,12 +1,41 @@
 import { useEffect, useId, useRef, useState } from "react";
 import LoadingStatus from "../../../../shared/ui/LoadingStatus.jsx";
 import { isAccessError } from "../lib/staffManagement.js";
+import AssistantBooking from "./AssistantBooking.jsx";
+import { TEXT } from "./assistantText.js";
 import "./assistant.css";
 
 const SCREEN = {
   en: "Open this screen",
   ar: "فتح هذه الصفحة",
 };
+
+const TASKS = { book: AssistantBooking };
+
+// A form opens straight away when the question carried details, else on request.
+function Task({ api, language, task, onError }) {
+  const [open, setOpen] = useState(task.open);
+  const Card = TASKS[task.type];
+  return open ? (
+    <Card
+      api={api}
+      language={language}
+      prefill={task.prefill}
+      today={task.today}
+      onError={onError}
+    />
+  ) : (
+    <div className="staff-actions assistant-actions">
+      <button
+        type="button"
+        className="staff-button staff-button-primary"
+        onClick={() => setOpen(true)}
+      >
+        {TEXT[language].start}
+      </button>
+    </div>
+  );
+}
 
 function Sessions({ language, sessions }) {
   const places = (s) => {
@@ -136,6 +165,14 @@ export default function AssistantPanel({ api, lab, onError, onNavigate }) {
                   <Sessions
                     language={reply.language}
                     sessions={reply.sessions}
+                  />
+                )}
+                {reply.task && (
+                  <Task
+                    api={api}
+                    language={reply.language}
+                    task={reply.task}
+                    onError={onError}
                   />
                 )}
                 {reply.actions.length + reply.suggestions.length > 0 && (

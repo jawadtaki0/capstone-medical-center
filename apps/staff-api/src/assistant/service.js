@@ -3,10 +3,38 @@ import { beirutClock } from "../booking-model.js";
 import { allowFields } from "../management-validation.js";
 import { TOPICS, TOPIC_IDS, capabilitiesFor, allowedTopics } from "./topics.js";
 import { routeMessage } from "./routing.js";
+import { plain } from "./text.js";
 import { readDate } from "./dates.js";
+import { readPrefill } from "./prefill.js";
 
 const invalid = () =>
   new StaffError("assistant_input", "Send one short question.", 400);
+
+const TASKS = { book_help: "book" };
+const WINDOW_DAYS = 28;
+const addDays = (day, count) => {
+  const value = new Date(`${day}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + count);
+  return value.toISOString().slice(0, 10);
+};
+const publicSession = (s) =>
+  Object.fromEntries(
+    [
+      "id",
+      "date",
+      "scopeId",
+      "sourceSessionId",
+      "version",
+      "professionalId",
+      "professionalName",
+      "specialty",
+      "clinicName",
+      "startTime",
+      "endTime",
+      "capacity",
+      "remaining",
+    ].map((k) => [k, s[k]]),
+  );
 
 const REPLIES = {
   en: {
@@ -19,6 +47,7 @@ const REPLIES = {
       "Every change needs your confirmation. I cannot skip that step.",
     unavailable: "Typed questions are unavailable right now. Use the buttons.",
     noSessions: "No published, unended clinic sessions on",
+    form: "Fill in the form below. Nothing is saved until you confirm.",
   },
   ar: {
     denied: "دورك لا يشمل هذا الإجراء. هذا ما يمكنني مساعدتك به.",
@@ -28,6 +57,7 @@ const REPLIES = {
     confirmation_required: "كل تغيير يحتاج إلى تأكيدك. لا يمكنني تخطي ذلك.",
     unavailable: "الأسئلة المكتوبة غير متاحة الآن. استخدم الأزرار.",
     noSessions: "لا توجد جلسات عيادة منشورة وغير منتهية بتاريخ",
+    form: "املأ النموذج أدناه. لا يُحفظ أي شيء قبل أن تؤكد.",
   },
 };
 
@@ -58,12 +88,73 @@ export function createAssistantService({
       ),
     };
   }
+  // A named doctor is matched against published sessions, never guessed.
+  async function professionalIn(token, text, date) {
+    const words = new Set(plain(text).match(/\p{L}{3,}/gu) ?? []);
+    const found = await bookings().sessions(token, { date });
+    const matches = new Set(
+      found.sessions
+        .filter((s) =>
+          (plain(s.professionalName).match(/\p{L}{3,}/gu) ?? []).some((w) =>
+            words.has(w),
+          ),
+        )
+        .map((s) => s.professionalId),
+    );
+    return matches.size === 1 ? [...matches][0] : undefined;
+  }
+  async function task(token, type, text, today) {
+    const prefill = text === undefined ? {} : readPrefill(text, today);
+    if (type === "book" && text !== undefined) {
+      const date = prefill.date >= today ? prefill.date : today;
+      const professionalId = await professionalIn(token, text, date);
+      if (professionalId) prefill.professionalId = professionalId;
+    }
+    return { type, prefill, today };
+  }
   const button = (id, language) => ({
     topic: id,
     label: TOPICS.find((t) => t.id === id)[language].label,
   });
 
   return {
+    // Later sessions with places: the same professional, or on request other
+    // professionals in the same specialty.
+    async alternatives(token, input) {
+      if (!input || typeof input !== "object") throw invalid();
+      allowFields(input, ["professionalId", "date", "specialty"]);
+      if (
+        typeof input.professionalId !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.date ?? "") ||
+        (input.specialty !== undefined &&
+          (typeof input.specialty !== "string" || input.specialty.length > 120))
+      )
+        throw invalid();
+      const { capabilities, today } = await person(token, false);
+      if (!capabilities.book)
+        throw new StaffError(
+          "booking_forbidden",
+          "Your current roles do not permit booking.",
+          403,
+        );
+      const first = input.date > today ? input.date : today;
+      const sessions = [];
+      for (let i = 0; i < WINDOW_DAYS && sessions.length < 10; i++) {
+        const found = await bookings().sessions(token, {
+          date: addDays(first, i),
+        });
+        for (const s of found.sessions) {
+          const wanted =
+            input.specialty === undefined
+              ? s.professionalId === input.professionalId
+              : s.professionalId !== input.professionalId &&
+                s.specialty === input.specialty;
+          if (wanted && s.canBook && s.remaining > 0)
+            sessions.push(publicSession(s));
+        }
+      }
+      return { sessions: sessions.slice(0, 10), days: WINDOW_DAYS };
+    },
     async message(token, input) {
       if (!input || typeof input !== "object") throw invalid();
       allowFields(input, ["text", "topic", "language", "date", "lab"]);
@@ -122,6 +213,15 @@ export function createAssistantService({
       const actions = entry.view ? [{ view: entry.view }] : [];
       if (entry.id === "capabilities")
         return answer("help", copy.reply, { suggestions: offer() });
+      if (TASKS[entry.id]) {
+        const prepared = await task(token, TASKS[entry.id], text, today);
+        const filled = Object.keys(prepared.prefill).length > 0;
+        return answer("task", filled ? replies.form : copy.reply, {
+          steps: filled ? [] : copy.steps,
+          actions,
+          task: { ...prepared, open: filled },
+        });
+      }
       if (entry.id !== "sessions")
         return answer("help", copy.reply, { steps: copy.steps, actions });
 

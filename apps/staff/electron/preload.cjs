@@ -10,6 +10,7 @@ const names = [
   "bookingSessions",
   "lab",
   "assistantMessage",
+  "assistantAlternatives",
   "queueTransition",
   "queueAdmit",
   "queueSessions",

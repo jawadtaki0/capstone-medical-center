@@ -54,3 +54,40 @@
 .assistant-actions {
   margin-top: 1rem;
 }
+.assistant-task {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  min-width: 0;
+}
+.assistant-task .staff-action-confirmation {
+  margin-top: 0;
+}
+.assistant-task > button {
+  justify-self: start;
+}
+.assistant-chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.assistant-chosen p {
+  margin: 0;
+}
+.assistant-done {
+  margin-top: 1rem;
+}
+.assistant-task select,
+.assistant-task input[type="date"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #abc5d7;
+  border-radius: 10px;
+  background: white;
+  color: var(--staff-ink);
+  font: inherit;
+}

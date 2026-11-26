@@ -543,6 +543,8 @@ export function createBroker({
     bookingSessions: (payload) => call("/bookings/sessions", payload, true),
     lab: (payload) => call("/lab", payload, true),
     assistantMessage: (payload) => call("/assistant/message", payload, true),
+    assistantAlternatives: (payload) =>
+      call("/assistant/alternatives", payload, true),
     queueTransition: (payload) => call("/queue/transition", payload, true),
     queueSessions: (payload) => call("/queue/sessions", payload, true),
     queueAdmit: (payload) => call("/queue/admit", payload, true),

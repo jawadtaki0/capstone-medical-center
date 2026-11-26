@@ -1,4 +1,4 @@
-import { plain } from "./routing.js";
+import { plain } from "./text.js";
 
 const WEEKDAYS = [
   ["sunday", "الاحد"],
