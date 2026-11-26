@@ -345,11 +345,13 @@ test("scope/role revocation and invalid roles do not leak stale counts", async (
     (e) => e.code === "permission_denied",
   );
 });
-test("Clinic Admin may view scoped bookings but gains no request/message or booking-write authority", async () => {
+test("Clinic Admin has booking and request authority only for assigned Clinic scopes", async () => {
   const result = await fixture(["Clinic Admin"]).service.read("dummy");
   assert.equal(result.counts.todayBookings, 1);
-  assert.equal(result.counts.requestsAwaitingDecision, undefined);
-  assert.equal(result.capabilities.book, false);
+  assert.equal(result.counts.requestsAwaitingDecision, 1);
+  assert.equal(result.capabilities.book, true);
+  assert.equal(result.capabilities.requests, true);
+  assert.equal(result.capabilities.directory, false);
   assert(result.capabilities.professionals);
 });
 test("Lab Admin service assignment does not confer clinic counts; mixed roles combine explicit grants", async () => {

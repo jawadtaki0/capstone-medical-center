@@ -96,11 +96,12 @@ async function limit(value) {
     expectedRevision: revision,
   });
 }
-test("Admin and explicitly assigned Receptionist can confirm/cancel; other roles and mixed-role non-grants cannot", async () => {
+test("Clinic booking confirmation and cancellation are limited to Admin and assigned Clinic staff", async () => {
   for (const [roles, assigned, allowed] of [
     [["Receptionist"], false, false],
     [["Receptionist"], true, true],
-    [["Clinic Admin"], true, false],
+    [["Clinic Admin"], true, true],
+    [["Clinic Admin"], false, false],
     [["Lab Admin"], true, false],
     [["Clinic Admin", "Receptionist"], true, true],
     [["Lab Admin", "Receptionist"], false, false],
@@ -279,7 +280,7 @@ test("draft changes remain allowed; incompatible publication blocked, harmless n
   });
   const affected = good(await post("affected", clinicAdmin.token, {}));
   assert.equal(affected.bookings[0].id, booking.id);
-  assert.equal(affected.bookings[0].canCancel, false);
+  assert.equal(affected.bookings[0].canCancel, true);
   good(
     await authority.post("save", {
       type: "sessions",

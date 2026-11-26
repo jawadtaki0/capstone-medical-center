@@ -67,7 +67,10 @@ test("standalone Lab preserves approved snapshots and enforces specimen transiti
     });
     const approve = (row) =>
       action("approve", row, { reason: "Synthetic approval fixture" });
-    assert.equal((await call(admin, approve(first))).status, 403);
+    assert.equal(
+      (await perform(admin, approve(first))).approval.actor,
+      admin.id,
+    );
     const intake = {
       action: "create",
       patientId: patient.id,
@@ -75,7 +78,10 @@ test("standalone Lab preserves approved snapshots and enforces specimen transiti
       testIds: [first._id, second._id, third._id],
     };
     assert.equal((await call(reception, intake)).status, 400);
-    for (const row of [first, second, third]) await perform(lab, approve(row));
+    for (const row of [second, third]) await perform(lab, approve(row));
+    const adminOrder = await perform(admin, intake);
+    assert.equal(adminOrder.patientId, patient.id);
+    assert.equal((await call(clinic, intake)).status, 403);
     let order = await perform(reception, intake);
     assert.equal(order.patientId, patient.id);
     assert.equal(order.specimens.length, 2);
