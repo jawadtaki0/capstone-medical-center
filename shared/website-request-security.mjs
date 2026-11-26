@@ -26,6 +26,15 @@ export const digest = (value) =>
       typeof value === "string" ? value : JSON.stringify(canonical(value)),
     )
     .digest("hex");
+export function guestCancellationPath(crypto, id, expires, generation) {
+  const value = id + "." + expires;
+  return (
+    "/cancel#" +
+    value +
+    "." +
+    crypto.source("patient-cancellation:" + value + ":" + generation)
+  );
+}
 export const randomToken = () => randomBytes(32).toString("base64url");
 export function requestCrypto(key) {
   if (!Buffer.isBuffer(key) || key.length !== 32)

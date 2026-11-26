@@ -537,6 +537,17 @@ export default function RequestForm({
         >
           {t.track}
         </a>
+        {typeof receipt.cancellationLink === "string" &&
+          /^\/cancel#[a-f0-9]{64}\.\d{13}\.[a-f0-9]{64}$/u.test(
+            receipt.cancellationLink,
+          ) && (
+            <a
+              className="button button-secondary"
+              href={receipt.cancellationLink}
+            >
+              {language === "ar" ? "إلغاء هذا الطلب" : "Cancel this request"}
+            </a>
+          )}
         <p>{t.manual}</p>
         <p className="request-muted">{t.warning}</p>
       </div>

@@ -25,6 +25,7 @@ import {
 import {
   digest,
   requestCrypto,
+  guestCancellationPath,
   consumeCounter,
 } from "../../../shared/website-request-security.mjs";
 import { websiteNoticeText } from "../../../shared/website-notice.mjs";
@@ -198,6 +199,19 @@ export function createWebsiteRequestService({
     input.patientMode
       ? digest({ booking: input.booking, patientMode: input.patientMode })
       : digest(input.booking);
+  const confirmationCancellationLink = (r, kind, at) =>
+    kind === "confirmed" &&
+    r.status === "confirmed" &&
+    Number.isSafeInteger(r.guestCancellationExpiresAt) &&
+    r.guestCancellationExpiresAt >= +at
+      ? config.publicBase +
+        guestCancellationPath(
+          crypto,
+          r._id,
+          r.guestCancellationExpiresAt,
+          r.generation,
+        )
+      : null;
   async function notice(session, r, kind, at) {
     await notices.updateMany(
       { requestId: r._id, state: { $in: ["pending", "call_required"] } },
@@ -366,6 +380,9 @@ export function createWebsiteRequestService({
             expiresAt: new Date(item.expiresAt),
             generation: item.generation,
             tokenEnvelope: item.tokenEnvelope,
+            ...(Number.isSafeInteger(item.guestCancellationExpiresAt)
+              ? { guestCancellationExpiresAt: item.guestCancellationExpiresAt }
+              : {}),
             phoneReview: item.phoneReview,
             status: "awaiting",
             searchKeys: [
@@ -1048,6 +1065,16 @@ export function createWebsiteRequestService({
           .toArray();
         return {
           requests: found.slice(0, 20).map(dto),
+          unreadCancellations: await rows.countDocuments(
+            {
+              scopeId: query.scopeId,
+              purgedAt: query.purgedAt,
+              source: query.source,
+              status: "cancelled_by_patient",
+              "patientCancellation.seenAt": null,
+            },
+            { session },
+          ),
           nextCursor: found.length > 20 ? found[19].ordinal : null,
         };
       }),
@@ -1632,6 +1659,11 @@ export function createWebsiteRequestService({
                 reference: r.reference,
                 bookingReference: r.bookingReference,
                 status: n.kind,
+                guestCancellationLink: confirmationCancellationLink(
+                  r,
+                  n.kind,
+                  at,
+                ),
                 professional: r.selection.professionalName,
                 kind: r.selection.kind,
                 ...r.selection,
@@ -1771,6 +1803,11 @@ export function createWebsiteRequestService({
               reference: r.reference,
               bookingReference: r.bookingReference,
               status: n.kind,
+              guestCancellationLink: confirmationCancellationLink(
+                r,
+                n.kind,
+                at,
+              ),
               professional: r.selection.professionalName,
               kind: r.selection.kind,
               ...r.selection,

@@ -5,6 +5,7 @@ import {
   publishedSessions,
 } from "../server/public-assistant.js";
 import { randomUUID } from "node:crypto";
+import { containsPrivateAccountText } from "../server/public-assistant-account.js";
 import { guidedTopic } from "../server/public-assistant-gate.js";
 
 const publicOrigin =
@@ -35,6 +36,7 @@ export function assistantHandler(answer) {
       reset = Date.now() + 60_000;
     }
     if (++calls > 30) return send(429, {});
+    if (req.headers.cookie || req.headers.authorization) return send(400, {});
     try {
       let body = req.body;
       if (body === undefined) {
@@ -47,7 +49,28 @@ export function assistantHandler(answer) {
       } else if (Buffer.byteLength(JSON.stringify(body)) > 12_000)
         return send(413, {});
       if (typeof body === "string") body = JSON.parse(body);
-      if (!body || typeof body !== "object") return send(400, {});
+      if (!body || typeof body !== "object" || Array.isArray(body))
+        return send(400, {});
+      const fields = [
+        "language",
+        "messages",
+        "searchContext",
+        "topic",
+        "intentChoice",
+        "selectedDate",
+        "partIndex",
+        "menu",
+      ];
+      if (
+        Object.keys(body).some((key) => !fields.includes(key)) ||
+        (body.messages !== undefined &&
+          (!Array.isArray(body.messages) ||
+            body.messages.some(
+              (value) =>
+                typeof value !== "string" || containsPrivateAccountText(value),
+            )))
+      )
+        return send(400, {});
       if (Object.hasOwn(body, "topic") && !guidedTopic(body.topic))
         return send(400, {});
       const started = Date.now();
@@ -61,8 +84,8 @@ export function assistantHandler(answer) {
       });
       const fallback = Boolean(
         result.fallback ||
-        result.kind === "reception" ||
-        result.kind === "unavailable",
+          result.kind === "reception" ||
+          result.kind === "unavailable",
       );
       const fallbackReason = fallback
         ? (provider.find(({ outcome }) =>

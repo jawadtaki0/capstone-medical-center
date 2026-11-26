@@ -74,6 +74,7 @@ export default function WebsiteRequests({
   const [storedRows, setRows] = useState([]),
     [rowsKey, setRowsKey] = useState(null),
     [listLoading, setListLoading] = useState(true),
+    [unreadCancellations, setUnreadCancellations] = useState(0),
     [listError, setListError] = useState(""),
     [view, setView] = useState(
       initialView === "notices" ? "messages" : initialView,
@@ -162,7 +163,8 @@ export default function WebsiteRequests({
           : { state: noticeState }),
         ...(c !== null ? { cursor: c } : {}),
       },
-      (items, nextCursor) => {
+      (items, nextCursor, unread) => {
+        if (Number.isSafeInteger(unread)) setUnreadCancellations(unread);
         setRows(items);
         setRowsKey(listKey);
         setNext(nextCursor);
@@ -408,6 +410,17 @@ export default function WebsiteRequests({
               </label>
               <label className="request-field">
                 Status
+                {unreadCancellations > 0 && (
+                  <span
+                    className="request-status-pill"
+                    aria-label={
+                      unreadCancellations + " unread patient cancellations"
+                    }
+                  >
+                    {unreadCancellations} unread patient cancellation
+                    {unreadCancellations === 1 ? "" : "s"}
+                  </span>
+                )}
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}

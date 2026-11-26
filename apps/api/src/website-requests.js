@@ -23,6 +23,7 @@ import {
 } from "../../../shared/website-request-contract.mjs";
 import {
   requestCrypto,
+  guestCancellationPath,
   randomToken,
   digest,
   requestTransaction,
@@ -101,6 +102,7 @@ export function createPublicIntake({
     generation: 1,
     tokenEnvelope: 1,
     phoneReview: 1,
+    owner: 1,
   };
   async function count(source, type, limit, ms = 60000) {
     await consumeCounter(
@@ -128,6 +130,7 @@ export function createPublicIntake({
       expiresAt: r.expiresAt,
       selection: r.selection,
       language: r.language,
+      ...guestCancellationLink(r),
     };
   }
   const unavailableCancellation = () =>
@@ -143,19 +146,19 @@ export function createPublicIntake({
     specialty: row.selection.specialty ?? null,
     cancellation: cancelState(row),
   });
-  const guestProof = (row) => {
-    const expires = Math.min(
+  const guestExpiry = (row) =>
+    Math.min(
       +row.expiresAt,
       +beirutEnd(row.selection.date, row.selection.startTime) -
         cancellationCutoffMinutes * 60_000,
     );
-    const value = row._id + "." + expires;
-    return (
-      value +
-      "." +
-      crypto.source("patient-cancellation:" + value + ":" + row.generation)
-    );
-  };
+  const guestPath = (row) =>
+    guestCancellationPath(crypto, row._id, guestExpiry(row), row.generation);
+  const guestProof = (row) => guestPath(row).slice("/cancel#".length);
+  const guestCancellationLink = (row) =>
+    !row.owner && cancelState(row).eligible
+      ? { cancellationLink: guestPath(row) }
+      : {};
   async function applyCancellation(filter, input, actor, authorize) {
     exact(input, ["confirmed", "reasons", "note"], ["confirmed"]);
     if (input.confirmed !== true)
@@ -553,9 +556,7 @@ export function createPublicIntake({
       await count(r._id, "tracking-token", policy.trackingToken);
       return {
         ...publicRequest(r, clock(), { localReviewOnly }),
-        ...(!r.owner && cancelState(r).eligible
-          ? { cancellationLink: "/cancel#" + guestProof(r) }
-          : {}),
+        ...guestCancellationLink(r),
       };
     },
     async pull(cursor = 0) {
@@ -591,7 +592,10 @@ export function createPublicIntake({
       }));
       return {
         schemaVersion: 1,
-        requests: rows,
+        requests: rows.map(({ owner, ...row }) => ({
+          ...row,
+          ...(!owner ? { guestCancellationExpiresAt: guestExpiry(row) } : {}),
+        })),
         cursor: rows.at(-1)?.ordinal ?? cursor,
         ...(patientCancellations.length ? { patientCancellations } : {}),
         availabilityDates: (

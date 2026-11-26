@@ -1,6 +1,7 @@
 import AssistantAccountCards from "./AssistantAccountCards.jsx";
 import {
   privateAccountIntent,
+  containsPrivateAccountText,
   cancelChatCopy,
 } from "../../server/public-assistant-account.js";
 import {
@@ -128,7 +129,11 @@ export default function PublicAssistant({ account, onAccount }) {
   const requestGeneration = useRef(0);
   const accountEmail = account?.email;
   useEffect(() => {
-    setPrivatePanel(null);
+    if (accountEmail) setPrivatePanel(null);
+    else
+      setPrivatePanel((current) =>
+        current ? { ...current, profileId: undefined } : current,
+      );
   }, [accountEmail]);
   const [showTopics, setShowTopics] = useState(false);
   const copy = labels[language];
@@ -198,13 +203,8 @@ export default function PublicAssistant({ account, onAccount }) {
     const generation = ++requestGeneration.current;
     setPrivatePanel(null);
     if (!topic && !intentChoice && !selectedDate && !menu) {
-      const detected =
-        protectedGate(value) ??
-        (/(?:^|\s)[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}(?![a-f0-9])/iu.test(
-          value,
-        )
-          ? "private"
-          : null);
+      const detected = protectedGate(value);
+      const sensitive = containsPrivateAccountText(value);
       const category =
         detected === "clinical" &&
         (isExactPublicPreparation(value) || isNamedTestPreparation(value))
@@ -213,6 +213,7 @@ export default function PublicAssistant({ account, onAccount }) {
       const intent = privateAccountIntent(value, category);
       if (
         intent ||
+        sensitive ||
         ["private", "cancel", "clinical", "emergency"].includes(category)
       ) {
         const replyLanguage = /\p{Script=Arabic}/u.test(value)
@@ -226,9 +227,10 @@ export default function PublicAssistant({ account, onAccount }) {
         );
         setQuestion("");
         setPrivatePanel({
+          generation,
           intent:
             intent ??
-            (category === "private" || category === "cancel"
+            (sensitive || category === "private" || category === "cancel"
               ? "sign_in"
               : null),
           language: replyLanguage,
@@ -250,7 +252,12 @@ export default function PublicAssistant({ account, onAccount }) {
     }
     const messages = [
       ...turns
-        .filter((turn) => !turn.topic && !turn.menu)
+        .filter(
+          (turn) =>
+            !turn.topic &&
+            !turn.menu &&
+            !containsPrivateAccountText(turn.question),
+        )
         .map((turn) => turn.question),
       value,
     ].slice(-8);
@@ -265,7 +272,7 @@ export default function PublicAssistant({ account, onAccount }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           language,
-          messages,
+          ...(!topic ? { messages } : {}),
           searchContext: selectionContext ?? searchContext.current,
           ...(topic ? { topic } : {}),
           ...(intentChoice ? { intentChoice } : {}),
@@ -289,6 +296,7 @@ export default function PublicAssistant({ account, onAccount }) {
     }
     if (answer.accountIntent) {
       setPrivatePanel({
+        generation,
         intent: answer.accountIntent,
         language: answer.language ?? language,
         text:
@@ -753,7 +761,11 @@ export default function PublicAssistant({ account, onAccount }) {
               <p>{privatePanel.text}</p>
               {privatePanel.intent && (
                 <AssistantAccountCards
-                  key={account?.email ?? "signed-out"}
+                  key={
+                    privatePanel.generation +
+                    ":" +
+                    (accountEmail ?? "signed-out")
+                  }
                   intent={privatePanel.intent}
                   account={account}
                   preferredProfileId={privatePanel.profileId}

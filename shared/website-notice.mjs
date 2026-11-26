@@ -22,6 +22,7 @@ export function websiteNoticeText(
     endTime,
     reason,
     trackingLink,
+    guestCancellationLink,
     contact,
   },
   language,
@@ -56,6 +57,10 @@ export function websiteNoticeText(
         : "",
     `${ar ? "للتواصل مع المركز" : "Center contact"}: ${ltr(contact)}`,
     trackingLink ?? "",
+    status === "confirmed" && guestCancellationLink
+      ? (ar ? "إلغاء هذا الموعد: " : "Cancel this appointment: ") +
+        guestCancellationLink
+      : "",
     ar ? "مركز سيدر للخدمات الطبية CMC" : "Cedar Medical Center CMC",
   ]
     .filter(Boolean)
