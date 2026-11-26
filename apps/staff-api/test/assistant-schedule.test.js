@@ -140,7 +140,7 @@ test("a limit change saves for editors and never below booked places", async () 
 test("an absence saves a draft and leaves bookings alone", async () => {
   await book();
   const current = await state(clinic);
-  const input = absenceChange(current, monday, authority.profile.id);
+  const input = absenceChange(current, monday, authority.profile.id).request;
   assert.equal(input.type, "exceptions");
   good(await post("/operations/save", clinic, input));
   assert.equal(

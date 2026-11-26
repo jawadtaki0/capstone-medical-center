@@ -46,3 +46,12 @@ export function readDate(message, today) {
   const current = new Date(`${today}T12:00:00Z`).getUTCDay();
   return add(today, (weekday - current + 7) % 7);
 }
+
+// Every date named: all explicit ones, otherwise the single relative one.
+export function readDates(message, today) {
+  const explicit = westernDigits(message).match(
+    /\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.]\d{1,2}[/.]\d{4}/g,
+  );
+  const found = (explicit ?? [message]).map((part) => readDate(part, today));
+  return [...new Set(found.filter((day) => day && day >= today))];
+}

@@ -4,7 +4,7 @@ import { allowFields } from "../management-validation.js";
 import { TOPICS, TOPIC_IDS, capabilitiesFor, allowedTopics } from "./topics.js";
 import { routeMessage } from "./routing.js";
 import { plain } from "./text.js";
-import { readDate } from "./dates.js";
+import { readDate, readDates } from "./dates.js";
 import { readPrefill } from "./prefill.js";
 
 const invalid = () =>
@@ -19,6 +19,8 @@ const TASKS = {
   lab_cancel_help: "labCancel",
   lab_release_help: "release",
   lab_prepare_help: "labPrepare",
+  limit_change: "limit",
+  absence: "absence",
 };
 const WINDOW_DAYS = 28;
 const addDays = (day, count) => {
@@ -119,6 +121,10 @@ export function createAssistantService({
       const date = prefill.date >= today ? prefill.date : today;
       const professionalId = await professionalIn(token, text, date);
       if (professionalId) prefill.professionalId = professionalId;
+    }
+    if (type === "absence" && text !== undefined) {
+      const dates = readDates(text, today);
+      if (dates.length) prefill.dates = dates;
     }
     return { type, prefill, today };
   }
@@ -251,7 +257,10 @@ export function createAssistantService({
         return answer("help", copy.reply, { suggestions: offer() });
       if (TASKS[entry.id]) {
         const prepared = await task(token, TASKS[entry.id], text, today);
-        const filled = Object.keys(prepared.prefill).length > 0;
+        // Schedule forms read the doctor and numbers from the question itself.
+        const filled =
+          Object.keys(prepared.prefill).length > 0 ||
+          (text !== undefined && prepared.type === "limit" && /\d/.test(text));
         return answer("task", filled ? replies.form : copy.reply, {
           steps: filled ? [] : copy.steps,
           actions,

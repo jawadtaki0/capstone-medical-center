@@ -159,6 +159,7 @@ export const TOPICS = [
       "كيف بعمل تشيك إن للمريض",
       "وصل المريض، شو بعمل",
       "تسجيل حضور المريض",
+      "تسجيل وصول المريض",
       "إضافة المريض إلى الدور",
     ],
     text("Check in a patient", "To check in a patient:", [
@@ -317,6 +318,50 @@ export const TOPICS = [
     ]),
   ),
   topic(
+    "limit_change",
+    "clinicEdit",
+    "schedule",
+    [
+      "change the doctor's patient limit from 4 to 6",
+      "set the doctor's limit to 8 patients",
+      "increase the number of patients for the doctor",
+      "غير عدد المرضى للدكتور من 4 الى 6",
+      "زيد الحد الاقصى لمرضى الطبيب",
+    ],
+    text("Change a patient limit", "To change a patient limit:", [
+      "Open Schedules and edit the weekly session.",
+      "Change the patient limit and save.",
+    ]),
+    text("تغيير حد المرضى", "لتغيير الحد الأقصى للمرضى:", [
+      "افتح Schedules وعدّل الجلسة الأسبوعية.",
+      "غيّر حد المرضى ثم احفظ.",
+    ]),
+  ),
+  topic(
+    "absence",
+    "clinicEdit",
+    "schedule",
+    [
+      "make the doctor absent on Monday",
+      "the doctor is away tomorrow",
+      "mark the doctor as not coming next week",
+      "the doctor will be on leave on that date",
+      "الدكتور غايب يوم الاثنين",
+      "غياب الطبيب بكرا",
+      "الدكتورة ما رح تجي",
+    ],
+    text("Mark a doctor absent", "To mark a doctor absent on a date:", [
+      "Open Schedules and choose Change one date.",
+      "Choose the professional and Away, then save.",
+      "Review and publish the website update.",
+    ]),
+    text("تسجيل غياب طبيب", "لتسجيل غياب طبيب في تاريخ:", [
+      "افتح Schedules واختر Change one date.",
+      "اختر الطبيب ثم Away واحفظ.",
+      "راجع تحديث الموقع وانشره.",
+    ]),
+  ),
+  topic(
     "schedule_help",
     "schedules",
     "schedule",
@@ -426,6 +471,7 @@ export function capabilitiesFor(roles, summary, labEnabled) {
     requests: summary.requests === true,
     directory: summary.directory === true,
     schedules: summary.schedules === true,
+    clinicEdit: summary.professionals === true,
     labOrder: labEnabled && has("Lab Admin", "Receptionist"),
     labRelease: labEnabled && has("Admin", "Lab Admin", "Receptionist"),
     labPrepare: labEnabled && has("Lab Admin"),

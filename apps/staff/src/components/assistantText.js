@@ -2,6 +2,39 @@
 export const TEXT = {
   en: {
     start: "Do it here",
+    doctor: "Doctor or specialist",
+    weekly: "Weekly session",
+    days: [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ],
+    newLimit: "New patient limit",
+    nowLimit: (n) => (n === null ? "no limit set" : `limit ${n}`),
+    notFrom: (said, is) =>
+      `You said the limit is ${said}, but it is ${is}. Check before confirming.`,
+    limitScope: "This changes every week for this session, immediately.",
+    confirmLimit: "Confirm new limit",
+    limitDone: (name, n) => `${name}: patient limit is now ${n}.`,
+    addDate: "Add date",
+    removeDate: "Remove",
+    noSession: "No session on this date.",
+    affected: (n) =>
+      n
+        ? `${n} confirmed bookings are affected. They stay booked.`
+        : "No confirmed bookings are affected.",
+    mustCancel:
+      "Reception or Admin must reschedule or cancel them before the absence can be published.",
+    draftOnly:
+      "This saves a private draft. Booking and the website change only after you publish it in Schedules.",
+    confirmAbsence: "Save absence",
+    absenceDone: (name, dates) =>
+      `Absence draft saved for ${name} on ${dates}. Publish it in Schedules.`,
+    absencePartial: (dates) => `Already saved: ${dates}.`,
     values: "Results (check every value)",
     allCollected: "Every required specimen was collected",
     prepare: "Create order, save results and prepare draft PDF",
@@ -117,6 +150,38 @@ export const TEXT = {
   },
   ar: {
     start: "نفّذ من هنا",
+    doctor: "الطبيب أو الاختصاصي",
+    weekly: "الجلسة الأسبوعية",
+    days: [
+      "الأحد",
+      "الاثنين",
+      "الثلاثاء",
+      "الأربعاء",
+      "الخميس",
+      "الجمعة",
+      "السبت",
+    ],
+    newLimit: "الحد الجديد للمرضى",
+    nowLimit: (n) => (n === null ? "بلا حد" : `الحد ${n}`),
+    notFrom: (said, is) => `قلت إن الحد ${said} لكنه ${is}. تحقق قبل التأكيد.`,
+    limitScope: "يتغير هذا فوراً ولكل أسبوع لهذه الجلسة.",
+    confirmLimit: "تأكيد الحد الجديد",
+    limitDone: (name, n) => `${name}: أصبح الحد ${n}.`,
+    addDate: "أضف تاريخاً",
+    removeDate: "إزالة",
+    noSession: "لا توجد جلسة في هذا التاريخ.",
+    affected: (n) =>
+      n
+        ? `${n} حجوزات مؤكدة متأثرة. تبقى محجوزة.`
+        : "لا توجد حجوزات مؤكدة متأثرة.",
+    mustCancel:
+      "يجب أن يغيّر الاستقبال أو الإدارة موعدها أو يلغيها قبل نشر الغياب.",
+    draftOnly:
+      "يحفظ هذا مسودة خاصة. لا يتغير الحجز ولا الموقع إلا بعد النشر من Schedules.",
+    confirmAbsence: "حفظ الغياب",
+    absenceDone: (name, dates) =>
+      `حُفظت مسودة غياب ${name} بتاريخ ${dates}. انشرها من Schedules.`,
+    absencePartial: (dates) => `حُفظ سابقاً: ${dates}.`,
     values: "النتائج (تحقق من كل قيمة)",
     allCollected: "أُخذت كل العينات المطلوبة",
     prepare: "أنشئ الطلب واحفظ النتائج وجهّز مسودة PDF",

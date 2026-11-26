@@ -5,6 +5,7 @@ import AssistantBooking from "./AssistantBooking.jsx";
 import AssistantChange from "./AssistantChange.jsx";
 import AssistantLab from "./AssistantLab.jsx";
 import AssistantPrepare from "./AssistantPrepare.jsx";
+import AssistantSchedule from "./AssistantSchedule.jsx";
 import { TEXT } from "./assistantText.js";
 import "./assistant.css";
 
@@ -22,6 +23,8 @@ const TASKS = {
   labCancel: AssistantLab,
   release: AssistantLab,
   labPrepare: AssistantPrepare,
+  limit: AssistantSchedule,
+  absence: AssistantSchedule,
 };
 
 // A form opens straight away when the question carried details, else on request.
