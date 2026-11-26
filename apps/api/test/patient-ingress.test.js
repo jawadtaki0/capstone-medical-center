@@ -108,3 +108,41 @@ test("Lab PDF relay preserves exact bytes and private attachment headers", async
   assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
   assert.deepEqual(Buffer.from(await response.arrayBuffer()), pdf);
 });
+
+test("Cedar website origins relay only their own same-origin requests", async () => {
+  const path = "/api/patient-account/signin";
+  const existing = "https://cedar-cmc.vercel.app";
+  const custom = "https://cmc-cedar.site";
+  const unrelated = "https://example.test";
+  let forwarded = 0;
+  const relay = createPatientAccountProxy({
+    secret: randomBytes(32).toString("base64url"),
+    async send(url, options) {
+      forwarded++;
+      assert.equal(options.headers.get("Origin"), existing);
+      assert.ok(options.headers.has(patientIngressHeader));
+      return Response.json({ account: null });
+    },
+  });
+  for (const [host, origin, status] of [
+    [existing, existing, 200],
+    [custom, custom, 200],
+    [custom, existing, 403],
+    [existing, custom, 403],
+    [unrelated, unrelated, 403],
+    [unrelated, custom, 403],
+  ]) {
+    const response = await relay(new Request(host + path, {
+      method: "POST",
+      headers: {
+        Origin: origin,
+        "Content-Type": "application/json",
+        "X-Vercel-Forwarded-For": "192.0.2.42",
+      },
+      body: "{}",
+    }));
+    assert.equal(response.status, status);
+    assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+  }
+  assert.equal(forwarded, 2);
+});

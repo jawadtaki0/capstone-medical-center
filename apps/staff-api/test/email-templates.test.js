@@ -27,11 +27,11 @@ test("recovery email preserves zero-prefixed code, original deadline, escaping a
   );
   assert.doesNotMatch(
     recoveryEmail({ code: '<img src="bad">', expiresAt }).html,
-    /<img/,
+    /<img[^>]+src="bad"/,
   );
   const notice = recoveryNotification();
   assert.match(notice.html, /authorized administrator/);
-  assert.doesNotMatch(notice.html, /<img|href=|00123456/);
+  assert.doesNotMatch(notice.html, /href=|00123456/);
 });
 
 test("verification HTML and text share the code, instructions, original Beirut deadline and safety notes", () => {
@@ -89,7 +89,7 @@ test("dynamic HTML is escaped without changing the plain-text value", () => {
   const code = '<img src="external" onerror="bad">&';
   const message = verificationEmail({ code, expiresAt });
   assert.ok(message.html.includes(escapeHtml(code)));
-  assert.doesNotMatch(message.html, /<img|onerror="bad"/);
+  assert.doesNotMatch(message.html, /<img[^>]+src="external"|onerror="bad"/);
   assert.ok(message.text.includes(code));
 });
 
@@ -103,23 +103,29 @@ test("notification has equivalent safe content and no code, support address or r
       ),
     );
     assert.doesNotMatch(
-      content,
+      content.replace(/<img[^>]+>/, ""),
       /verification code|\d{8}|@|https?:|recovery|password/i,
     );
   }
 });
 
-test("both templates use responsive inline styling without external resources or tracking", () => {
+test("staff templates use responsive inline styling and only the fixed Cedar logo", () => {
   for (const message of [
     verificationEmail({ code: "00123456", expiresAt }),
     emailChangedNotification(),
+    recoveryEmail({ code: "00123456", expiresAt }),
+    recoveryNotification(),
   ]) {
     assert.match(message.html, /<html lang="en">/);
     assert.match(message.html, /name="viewport"/);
     assert.match(message.html, /max-width: 560px/);
     assert.match(message.html, /role="presentation"/);
+    const images = message.html.match(/<img\b[^>]+>/g) ?? [];
+    assert.equal(images.length, 1);
+    assert.match(images[0], /src="https:\/\/cmc-cedar\.site\/cedar-email-logo-v1\.png"/);
+    assert.match(images[0], /alt="Cedar Medical Center"/);
     assert.doesNotMatch(
-      message.html,
+      message.html.replace(images[0], ""),
       /<(?:script|style|img|link|iframe|a)\b|https?:\/\/|animation|@import/i,
     );
     assert.equal((message.html.match(/<h1\b/g) ?? []).length, 1);

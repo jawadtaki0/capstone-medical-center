@@ -16,6 +16,8 @@ import {
 } from "./patient-accounts.js";
 import { validateHostedNormalConfig } from "../../../shared/hosted-normal-config.mjs";
 
+export const CEDAR_LINK_ORIGIN = "https://cmc-cedar.site";
+
 export function loadHostedNormalEnvironment(e = process.env) {
   const c = validateHostedNormalConfig({
     mode: "normal-hosted",
@@ -116,6 +118,7 @@ export function createHostedNormalApplication({
   sourceReader,
   makeClient,
   patientAccountDelivery,
+  labReportDelivery,
   phoneKey,
 } = {}) {
   validateHostedNormalConfig(config);
@@ -182,9 +185,12 @@ export function createHostedNormalApplication({
           phoneKey,
           sourceReader,
           publicOrigin: config.publicBase,
+          linkOrigin: CEDAR_LINK_ORIGIN,
           deliver: patientAccountDelivery,
           familyAccess: createHostedLab({
             db,
+            deliverReportNotice: labReportDelivery,
+            signInUrl: new URL("/account", CEDAR_LINK_ORIGIN).href,
             key: createHmac("sha256", config.key)
               .update("cedar-hosted-lab-v1")
               .digest(),
@@ -196,6 +202,7 @@ export function createHostedNormalApplication({
   });
   return createHostedApp({
     config,
+    clientOrigin: [config.publicBase, CEDAR_LINK_ORIGIN],
     runtime,
     sourceReader,
     accountsEnabled,

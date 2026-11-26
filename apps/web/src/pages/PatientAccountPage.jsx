@@ -150,6 +150,14 @@ const copy = {
   ],
   send: ["Send email link", "إرسال الرابط بالبريد الإلكتروني"],
   busy: ["Please wait…", "يرجى الانتظار…"],
+  sendingActivation: [
+    "Requesting the activation email. Cedar may take a moment to connect.",
+    "جارٍ طلب رسالة التفعيل. قد يستغرق الاتصال بسيدر بعض الوقت.",
+  ],
+  activationUnconfirmed: [
+    "Cedar couldn’t confirm activation. Try signing in once with the username and password you chose. If sign-in fails, return here and try the activation link again while it is still valid.",
+    "لم يتمكن سيدر من تأكيد التفعيل. جرّب تسجيل الدخول مرة واحدة باسم المستخدم وكلمة المرور اللذين اخترتهما. إذا تعذّر تسجيل الدخول، ارجع إلى هنا وجرّب رابط التفعيل مجددًا قبل انتهاء صلاحيته.",
+  ],
   cancel: ["Cancel", "إلغاء"],
   back: ["Back to sign in", "العودة إلى تسجيل الدخول"],
   verified: ["Verified email", "البريد الإلكتروني المتحقق منه"],
@@ -554,7 +562,12 @@ export default function PatientAccountPage({ account, onAccount }) {
         onAccount(null);
         setMode("");
       }
-      setError(cause.message);
+      setError(
+        action === "activate" &&
+          (cause.message === "try_later" || !Object.hasOwn(copy, cause.message))
+          ? "activationUnconfirmed"
+          : cause.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -613,7 +626,11 @@ export default function PatientAccountPage({ account, onAccount }) {
               </Alert>
             )}
             {error && <Alert severity="error">{t(error)}</Alert>}
-            {account === undefined ? (
+            {busy && view === "signup" && (
+              <p role="status">{t("sendingActivation")}</p>
+            )}
+            {account === undefined &&
+            !["signin", "signup", "activate", "reset", "verify-email", "recover", "recover-phone", "phone-reset"].includes(view) ? (
               <LoadingStatus label={t("busy")} language={language} />
             ) : view === "signin" ? (
               <Suspense

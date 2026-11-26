@@ -177,6 +177,7 @@ export function createHostedRuntime({
 
 export function createHostedApp({
   config,
+  clientOrigin = config.publicBase,
   runtime = createHostedReviewRuntime({ config }),
   sourceReader,
   validateConfig,
@@ -223,7 +224,7 @@ export function createHostedApp({
     ].map((key) => [key, (...args) => call("intake", key, args)]),
   );
   const inner = createApp({
-    clientOrigin: config.publicBase,
+    clientOrigin,
     patientAccounts: accountsEnabled
       ? Object.assign(
           (req, res, next) => {

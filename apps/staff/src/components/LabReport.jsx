@@ -126,6 +126,7 @@ export default function LabReport({ order, catalogue, roles, change }) {
   const lab = roles.includes("Lab Admin");
   const manage = lab || roles.includes("Admin");
   const reception = roles.includes("Receptionist");
+  const canRelease = reception || manage;
   const [reason, setReason] = useState("");
   const [patientNumber, setPatientNumber] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
@@ -217,7 +218,7 @@ export default function LabReport({ order, catalogue, roles, change }) {
               </button>
             </>
           )}
-          {ready && reception && (
+          {ready && canRelease && (
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -251,13 +252,34 @@ export default function LabReport({ order, catalogue, roles, change }) {
               <button className={primary}>Release report</button>
             </form>
           )}
-          {released && reception && current?.websitePublication && (
+          {released && canRelease && current?.websitePublication && (
             <button
               className={button}
               onClick={() => change("publish-release")}
             >
               Retry website publication
             </button>
+          )}
+          {released && current?.websiteEmailStatus === "failed" && (
+            <div>
+              <p className="staff-error" role="alert">
+                Report email failed. The report is still released.
+              </p>
+              {canRelease && (
+                <button className={button} onClick={() => change("retry-release-email")}>
+                  Retry report email
+                </button>
+              )}
+            </div>
+          )}
+          {released && current?.websiteEmailStatus === "sent" && (
+            <p className="staff-help">Report email accepted for delivery.</p>
+          )}
+          {released && current?.websiteEmailStatus === "unconfirmed" && (
+            <p className="staff-help">
+              Report email delivery could not be confirmed. Check the email
+              provider outcome before sending another notice.
+            </p>
           )}
           {((ready && lab) || (released && manage)) && (
             <>

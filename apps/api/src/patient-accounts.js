@@ -134,6 +134,7 @@ export function patientAccountRouter({
   db,
   client,
   publicOrigin,
+  linkOrigin = publicOrigin,
   deliver,
   intake,
   phoneKey,
@@ -245,7 +246,7 @@ export function patientAccountRouter({
   }
 
   function send(to, purpose, token, language) {
-    const link = new URL("/account", publicOrigin);
+    const link = new URL("/account", linkOrigin);
     if (language === "ar") link.searchParams.set("lang", "ar");
     link.hash = new URLSearchParams({ action: purpose, token }).toString();
     return deliver({
@@ -287,7 +288,7 @@ export function patientAccountRouter({
       accounts,
       key: phoneKey,
       clock,
-      publicOrigin,
+      publicOrigin: linkOrigin,
       change,
       ErrorType: AccountError,
     });
@@ -618,8 +619,10 @@ export function patientAccountRouter({
       throw new AccountError("invalid_username");
     const passwordHash = await hash(password(body.password, 12));
     const session = client.startSession();
+    let stage = "claim";
     try {
       await session.withTransaction(async () => {
+        stage = "claim";
         const signup = await signups.findOneAndDelete(
           { _id: key, expiresAt: { $gt: clock() } },
           { session },
@@ -629,6 +632,7 @@ export function patientAccountRouter({
         const profiles = signup.profile
           ? [{ ...signup.profile, id: randomUUID() }]
           : [];
+        stage = "account";
         await accounts.insertOne(
           {
             email: signup.email,
@@ -645,13 +649,24 @@ export function patientAccountRouter({
           },
           { session },
         );
+        stage = "profile_sync";
         if (familyAccess)
           await familyAccess.sync(accountId, profiles, clock(), session);
+        stage = "cleanup";
         await signups.deleteMany({ email: signup.email }, { session });
+        stage = "commit";
       });
     } catch (error) {
       if (error.code === 11000 && error.keyPattern?.username)
         throw new AccountError("username_taken", 409);
+      if (!(error instanceof AccountError)) {
+        console.warn("patient_account_activation_transaction_failed", {
+          stage,
+          code: Number.isSafeInteger(error.code) ? error.code : null,
+          commitUncertain:
+            error.hasErrorLabel?.("UnknownTransactionCommitResult") === true,
+        });
+      }
       throw error;
     } finally {
       await session.endSession();
@@ -766,8 +781,11 @@ export function patientAccountRouter({
     await budget(["replacement-mail", to], 5, 60 * 60_000);
     const { token, record } = challenge();
     await change(guard, { $set: { replacement: { ...record, email: to } } });
-    await send(to, "verify-email", token, body.language);
-    return { ok: true };
+    const delivery = await send(to, "verify-email", token, body.language);
+    return {
+      ok: true,
+      ...(delivery?.mailTraceId && { mailTraceId: delivery.mailTraceId }),
+    };
   });
 
   post("/verify-email", async (body) => {

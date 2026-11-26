@@ -37,6 +37,7 @@ export function createLabService({
       const lab = roles.includes("Lab Admin");
       const reception = roles.includes("Receptionist");
       const manage = lab || roles.includes("Admin");
+      const canRelease = reception || manage;
       const requireRole = (can) => {
         if (!can) fail("This Lab action is not permitted.", 403);
       };
@@ -110,7 +111,7 @@ export function createLabService({
         return entry;
       }
       if (action === "create") {
-        requireRole(reception);
+        requireRole(reception || lab);
         const patient = await db
           .collection("patients")
           .findOne({ _id: clean(input.patientId) }, options);
@@ -172,8 +173,8 @@ export function createLabService({
       const order = await orders.findOne({ _id: id }, options);
       if (!order || order.revision !== revision)
         fail("Reload the Lab order.", 409);
-      if (action === "publish-release") {
-        requireRole(reception);
+      if (action === "publish-release" || action === "retry-release-email") {
+        requireRole(canRelease);
         if (
           !hostedLab ||
           order.status !== "Released" ||
@@ -185,6 +186,7 @@ export function createLabService({
       if (
         [
           "open-notice",
+          "delivery-contact",
           "mark-notice-sent",
           "contact-pending",
           "contact-confirm",
@@ -238,7 +240,10 @@ export function createLabService({
           : patient.labPendingContact;
         const recipient = source?.websiteAccountId
           ? account?.verifiedWhatsAppPhone
-          : patient.labVerifiedPhone;
+          : canonicalPhone(patient.labVerifiedPhone || patient.phone);
+        const needsConfirmation = !source.websiteAccountId && !patient.labVerifiedPhone;
+        if (action === "delivery-contact")
+          return { phone: recipient ?? null, onHold: Boolean(pending), needsConfirmation };
         let draft;
         if (action.startsWith("contact-")) {
           if (source?.websiteAccountId && !account)
@@ -313,8 +318,10 @@ export function createLabService({
               sentBy: auth.account._id,
             };
           } else {
-            if (!["en", "ar"].includes(input.language))
-              fail("Choose English or Arabic.");
+            if (needsConfirmation && input.confirmed !== true)
+              fail("Confirm the registered number belongs to the intended recipient.", 409);
+            if (!["en", "ar", "both"].includes(input.language))
+              fail("Choose a supported message language.");
             const name = [
               patient.firstName,
               patient.fatherName,
@@ -324,12 +331,9 @@ export function createLabService({
               .join(" ");
             draft = {
               phone: recipient,
-              message: labMessage(
-                notice.kind,
-                input.language,
-                name,
-                "LAB-" + id,
-              ),
+              message: (input.language === "both" ? ["en", "ar"] : [input.language])
+                .map((language) => labMessage(notice.kind, language, name, "LAB-" + id))
+                .join("\n\n"),
             };
             if (notice.report) {
               const stored = await reports.findOne(
@@ -425,7 +429,7 @@ export function createLabService({
           };
         }
         if (action === "release-report") {
-          requireRole(reception);
+          requireRole(canRelease);
           requireState(
             order.status === "Ready to release" &&
               current?.status === "Finalized" &&
@@ -712,6 +716,40 @@ export function createLabService({
     const order = result.orderToPublish ?? result;
     const current = order.reportVersions.at(-1);
     if (!current.websitePublication) return order;
+    async function saveEmailStatus(emailStatus) {
+      if (!["failed", "sent", "skipped", "unconfirmed"].includes(emailStatus))
+        return order;
+      await orders.updateOne(
+        {
+          _id: order._id,
+          status: "Released",
+          reportVersions: {
+            $elemMatch: {
+              id: current.id,
+              status: "Released",
+              websiteEmailStatus:
+                emailStatus === "failed"
+                  ? { $nin: ["failed", "sent", "skipped", "unconfirmed"] }
+                  : { $ne: emailStatus },
+            },
+          },
+        },
+        {
+          $set: { "reportVersions.$.websiteEmailStatus": emailStatus },
+          $inc: { revision: 1 },
+        },
+      );
+      return await orders.findOne({ _id: order._id }) ?? order;
+    }
+    if (input.action === "retry-release-email") {
+      const outcome = await hostedLab({
+        action: "retry-release-email",
+        reportId: current.id,
+      }).catch(() => null);
+      if (!outcome?.released)
+        fail("Report email status could not be refreshed. The report remains released.", 503);
+      return saveEmailStatus(outcome.emailStatus);
+    }
     const stored = await reports.findOne({
       _id: current.id,
       orderId: order._id,
@@ -734,6 +772,6 @@ export function createLabService({
         "The report was released locally. Reload the order and retry website publication.",
         503,
       );
-    return order;
+    return saveEmailStatus(published.emailStatus);
   };
 }

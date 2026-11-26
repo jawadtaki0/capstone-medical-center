@@ -6,6 +6,7 @@ import {
 } from "../../../../shared/patient-ingress.mjs";
 
 const publicOrigin = "https://cedar-cmc.vercel.app";
+const websiteOrigins = new Set([publicOrigin, "https://cmc-cedar.site"]);
 const apiOrigin = "https://cedar-cmc-api.onrender.com";
 const actions = new Set([
   "signup",
@@ -43,7 +44,8 @@ export function createPatientAccountProxy({ secret, send = fetch } = {}) {
     };
     const reply = (status, error) =>
       Response.json({ error }, { status, headers });
-    const path = new URL(request.url).pathname;
+    const url = new URL(request.url);
+    const path = url.pathname;
     if (
       request.method !== "POST" ||
       !actions.has(path.split("/").at(-1)) ||
@@ -52,7 +54,8 @@ export function createPatientAccountProxy({ secret, send = fetch } = {}) {
       return reply(404, "not_found");
     const contentType = request.headers.get("content-type");
     if (
-      request.headers.get("origin") !== publicOrigin ||
+      !websiteOrigins.has(url.origin) ||
+      request.headers.get("origin") !== url.origin ||
       !/^application\/json(?:\s*;|$)/i.test(contentType ?? "")
     )
       return reply(403, "invalid_origin");
