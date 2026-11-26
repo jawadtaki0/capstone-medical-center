@@ -103,67 +103,66 @@ export function loadHostedPatientAccounts(
       credentials: { accessKeyId, secretAccessKey },
       maxAttempts: 1,
     });
-    const patientAccountDelivery = async ({ to, purpose, link, language }) => {
-        if (!address.test(to)) throw Error("Patient mail input unavailable.");
-        const { subject, text, html } = patientLinkEmail({
-          purpose,
-          link,
-          language,
-        });
-        const mailTraceId = randomUUID();
-        function trace(event, details = {}) {
-          console.info(
-            JSON.stringify({ event, mailTraceId, purpose, ...details }),
-          );
-        }
-        const signal = AbortSignal.timeout(7000);
-        trace("patient_mail_ses_attempt");
-        let result;
-        try {
-          result = await client.send(
-            new SendEmailCommand({
-              FromEmailAddress: `Cedar Medical Center <${from}>`,
-              Destination: { ToAddresses: [to] },
-              ReplyToAddresses: [replyTo],
-              ConfigurationSetName: configurationSet,
-              EmailTags: [
-                { Name: "cedar-purpose", Value: purpose },
-                { Name: "cedar-trace", Value: mailTraceId },
-              ],
-              Content: {
-                Simple: {
-                  Subject: { Data: subject, Charset: "UTF-8" },
-                  Body: {
-                    Text: { Data: text, Charset: "UTF-8" },
-                    Html: { Data: html, Charset: "UTF-8" },
-                  },
+    const patientAccountDelivery = async (input) => {
+      const { to, purpose } = input;
+      if (!address.test(to)) throw Error("Patient mail input unavailable.");
+      const { subject, text, html } = mailContent(input);
+      const mailTraceId = randomUUID();
+      function trace(event, details = {}) {
+        console.info(
+          JSON.stringify({ event, mailTraceId, purpose, ...details }),
+        );
+      }
+      const signal = AbortSignal.timeout(7000);
+      trace("patient_mail_ses_attempt");
+      let result;
+      try {
+        result = await client.send(
+          new SendEmailCommand({
+            FromEmailAddress: `Cedar Medical Center <${from}>`,
+            Destination: { ToAddresses: [to] },
+            ReplyToAddresses: [replyTo],
+            ConfigurationSetName: configurationSet,
+            EmailTags: [
+              { Name: "cedar-purpose", Value: purpose },
+              { Name: "cedar-trace", Value: mailTraceId },
+            ],
+            Content: {
+              Simple: {
+                Subject: { Data: subject, Charset: "UTF-8" },
+                Body: {
+                  Text: { Data: text, Charset: "UTF-8" },
+                  ...(html && { Html: { Data: html, Charset: "UTF-8" } }),
                 },
               },
-            }),
-            { abortSignal: signal },
-          );
-        } catch (error) {
-          const status = error?.$metadata?.httpStatusCode;
-          const failure = mailFailure(
-            "send",
-            signal.aborted || error?.name === "TimeoutError"
-              ? "timeout"
-              : Number.isInteger(status) && status >= 100 && status <= 599
-                ? `http_${status}`
-                : "network_or_invalid_response",
-          );
-          trace("patient_mail_ses_unconfirmed", { reason: failure.deliveryReason });
-          throw failure;
-        }
-        if (
-          typeof result?.MessageId !== "string" ||
-          !/^[a-z0-9-]{1,128}$/i.test(result.MessageId)
-        ) {
-          trace("patient_mail_ses_unconfirmed", { reason: "invalid_response" });
-          throw mailFailure("send", "invalid_response");
-        }
-        trace("patient_mail_ses_accepted", { messageId: result.MessageId });
-        return { mailTraceId };
+            },
+          }),
+          { abortSignal: signal },
+        );
+      } catch (error) {
+        const status = error?.$metadata?.httpStatusCode;
+        const failure = mailFailure(
+          "send",
+          signal.aborted || error?.name === "TimeoutError"
+            ? "timeout"
+            : Number.isInteger(status) && status >= 100 && status <= 599
+              ? `http_${status}`
+              : "network_or_invalid_response",
+        );
+        trace("patient_mail_ses_unconfirmed", {
+          reason: failure.deliveryReason,
+        });
+        throw failure;
+      }
+      if (
+        typeof result?.MessageId !== "string" ||
+        !/^[a-z0-9-]{1,128}$/i.test(result.MessageId)
+      ) {
+        trace("patient_mail_ses_unconfirmed", { reason: "invalid_response" });
+        throw mailFailure("send", "invalid_response");
+      }
+      trace("patient_mail_ses_accepted", { messageId: result.MessageId });
+      return { mailTraceId };
     };
     return {
       phoneKey,
