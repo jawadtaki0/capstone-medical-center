@@ -62,3 +62,10 @@ test("an uncertain request cannot produce a public command or transcript text", 
     null,
   );
 });
+
+for (const input of ["How much is a CBC?", "قديش سعر فحص CBC؟"])
+  test("a price question keeps the named test: " + input, () =>
+    assert.deepEqual(context.browserPublicRequest(input, null, "2026-11-25"), {
+      menu: { topic: "prices", choice: "cbc" },
+    }),
+  );
