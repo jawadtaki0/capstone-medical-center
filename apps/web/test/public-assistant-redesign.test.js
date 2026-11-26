@@ -387,17 +387,25 @@ for (const invalid of ["other-topic", "constructor", null, ["urgent"]])
       });
       const res = await http(handler, {
         language: "en",
-        messages: ["Hours?"],
-        topic: invalid,
+        message: { topic: invalid },
+        context: null,
       });
       assert.equal(res.statusCode, 400);
       assert.equal(calls, 0);
     },
   );
 test("chips allowlist leaves the existing free-text request contract intact", async () => {
-  const payload = { language: "en", messages: ["Which lab tests are listed?"] };
+  const payload = {
+    language: "en",
+    message: "Which lab tests are listed?",
+    context: null,
+  };
   const handler = assistantHandler(async (body) => {
-    assert.deepEqual(body, payload);
+    assert.deepEqual(body, {
+      language: payload.language,
+      messages: [payload.message],
+      publicTurnContext: null,
+    });
     return {
       kind: "library",
       text: "Public laboratory catalogue.",

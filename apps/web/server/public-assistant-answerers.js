@@ -34,6 +34,7 @@ export async function clinicWindowFacts({
   deadline,
   professional,
   strictProfessional,
+  clinicianId,
   specialty,
   after,
   before,
@@ -63,6 +64,7 @@ export async function clinicWindowFacts({
   const eligible = published.filter(
     (row) =>
       row.available !== false &&
+      (!clinicianId || row.professionalId === clinicianId) &&
       (!requiresAppointment ||
         (row.appointmentRequired === true && row.kind === "doctor")) &&
       timePattern.test(row.startTime) &&
@@ -170,6 +172,7 @@ export async function eligibleDemoDates({
             deadline,
             ...filters,
             strictProfessional: true,
+            clinicianId: filters?.clinicianId,
           });
           return matches.length ? day : null;
         } catch {

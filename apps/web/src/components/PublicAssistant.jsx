@@ -117,7 +117,7 @@ export default function PublicAssistant({ account, onAccount }) {
   const latestReply = useRef(null);
   const [open, setOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
-  const searchContext = useRef(null);
+  const publicContext = useRef(null);
   const [language, setLanguage] = useState(
     document.documentElement.lang === "ar" ? "ar" : "en",
   );
@@ -149,6 +149,7 @@ export default function PublicAssistant({ account, onAccount }) {
     );
   function close() {
     requestGeneration.current++;
+    publicContext.current = null;
     setPrivatePanel(null);
     setBusy(false);
     setOpen(false);
@@ -189,20 +190,12 @@ export default function PublicAssistant({ account, onAccount }) {
       log.scrollTop = log.scrollHeight;
     }
   }, [open, turns, busy]);
-  async function send(
-    value,
-    topic,
-    intentChoice,
-    selectedDate,
-    partIndex,
-    selectionContext,
-    menu,
-  ) {
+  async function send(value, control) {
     if (busy || !value) return;
     setShowTopics(false);
     const generation = ++requestGeneration.current;
     setPrivatePanel(null);
-    if (!topic && !intentChoice && !selectedDate && !menu) {
+    if (!control) {
       const detected = protectedGate(value);
       const sensitive = containsPrivateAccountText(value);
       const category =
@@ -210,6 +203,7 @@ export default function PublicAssistant({ account, onAccount }) {
         (isExactPublicPreparation(value) || isNamedTestPreparation(value))
           ? null
           : detected;
+      if (category) publicContext.current = null;
       const intent = privateAccountIntent(value, category);
       if (
         intent ||
@@ -225,6 +219,7 @@ export default function PublicAssistant({ account, onAccount }) {
             [p.firstName, p.lastName].every(Boolean) &&
             canon(value).includes(canon(p.firstName + " " + p.lastName)),
         );
+        publicContext.current = null;
         setQuestion("");
         setPrivatePanel({
           generation,
@@ -250,18 +245,11 @@ export default function PublicAssistant({ account, onAccount }) {
         return;
       }
     }
-    const messages = [
-      ...turns
-        .filter(
-          (turn) =>
-            !turn.topic &&
-            !turn.menu &&
-            !containsPrivateAccountText(turn.question),
-        )
-        .map((turn) => turn.question),
-      value,
-    ].slice(-8);
-    if (!topic && !intentChoice && !selectedDate && !menu) setQuestion("");
+    if (!control) setQuestion("");
+    if (control?.topic) publicContext.current = null;
+    const saved = publicContext.current;
+    const context =
+      saved && Date.now() - saved.at < 600_000 ? saved.value : null;
     setBusy(true);
     let answer;
     try {
@@ -270,27 +258,20 @@ export default function PublicAssistant({ account, onAccount }) {
         credentials: "omit",
         redirect: "error",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          language,
-          ...(!topic ? { messages } : {}),
-          searchContext: selectionContext ?? searchContext.current,
-          ...(topic ? { topic } : {}),
-          ...(intentChoice ? { intentChoice } : {}),
-          ...(selectedDate ? { selectedDate } : {}),
-          ...(partIndex !== undefined ? { partIndex } : {}),
-          ...(menu ? { menu } : {}),
-        }),
+        body: JSON.stringify({ language, message: control ?? value, context }),
         signal: AbortSignal.timeout(55_000),
       });
       if (!res.ok) throw Error();
       answer = await res.json();
       if (typeof answer.text !== "string") throw Error();
       if (generation !== requestGeneration.current) return;
-      searchContext.current = answer.searchContext ?? null;
+      publicContext.current = answer.context
+        ? { value: answer.context, at: Date.now() }
+        : null;
     } catch {
       if (generation !== requestGeneration.current) return;
-      searchContext.current = null;
-      answer = topic
+      publicContext.current = null;
+      answer = control?.topic
         ? { kind: "failure", text: copy.failed }
         : { kind: "failure", text: receptionHandoff[language] };
     }
@@ -310,18 +291,15 @@ export default function PublicAssistant({ account, onAccount }) {
     setTurns((current) => [
       ...current,
       {
-        question: value,
+        question: answer.fallback || answer.kind === "failure" ? "" : value,
         answer,
-        topic,
-        menu,
         replyLanguage: answer.language ?? language,
       },
     ]);
     setBusy(false);
   }
 
-  const choose = (menu, label) =>
-    send(label, undefined, undefined, undefined, undefined, undefined, menu);
+  const choose = (menu, label) => send(label, { menu });
 
   const topicButton = ([topic, label], className, onClick) => (
     <button
@@ -356,7 +334,7 @@ export default function PublicAssistant({ account, onAccount }) {
       >
         {Object.entries(personal).map((entry) =>
           topicButton(entry, "cedar-assistant-quiet", (topic, label) =>
-            send(label, topic),
+            send(label, { topic }),
           ),
         )}
       </div>
@@ -460,10 +438,12 @@ export default function PublicAssistant({ account, onAccount }) {
             )}
             {turns.map(({ question, answer, replyLanguage }, index) => (
               <section key={index}>
-                <div className="cedar-assistant-question">
-                  <span className="cedar-assistant-hidden">{copy.you}</span>
-                  <p dir="auto">{question}</p>
-                </div>
+                {question && (
+                  <div className="cedar-assistant-question">
+                    <span className="cedar-assistant-hidden">{copy.you}</span>
+                    <p dir="auto">{question}</p>
+                  </div>
+                )}
                 <div
                   className="cedar-assistant-reply"
                   ref={index === turns.length - 1 ? latestReply : null}
@@ -549,22 +529,13 @@ export default function PublicAssistant({ account, onAccount }) {
                       {index === turns.length - 1 &&
                         !!part.intentOptions?.length && (
                           <div className="cedar-assistant-chips">
-                            {part.intentOptions.map(({ id, label }) => (
+                            {part.intentOptions.map(({ id, label, action }) => (
                               <button
                                 key={id}
                                 type="button"
                                 className="button button-secondary"
                                 disabled={busy}
-                                onClick={() =>
-                                  send(
-                                    question,
-                                    undefined,
-                                    id,
-                                    undefined,
-                                    answer.parts ? partIndex : undefined,
-                                    part.searchContext,
-                                  )
-                                }
+                                onClick={() => send(label, { action })}
                               >
                                 {label}
                               </button>
@@ -640,14 +611,10 @@ export default function PublicAssistant({ account, onAccount }) {
                                       },
                                       event.target.value,
                                     )
-                                  : send(
-                                      question,
-                                      undefined,
-                                      undefined,
-                                      event.target.value,
-                                      answer.parts ? partIndex : undefined,
-                                      part.searchContext,
-                                    )
+                                  : send(event.target.value, {
+                                      action: part.dateAction,
+                                      date: event.target.value,
+                                    })
                               }
                             >
                               <option value="" disabled>
@@ -670,7 +637,9 @@ export default function PublicAssistant({ account, onAccount }) {
                                 type="button"
                                 className="button button-secondary"
                                 disabled={busy}
-                                onClick={() => send(copy.topics[id], id)}
+                                onClick={() =>
+                                  send(copy.topics[id], { topic: id })
+                                }
                               >
                                 {copy.topics[id]}
                               </button>
@@ -710,7 +679,7 @@ export default function PublicAssistant({ account, onAccount }) {
             {topicButton(
               ["urgent", urgent],
               "cedar-assistant-urgent",
-              (topic, label) => send(label, topic),
+              (topic, label) => send(label, { topic }),
             )}
           </div>
           <form

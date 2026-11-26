@@ -6,7 +6,10 @@ import {
 } from "../server/public-assistant.js";
 import { randomUUID } from "node:crypto";
 import { containsPrivateAccountText } from "../server/public-assistant-account.js";
-import { guidedTopic } from "../server/public-assistant-gate.js";
+import {
+  validCurrentMessage,
+  validPublicContext,
+} from "../server/public-assistant-context.js";
 
 const publicOrigin =
   process.env.CEDAR_ASSISTANT_PUBLIC_ORIGIN ??
@@ -51,37 +54,29 @@ export function assistantHandler(answer) {
       if (typeof body === "string") body = JSON.parse(body);
       if (!body || typeof body !== "object" || Array.isArray(body))
         return send(400, {});
-      const fields = [
-        "language",
-        "messages",
-        "searchContext",
-        "topic",
-        "intentChoice",
-        "selectedDate",
-        "partIndex",
-        "menu",
-      ];
       if (
-        Object.keys(body).some((key) => !fields.includes(key)) ||
-        (body.messages !== undefined &&
-          (!Array.isArray(body.messages) ||
-            body.messages.some(
-              (value) =>
-                typeof value !== "string" || containsPrivateAccountText(value),
-            )))
+        Object.keys(body).length !== 3 ||
+        !["en", "ar"].includes(body.language) ||
+        !validCurrentMessage(body.message) ||
+        !validPublicContext(body.context) ||
+        containsPrivateAccountText(body.message)
       )
         return send(400, {});
-      if (Object.hasOwn(body, "topic") && !guidedTopic(body.topic))
-        return send(400, {});
+      const message = body.message;
+      const input =
+        typeof message === "string" ? { messages: [message] } : message;
       const started = Date.now();
       const provider = [];
       let routeReason;
-      const result = await answer(body, {
-        observe: (event) => provider.push(event),
-        trace: (reason) => {
-          routeReason = reason;
+      const result = await answer(
+        { ...input, language: body.language, publicTurnContext: body.context },
+        {
+          observe: (event) => provider.push(event),
+          trace: (reason) => {
+            routeReason = reason;
+          },
         },
-      });
+      );
       const fallback = Boolean(
         result.fallback ||
           result.kind === "reception" ||

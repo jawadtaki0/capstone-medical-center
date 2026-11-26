@@ -29,6 +29,10 @@ import {
   medicationQuestion,
   resolvePublicIntent,
 } from "./public-assistant-intent-resolve.js";
+import {
+  publicReplyContext,
+  usablePublicContext,
+} from "./public-assistant-context.js";
 import { guidedMenu } from "./public-assistant-guided-menu.js";
 import {
   accountAnswer,
@@ -87,6 +91,8 @@ import {
   sessionDateRange,
   sessionDays,
   shownDateFor,
+  sameDayReference,
+  resolveBeirutDate,
   timePattern,
 } from "./public-assistant-dates.js";
 
@@ -167,6 +173,9 @@ export function createAssistant({
       selectedDate,
       partIndex,
       menu,
+      publicTurnContext,
+      action,
+      date: actionDate,
     },
     { observe = defaultObserve, trace = () => {} } = {},
   ) {
@@ -180,7 +189,12 @@ export function createAssistant({
     const words = copy[lang];
     const fixed = rulesCopy[lang];
     const at = now();
-    const context = tokens.decode(searchContext, at);
+    const structured = publicTurnContext !== undefined;
+    const previous =
+      structured && usablePublicContext(publicTurnContext, today());
+    const context = structured
+      ? previous && { shownDate: previous.date }
+      : tokens.decode(searchContext, at);
     const activeSearch = context?.filters ? context : null;
     let carried = null;
     let prefix = "";
@@ -219,13 +233,27 @@ export function createAssistant({
       }));
       return {
         ...result,
-        searchContext: null,
+        ...(structured
+          ? {
+              context: publicReplyContext(
+                result,
+                menu.topic === "hours"
+                  ? {
+                      center: "center",
+                      lab: "laboratory",
+                      audio: "audiometry",
+                    }[menu.choice]
+                  : undefined,
+              ),
+            }
+          : { searchContext: null }),
         emergencyLine: emergencyLine[lang],
       };
     }
     const guide = guidedTopic(topic);
     const freeTextPolicy = publishedOnly && !guide;
     let providerFallback = false;
+    let replyService;
     const reply = (key, extra = {}, relativeDisplayDate) => {
       if (
         freeTextPolicy &&
@@ -253,7 +281,13 @@ export function createAssistant({
         carried && !["greeting", "thanks", "identity"].includes(key)
           ? { ...carried, shownDate: shownDateFor(result, relativeDisplayDate) }
           : carried;
-      result.searchContext = tokens.encode(state);
+      if (structured)
+        result.context = publicReplyContext(
+          result,
+          replyService,
+          relativeDisplayDate,
+        );
+      else result.searchContext = tokens.encode(state);
       if (freeTextPolicy)
         return {
           ...result,
@@ -265,6 +299,15 @@ export function createAssistant({
         : result;
     };
     const handoff = () => reply("reception", { fallback: true });
+    const authorizedAction =
+      structured && action ? tokens.decode(action, at) : null;
+    if (action && !authorizedAction?.plan) return handoff();
+    if (authorizedAction) {
+      const dates = authorizedAction.options;
+      if (dates ? !dates.includes(actionDate) : actionDate !== undefined)
+        return handoff();
+      messages = ["Cedar"];
+    }
     if (guide) {
       const { kind, copyKey, page } = guide;
       const accountIntent = demo
@@ -440,6 +483,7 @@ export function createAssistant({
               language,
               messages: [...messages.slice(0, -1), part],
               searchContext,
+              publicTurnContext,
             },
             { observe, trace },
           ),
@@ -452,6 +496,58 @@ export function createAssistant({
     }
     if (partsToAnswer.length === 1 && sentences.length > 1)
       latest = partsToAnswer[0];
+    if (
+      structured &&
+      !category &&
+      sameDayReference(latest) &&
+      !resolveBeirutDate(latest, today(), context).day
+    )
+      return reply("clarify", {
+        text: lang === "ar" ? "أي تاريخ تقصد؟" : "Which date do you mean?",
+      });
+    let dateFollowup;
+    if (
+      previous &&
+      /^(?:(?:and|what about|how about)\s+)?(?:(?:on|for)\s+)?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|that (?:same )?(?:day|date)|same (?:day|date)|\d{4}-\d{2}-\d{2})[?.!\s]*$|^(?:و\s*)?(?:(?:نهار|يوم)\s+)?(?:اليوم|بكرا|الاحد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|بهالنهار|بنفس النهار)[؟?.!\s]*$/u.test(
+        canon(latest),
+      )
+    ) {
+      const followDate = resolveBeirutDate(latest, today(), context).day;
+      if (followDate && previous.lastIntent === "hours")
+        latest =
+          { center: "Center", laboratory: "Lab", audiometry: "Audiometry" }[
+            previous.service
+          ] +
+          " hours " +
+          followDate;
+      else if (followDate)
+        dateFollowup = {
+          kind: "sessions",
+          day: followDate,
+          specialtyHint: previous.specialty,
+          clinicianId: previous.clinicianId,
+          time: {},
+          directSearch: true,
+          fixedSearch: true,
+          maySearch: true,
+          knownSearch: true,
+        };
+    }
+    if (previous?.date) {
+      const short =
+        /^(?:(?:and|what about|how about)\s+(?:the\s+)?(lab(?:oratory)?|audiometry|clinic|center)|و\s*(المختبر|العياده|المركز|فحوصات السمع))[?.!؟ ]*$/u.exec(
+          canon(latest),
+        );
+      if (short) {
+        const service = short[1] ?? short[2];
+        const label = /lab|المختبر/u.test(service)
+          ? "Lab"
+          : /audiometry|السمع/u.test(service)
+            ? "Audiometry"
+            : "Center";
+        latest = label + " hours " + previous.date;
+      }
+    }
     const demoPublic =
       demoTurn &&
       !category &&
@@ -495,6 +591,55 @@ export function createAssistant({
     )
       return handoff();
     if (selectedDate) publicContext.selectedDate = selectedDate;
+    const choicePlan = async (value) => {
+      if (!value) return null;
+      if (value.kind === "hours")
+        return { kind: "hours", hours: value.hours, hourDays: value.hourDays };
+      if (value.kind === "reference")
+        return { kind: "reference", route: value.route, fields: value.fields };
+      if (value.kind === "labs") return { kind: "labs", lab: value.lab };
+      if (!["sessions", "unavailableDate"].includes(value.kind)) return null;
+      const specialty = value.specialtyHint ?? value.filters?.specialty;
+      const professional =
+        value.namedProfessional ?? value.filters?.professional;
+      let clinicianId;
+      if (professional) {
+        const days = value.day
+          ? [value.day]
+          : sessionDays({ from: date, through: addDays(date, 6) }, date);
+        const { matches } = await clinicWindowFacts({
+          days,
+          readSessions,
+          deadline,
+          professional,
+          strictProfessional: true,
+          specialty,
+        });
+        clinicianId = matches[0]?.professionalId;
+        if (!clinicianId) return null;
+      }
+      return value.kind === "unavailableDate"
+        ? {
+            kind: value.kind,
+            intent: value.intent,
+            filters: { specialty, clinicianId },
+            unread: value.unread,
+          }
+        : {
+            kind: "sessions",
+            day: value.day,
+            specialtyHint: specialty,
+            clinicianId,
+            time: value.time,
+            hasTime: value.hasTime,
+            directSearch: true,
+            fixedSearch: true,
+            maySearch: true,
+            knownSearch: true,
+          };
+    };
+    const tokenFor = (plan, options) =>
+      tokens.encode({ plan, options, at, remaining: 1 });
     const dateOptions = async (intent, filters, unread) => {
       const options = await eligibleDemoDates({
         intent,
@@ -509,19 +654,57 @@ export function createAssistant({
           text: demoCopy[lang].noDates,
           reception: true,
         });
-      carried = {
-        at,
-        remaining: 1,
-        datePicker: { requestHash, intent, options },
-      };
+      let dateAction;
+      if (structured) {
+        const plan = await choicePlan({
+          kind: "unavailableDate",
+          intent,
+          filters,
+        }).catch(() => null);
+        if (!plan) return handoff();
+        dateAction = tokenFor(plan, options);
+      } else {
+        carried = {
+          at,
+          remaining: 1,
+          datePicker: { requestHash, intent, options },
+        };
+      }
       return reply("dateOptions", {
         text: demoCopy[lang][unread ? "unread" : "date"],
         dateOptions: options,
+        ...(dateAction ? { dateAction } : {}),
       });
     };
     let classified = classifyPublicTurn(latest, publicContext);
     if (freeTextPolicy) {
-      if (selectedDate) {
+      if (authorizedAction) {
+        const plan = authorizedAction.plan;
+        if (actionDate) {
+          if (plan.intent === "clinicSchedule")
+            classified = {
+              kind: "sessions",
+              day: actionDate,
+              specialtyHint: plan.filters?.specialty,
+              clinicianId: plan.filters?.clinicianId,
+              time: {},
+              directSearch: true,
+              fixedSearch: true,
+              maySearch: true,
+              knownSearch: true,
+            };
+          else
+            classified = {
+              kind: "hours",
+              hourDays: [actionDate],
+              hours: {
+                center: plan.intent === "centerHours",
+                lab: plan.intent === "labHours",
+                audio: plan.intent === "audioHours",
+              },
+            };
+        } else classified = plan;
+      } else if (selectedDate) {
         classified = resolvePublicIntent(
           context.datePicker.intent,
           latest,
@@ -529,6 +712,8 @@ export function createAssistant({
           true,
         );
         if (!classified) return handoff();
+      } else if (dateFollowup) {
+        classified = dateFollowup;
       } else if (demoPublic && intentChoice === undefined) {
         classified = demoPublic;
       } else if (matchIntent) {
@@ -553,13 +738,28 @@ export function createAssistant({
           intentChoice === undefined &&
           choices.length
         ) {
-          return reply("intentOptions", {
-            text: intentQuestion[lang],
-            intentOptions: choices.map((id) => ({
-              id,
-              label: intentLabels[id][lang],
-            })),
-          });
+          let options = choices.map((id) => ({
+            id,
+            label: intentLabels[id][lang],
+          }));
+          if (structured) {
+            options = (
+              await Promise.all(
+                options.map(async (option) => {
+                  const plan = await choicePlan(
+                    resolvePublicIntent(option.id, latest, publicContext),
+                  ).catch(() => null);
+                  return plan && { ...option, action: tokenFor(plan) };
+                }),
+              )
+            ).filter(Boolean);
+          }
+          return options.length
+            ? reply("intentOptions", {
+                text: intentQuestion[lang],
+                intentOptions: options,
+              })
+            : handoff();
         }
         const selected = intentChoice ?? choices[0];
         const picked =
@@ -647,7 +847,7 @@ export function createAssistant({
         {
           days: facts,
           closingOnly:
-            !freeTextPolicy && closingQuestion.test(canon(hoursMessage)),
+            !freeTextPolicy && closingQuestion.test(canon(hoursMessage ?? "")),
         },
         lang,
       );
@@ -655,6 +855,12 @@ export function createAssistant({
       if (demoTurn && hours.center && result.complete)
         result.text = clinicHoursNote(latest, lang) + result.text;
       if (!combinedSchedule) {
+        if ([hours.center, hours.lab, hours.audio].filter(Boolean).length === 1)
+          replyService = hours.lab
+            ? "laboratory"
+            : hours.audio
+              ? "audiometry"
+              : "center";
         if (result.complete && result.day) carried = { at, remaining: 2 };
         return reply(result.complete ? "library" : "reception", {
           text: result.text,
@@ -965,6 +1171,7 @@ export function createAssistant({
         deadline,
         professional,
         strictProfessional: freeTextPolicy,
+        clinicianId: classified.clinicianId,
         specialty,
         after,
         before,

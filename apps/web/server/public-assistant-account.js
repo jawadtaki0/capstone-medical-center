@@ -6,13 +6,13 @@ export const cancelChatCopy = {
 };
 
 const own =
-  /\b(?:my|for me|to me|in my name|under my name)\b|(?:نتايجي|نتائج?ي|نتيجتي|تقريري|موعدي|حجزي|مواعيدي|حجوزاتي|طلباتي|ابني|بنتي|طفلي|باسمي|بحسابي|عحسابي|بملفي)/u;
+  /\b(?:my|for me|to me|in my name|under my name)\b|(?:نتايجي|نتائج?ي|نتيجتي|تقريري|موعدي|حجزي|مواعيدي|حجوزاتي|حجوزاتنا|طلباتي|ابني|بنتي|طفلي|باسمي|تبعي|تبعنا|خصني|بحسابي|عحسابي|بملفي)/u;
 const family =
   /\b(?:mom|mother|father|dad|wife|husband|sister|brother|aunt|uncle|cousin|friend|someone else|their|his|her)\b|(?<!\p{L})(?:امي|والدتي|ابي|والدي|اخي|اختي|زوجتي|خالتي|عمتي|صديقي)(?!\p{L})/u;
 const booking =
-  /\b(?:bookings?|appointments?|requests?)\b|موعد|مواعيد|حجز|حجوز|طلبات/u;
+  /\b(?:bookings?|appointments?|requests?|visits?)\b|موعد|مواعيد|حجز|حجوز|طلبات/u;
 const results =
-  /\b(?:results?|reports?|(?:lab(?:oratory)?|blood) (?:files?|documents?|tests?)|(?:files?|documents?) (?:cedar )?(?:issued|released|sent))\b|نتايج|نتائج|نتيج|تقارير|تقرير|تحاليل/u;
+  /\b(?:results?|reports?|(?:lab(?:oratory)?|blood) (?:files?|documents?|tests?)|(?:files?|documents?) (?:cedar )?(?:issued|released|sent))\b|نتايج|نتائج|نتيج|تقارير|تقرير|تحاليل|فحوصات|ورقه (?:تبع )?(?:الفحص|فحص|تحليل)/u;
 
 // The privacy check is deliberately wider than the account intent lookup.
 // For example, a personal document can be identifiable without naming a supported action.
@@ -28,8 +28,10 @@ export function containsPrivateAccountText(message) {
   const record =
     results.test(text) ||
     booking.test(text) ||
-    /\b(?:records?|documents?|pdf|files?|account)\b|ملف|مستند|حساب/u.test(text);
-  if (!(own.test(text) || family.test(text))) return false;
+    /\b(?:records?|documents?|paperwork|pdf|files?|account)\b|ملف|مستند|حساب/u.test(
+      text,
+    );
+  if (!(personalRecordOwner(text) || family.test(text))) return false;
   return (
     record &&
     !/\b(?:book|request|make|schedule) (?:an? |a new )(?:appointment|visit|booking)\b|(?:احجز|قدم) (?:موعد|طلب) جديد/u.test(
@@ -37,6 +39,12 @@ export function containsPrivateAccountText(message) {
     )
   );
 }
+
+const personalRecordOwner = (text) =>
+  own.test(text) ||
+  /\b(?:i|we)\s+(?:gave|left|provided|submitted|arranged|scheduled|attended|booked|requested|had)\b|(?:واخدها انا|حاجزها|حجزتها|مسجلها|وصلتني|وصلوني|عملتها|عملتو|اخدتها|قدمتها|عطيتكن|عطيتكم)(?!\p{L})/u.test(
+    text,
+  );
 
 export function privateAccountIntent(message, category) {
   if (category && !["private", "cancel"].includes(category)) return;
@@ -46,7 +54,7 @@ export function privateAccountIntent(message, category) {
     return /\b(?:reschedule|change|move)\b|تغيير|غير موعد/u.test(text)
       ? undefined
       : "cancel_request";
-  if (!own.test(text)) return;
+  if (!personalRecordOwner(text)) return;
   if (results.test(text))
     return /\b(?:where|which (?:section|tab|page)|how (?:do|can) i (?:find|access))\b|وين|اين|(?:باي|اي) (?:قسم|صفحه|خانه)/u.test(
       text,
@@ -54,7 +62,7 @@ export function privateAccountIntent(message, category) {
       ? "where_results"
       : "my_results";
   if (booking.test(text))
-    return /\b(?:status|confirmed|approved|what happened)\b|شو صار|حال[هة]|وضع|تاكد/u.test(
+    return /\b(?:status|confirmed|approved|what happened)\b|شو صار|شو اخبار|حال[هة]|وضع|تاكد/u.test(
       text,
     )
       ? "booking_status"

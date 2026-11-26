@@ -235,8 +235,8 @@ test("the API keeps the four guided replies exact and adds the footer only to fr
     ]) {
       const result = await post({
         language,
-        messages: ["Example label"],
-        topic,
+        message: { topic },
+        context: null,
       });
       assert.equal(result.text, rulesCopy[language][key]);
       assert.deepEqual(result.cards ?? [], []);
@@ -245,7 +245,8 @@ test("the API keeps the four guided replies exact and adds the footer only to fr
   }
   const result = await post({
     language: "en",
-    messages: ["I cannot breathe."],
+    message: "I cannot breathe.",
+    context: null,
   });
   assert.equal(result.kind, "emergency");
   assert.equal(result.text, rulesCopy.en.emergency);

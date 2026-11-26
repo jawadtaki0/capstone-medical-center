@@ -15,7 +15,11 @@ for (const message of privateText) {
       "assistant boundary refuses private text in current or earlier turn " +
         messages.join(" / "),
       async () => {
-        const response = await invoke({ messages });
+        const response = await invoke(
+          messages.length === 1
+            ? { language: "en", message, context: null }
+            : { language: "en", message: hours, context: null, messages },
+        );
         assert.equal(response.status, 400);
         assert.deepEqual(response.body, {});
         assert.equal(response.calls, 0);
@@ -25,19 +29,27 @@ for (const message of privateText) {
 }
 test("assistant boundary refuses credentials without calling routing", async () => {
   const result = await invoke(
-    { messages: [hours] },
+    { language: "en", message: hours, context: null },
     { cookie: "synthetic=present" },
   );
   assert.equal(result.status, 400);
   assert.equal(result.calls, 0);
 });
 test("ordinary public question still reaches routing", async () => {
-  const response = await invoke({ messages: [hours] });
+  const response = await invoke({
+    language: "en",
+    message: hours,
+    context: null,
+  });
   assert.equal(response.status, 200);
   assert.equal(response.calls, 1);
 });
 test("guided account topics use only the fixed topic", async () => {
-  const response = await invoke({ topic: "private" });
+  const response = await invoke({
+    language: "en",
+    message: { topic: "private" },
+    context: null,
+  });
   assert.equal(response.status, 200);
   assert.equal(response.calls, 1);
 });
