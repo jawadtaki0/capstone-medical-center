@@ -2,6 +2,7 @@
 export const TEXT = {
   en: {
     start: "Do it here",
+    stale: "Saved earlier. Ask again for current availability.",
     tests: "Tests",
     noTests: "No approved tests are available.",
     findOrder: "Patient name, patient number or order ID",
@@ -15,8 +16,12 @@ export const TEXT = {
     confirmRelease: "Confirm release",
     preview: "Preview PDF",
     previewFirst: "Save and read the PDF before releasing it.",
+    retype: {
+      patientNumber: "Confirm patient number",
+      orderNumber: "Confirm order ID",
+    },
     compare:
-      "Check the patient and order ID in the saved PDF, then confirm release.",
+      "Type the patient number and order ID shown on the saved PDF, then confirm release.",
     version: (n, corrected) =>
       `PDF version ${n}${corrected ? " (corrected)" : ""}`,
     orderCreated: (id) => `Order created: ${id}`,
@@ -97,6 +102,7 @@ export const TEXT = {
   },
   ar: {
     start: "نفّذ من هنا",
+    stale: "محفوظ من قبل. اسأل مجدداً عن الأماكن المتاحة الآن.",
     tests: "الفحوصات",
     noTests: "لا توجد فحوصات معتمدة متاحة.",
     findOrder: "اسم المريض أو رقمه أو رقم الطلب",
@@ -114,7 +120,12 @@ export const TEXT = {
     confirmRelease: "تأكيد الإصدار",
     preview: "معاينة PDF",
     previewFirst: "احفظ ملف PDF واقرأه قبل الإصدار.",
-    compare: "تحقق من المريض ورقم الطلب في الملف المحفوظ ثم أكد الإصدار.",
+    retype: {
+      patientNumber: "أكد رقم المريض",
+      orderNumber: "أكد رقم الطلب",
+    },
+    compare:
+      "اكتب رقم المريض ورقم الطلب الظاهرين في الملف المحفوظ ثم أكد الإصدار.",
     version: (n, corrected) =>
       `نسخة PDF رقم ${n}${corrected ? " (مصححة)" : ""}`,
     orderCreated: (id) => `تم إنشاء الطلب: ${id}`,

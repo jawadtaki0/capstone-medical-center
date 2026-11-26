@@ -31,6 +31,7 @@ import { createOperationsService } from "./operations.js";
 import { createBookingService } from "./bookings.js";
 import { createLabService } from "./lab.js";
 import { createAssistantService } from "./assistant/service.js";
+import { createAssistantChats } from "./assistant/chats.js";
 import { createQueueService } from "./queue.js";
 import { createPatientService } from "./patients.js";
 
@@ -732,7 +733,7 @@ export function createAuthService({
 
   // Health/setup validation must not touch unrelated registry collections.
   // Initialize private services only when their named authenticated route is used.
-  let bookings, patients, websiteRequests, queue, lab, assistant;
+  let bookings, patients, websiteRequests, queue, lab, assistant, assistantChats;
   const operations = createOperationsService({
     db,
     transaction,
@@ -915,6 +916,14 @@ export function createAuthService({
         hostedLab: requestIntegration?.transport.lab,
       }));
     },
+    get assistantChats() {
+      return (assistantChats ??= createAssistantChats({
+        db,
+        transaction,
+        authenticated,
+        now,
+      }));
+    },
     get assistant() {
       const services = this;
       return (assistant ??= createAssistantService({
@@ -925,6 +934,7 @@ export function createAuthService({
         bookings: () => services.bookings,
         matcher: assistantMatcher,
         labEnabled,
+        chats: this.assistantChats,
       }));
     },
     get patients() {

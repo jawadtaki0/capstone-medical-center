@@ -4,6 +4,7 @@ import { STAFF_ROLE_POLICY } from "../../../shared/staff-roles.mjs";
 import { ensureBookingIndexes } from "./bookings.js";
 import { ensureQueueIndexes } from "./queue.js";
 import { ensurePatientIndexes } from "./patients.js";
+import { ensureAssistantIndexes } from "./assistant/chats.js";
 import { ensureOperationalSummaryIndexes } from "./operational-summary.js";
 
 export async function assertRoleStoragePolicy(db) {
@@ -59,6 +60,7 @@ export async function ensureIndexes(db) {
   await ensurePatientIndexes(db);
   await ensureBookingIndexes(db);
   await ensureQueueIndexes(db);
+  await ensureAssistantIndexes(db);
   await db
     .collection("accounts")
     .createIndex({ username: 1 }, { unique: true });

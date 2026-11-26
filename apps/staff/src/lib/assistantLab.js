@@ -22,6 +22,18 @@ export function releasableReport(order) {
     : null;
 }
 
+// The numbers are what staff typed from the PDF; the server compares them.
+export function releaseRequest(order, { patientNumber, orderNumber }) {
+  return {
+    action: "release-report",
+    id: order._id,
+    revision: order.revision,
+    reportId: releasableReport(order)?.id,
+    patientNumber: patientNumber.trim(),
+    orderNumber: orderNumber.trim(),
+  };
+}
+
 export function requiredSpecimens(order) {
   return order.specimens.filter((row) =>
     row.testIds.some((id) =>

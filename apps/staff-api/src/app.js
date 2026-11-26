@@ -272,6 +272,18 @@ export function createApp({
         service.assistant[action](bearer(request), request.body),
       ),
     );
+  for (const [path, action] of [
+    ["chats", "list"],
+    ["chat", "read"],
+    ["delete", "remove"],
+    ["outcome", "outcome"],
+  ])
+    app.post(
+      `/assistant/${path}`,
+      route((service, request) =>
+        service.assistantChats[action](bearer(request), request.body),
+      ),
+    );
   // Fixed, permission-checked staff operations; no generic collection browser.
   for (const action of ["search", "read", "check", "create", "update"]) {
     app.post(

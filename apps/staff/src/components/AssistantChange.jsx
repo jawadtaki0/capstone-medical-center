@@ -15,6 +15,7 @@ export default function AssistantChange({
   prefill,
   today,
   onError,
+  onDone,
 }) {
   const t = TEXT[language],
     moving = type === "reschedule",
@@ -68,7 +69,14 @@ export default function AssistantChange({
             publicReason,
           }),
     );
-    if (result) setDone(result);
+    if (result) {
+      setDone(result);
+      onDone(
+        moving
+          ? t.moved(booking.bookingNumber, result.booking.bookingNumber)
+          : t.cancelled(result.booking.bookingNumber),
+      );
+    }
   }
 
   const summary = (b) => (

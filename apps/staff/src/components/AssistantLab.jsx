@@ -6,6 +6,7 @@ import {
   releasableReport,
   requiredSpecimens,
   collectOrder,
+  releaseRequest,
 } from "../lib/assistantLab.js";
 import { useTask } from "./useTask.js";
 import { TEXT } from "./assistantText.js";
@@ -34,6 +35,7 @@ export default function AssistantLab({
   prefill,
   roles,
   onError,
+  onDone,
 }) {
   const t = TEXT[language];
   const task = useTask(onError);
@@ -50,6 +52,7 @@ export default function AssistantLab({
     [checked, setChecked] = useState([]),
     [reason, setReason] = useState(""),
     [previewed, setPreviewed] = useState(null),
+    [typed, setTyped] = useState({ patientNumber: "", orderNumber: "" }),
     [done, setDone] = useState("");
 
   async function load() {
@@ -64,15 +67,22 @@ export default function AssistantLab({
     setOrder(next);
     setChecked([]);
     setPreviewed(null);
+    setTyped({ patientNumber: "", orderNumber: "" });
     setReason("");
   }
   // A refused change means the record moved on: show the current one again.
   async function change(action, message) {
-    const result = await task.run(action, () => {
+    const result = await task.run(action, (error) => {
+      if (type === "release" && error.message.startsWith("Confirm the exact"))
+        return;
       choose(null);
       api.lab({ action: "list" }).then(setData, () => {});
     });
-    if (result) setDone(message(result));
+    if (result) {
+      const text = message(result);
+      setDone(text);
+      onDone(text);
+    }
   }
   async function preview(report) {
     const result = await task.run(() =>
@@ -370,21 +380,30 @@ export default function AssistantLab({
             {t.preview}
           </button>
           <p>{previewed === report.id ? t.compare : t.previewFirst}</p>
+          {["patientNumber", "orderNumber"].map((key) => (
+            <label className="staff-field" key={key}>
+              {t.retype[key]}
+              <input
+                dir="ltr"
+                autoComplete="off"
+                maxLength={60}
+                value={typed[key]}
+                onChange={(e) => setTyped({ ...typed, [key]: e.target.value })}
+              />
+            </label>
+          ))}
           <button
             type="button"
             className="staff-button staff-button-primary"
-            disabled={task.busy || previewed !== report.id}
+            disabled={
+              task.busy ||
+              previewed !== report.id ||
+              !typed.patientNumber.trim() ||
+              !typed.orderNumber.trim()
+            }
             onClick={() =>
               change(
-                () =>
-                  api.lab({
-                    action: "release-report",
-                    id: order._id,
-                    revision: order.revision,
-                    reportId: report.id,
-                    patientNumber: order.patientNumber,
-                    orderNumber: "LAB-" + order._id,
-                  }),
+                () => api.lab(releaseRequest(order, typed)),
                 () => t.released("LAB-" + order._id, report.version),
               )
             }

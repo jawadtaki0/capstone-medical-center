@@ -16,6 +16,7 @@ export default function AssistantBooking({
   prefill,
   today,
   onError,
+  onDone,
 }) {
   const t = TEXT[language],
     run = useRef(null);
@@ -80,8 +81,10 @@ export default function AssistantBooking({
         }
       },
     );
-    if (result?.booking) setReceipt(result.booking);
-    else if (result?.reviewRequired) {
+    if (result?.booking) {
+      setReceipt(result.booking);
+      onDone(t.booked(result.booking.bookingNumber));
+    } else if (result?.reviewRequired) {
       run.current = null;
       setRegistration(null);
       setReview(null);

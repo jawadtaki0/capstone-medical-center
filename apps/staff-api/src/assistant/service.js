@@ -79,6 +79,7 @@ export function createAssistantService({
   bookings,
   matcher,
   labEnabled,
+  chats,
 }) {
   // `lab` is the desktop build flag. It can only narrow what the server allows.
   async function person(token, lab) {
@@ -163,9 +164,35 @@ export function createAssistantService({
       }
       return { sessions: sessions.slice(0, 10), days: WINDOW_DAYS };
     },
+    // The reply is built from this question alone. With a chat ID it is also
+    // saved for its owner; saved turns are never read back to answer.
     async message(token, input) {
+      const id = input?.chatId;
+      if (id === undefined) return this.answer(token, input);
+      await chats.assertWritable(token, id);
+      const reply = await this.answer(token, input);
+      const question =
+        input.text?.trim() ??
+        TOPICS.find((t) => t.id === input.topic)[reply.language].label;
+      // Availability is a fact of the moment, so it is not kept.
+      const { sessions, task, ...kept } = reply;
+      const turnId = await chats.append(token, id, question, {
+        ...kept,
+        ...(sessions ? { stale: true } : {}),
+        ...(task ? { task: { type: task.type, prefill: task.prefill } } : {}),
+      });
+      return { ...reply, turnId };
+    },
+    async answer(token, input) {
       if (!input || typeof input !== "object") throw invalid();
-      allowFields(input, ["text", "topic", "language", "date", "lab"]);
+      allowFields(input, [
+        "text",
+        "topic",
+        "language",
+        "date",
+        "lab",
+        "chatId",
+      ]);
       const { text, topic } = input;
       if (
         (text === undefined) === (topic === undefined) ||

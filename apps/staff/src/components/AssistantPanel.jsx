@@ -23,7 +23,7 @@ const TASKS = {
 };
 
 // A form opens straight away when the question carried details, else on request.
-function Task({ api, language, task, roles, onError }) {
+function Task({ api, language, task, roles, onError, onDone }) {
   const [open, setOpen] = useState(task.open);
   const Card = TASKS[task.type];
   return open ? (
@@ -35,6 +35,7 @@ function Task({ api, language, task, roles, onError }) {
       today={task.today}
       roles={roles}
       onError={onError}
+      onDone={onDone}
     />
   ) : (
     <div className="staff-actions assistant-actions">
@@ -86,12 +87,22 @@ export default function AssistantPanel({
     generation = useRef(0),
     pending = useRef(false),
     end = useRef(null),
-    language = useRef("en");
+    language = useRef("en"),
+    chat = useRef(null);
   const [turns, setTurns] = useState([]),
     [text, setText] = useState(""),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [chats, setChats] = useState([]),
+    [removing, setRemoving] = useState(null);
 
+  async function recent() {
+    try {
+      setChats((await api.assistantChats()).chats);
+    } catch (e) {
+      if (isAccessError(e)) onError?.(e);
+    }
+  }
   async function ask(request, shown) {
     if (pending.current) return;
     pending.current = true;
@@ -100,7 +111,12 @@ export default function AssistantPanel({
     const n = ++generation.current;
     try {
       // Only the current question is sent; earlier turns stay on screen.
-      const reply = await api.assistantMessage({ ...request, lab });
+      // The greeting is not a conversation, so it is not saved.
+      const reply = await api.assistantMessage({
+        ...request,
+        lab,
+        ...(shown === null ? {} : { chatId: chat.current }),
+      });
       if (n !== generation.current) return;
       language.current = reply.language;
       setTurns((all) => [
@@ -108,6 +124,7 @@ export default function AssistantPanel({
         { id: crypto.randomUUID(), question: shown, reply },
       ]);
       setText("");
+      if (shown !== null) recent();
     } catch (e) {
       if (n !== generation.current) return;
       setError(e.message);
@@ -121,13 +138,59 @@ export default function AssistantPanel({
     generation.current++;
     pending.current = false;
     language.current = "en";
+    chat.current = crypto.randomUUID();
+    setRemoving(null);
     setTurns([]);
     setText("");
     setError("");
     setBusy(false);
     ask({ topic: "capabilities", language: "en" }, null);
   }
+  // Saved turns are shown as they were. Forms stay closed until asked for.
+  async function reopen(id) {
+    if (pending.current) return;
+    setError("");
+    const n = ++generation.current;
+    try {
+      const saved = await api.assistantChat({ id });
+      if (n !== generation.current) return;
+      chat.current = saved.id;
+      language.current = saved.turns.at(-1)?.reply.language ?? "en";
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Beirut",
+      }).format(new Date());
+      setTurns(
+        saved.turns.map(({ id: turnId, question, reply, outcome }) => ({
+          id: turnId,
+          question,
+          outcome,
+          reply: {
+            ...reply,
+            turnId,
+            ...(reply.task
+              ? { task: { ...reply.task, today, open: false } }
+              : {}),
+          },
+        })),
+      );
+    } catch (e) {
+      if (n === generation.current) setError(e.message);
+      if (isAccessError(e)) onError?.(e);
+    }
+  }
+  async function remove(id) {
+    try {
+      await api.assistantDelete({ id });
+      setRemoving(null);
+      if (chat.current === id) start();
+      await recent();
+    } catch (e) {
+      setError(e.message);
+      if (isAccessError(e)) onError?.(e);
+    }
+  }
   useEffect(() => {
+    recent();
     start();
     return () => {
       generation.current++;
@@ -156,8 +219,52 @@ export default function AssistantPanel({
           New chat
         </button>
       </div>
+      {chats.length > 0 && (
+        <details className="staff-state assistant-recent">
+          <summary>Recent chats ({chats.length})</summary>
+          <p className="staff-help">
+            Only you can see these. They are removed after 30 days.
+          </p>
+          <ul>
+            {chats.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  className="staff-button staff-button-link"
+                  disabled={busy}
+                  onClick={() => reopen(c.id)}
+                >
+                  <bdi>{c.title}</bdi>
+                </button>
+                <span className="staff-help">
+                  {new Date(c.updatedAt).toLocaleDateString("en-GB", {
+                    timeZone: "Asia/Beirut",
+                  })}
+                </span>
+                {removing === c.id ? (
+                  <button
+                    type="button"
+                    className="staff-button staff-button-danger"
+                    onClick={() => remove(c.id)}
+                  >
+                    Confirm delete
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="staff-button"
+                    onClick={() => setRemoving(c.id)}
+                  >
+                    Delete
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <div className="assistant-turns" role="log" aria-live="polite">
-        {turns.map(({ id: turnId, question, reply }) => {
+        {turns.map(({ id: turnId, question, reply, outcome }) => {
           const rtl = reply.language === "ar";
           return (
             <div className="assistant-turn" key={turnId}>
@@ -185,13 +292,29 @@ export default function AssistantPanel({
                     sessions={reply.sessions}
                   />
                 )}
-                {reply.task && (
+                {reply.stale && (
+                  <p className="staff-help">{TEXT[reply.language].stale}</p>
+                )}
+                {outcome && (
+                  <p className="staff-notice assistant-done">{outcome}</p>
+                )}
+                {reply.task && !outcome && (
                   <Task
                     api={api}
                     language={reply.language}
                     task={reply.task}
                     roles={roles}
                     onError={onError}
+                    onDone={(message) => {
+                      if (reply.turnId)
+                        api
+                          .assistantOutcome({
+                            id: chat.current,
+                            turnId: reply.turnId,
+                            outcome: message,
+                          })
+                          .catch(() => {});
+                    }}
                   />
                 )}
                 {reply.actions.length + reply.suggestions.length > 0 && (

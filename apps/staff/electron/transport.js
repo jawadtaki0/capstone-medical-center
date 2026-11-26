@@ -545,6 +545,10 @@ export function createBroker({
     assistantMessage: (payload) => call("/assistant/message", payload, true),
     assistantAlternatives: (payload) =>
       call("/assistant/alternatives", payload, true),
+    assistantChats: () => call("/assistant/chats", {}, true),
+    assistantChat: (payload) => call("/assistant/chat", payload, true),
+    assistantDelete: (payload) => call("/assistant/delete", payload, true),
+    assistantOutcome: (payload) => call("/assistant/outcome", payload, true),
     queueTransition: (payload) => call("/queue/transition", payload, true),
     queueSessions: (payload) => call("/queue/sessions", payload, true),
     queueAdmit: (payload) => call("/queue/admit", payload, true),
