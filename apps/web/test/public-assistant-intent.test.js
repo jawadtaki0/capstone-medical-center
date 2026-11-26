@@ -332,3 +332,46 @@ for (const message of [
       assert.deepEqual(calls, []);
     },
   );
+
+// A comma separates requests only when each side is a complete request.
+for (const [intent, message, kind] of [
+  [
+    "labHours",
+    "نهار الخميس بدي مرق عالمختبر، لحدّ الساعة كم شغّال؟",
+    "library",
+  ],
+  ["preparation", "إذا عم بجهّز لفحص فيتامين د، في صيام مطلوب؟", "labs"],
+  ["labHours", "Thursday morning; when does the lab open?", "library"],
+  ["labHours", "Hello, when does the lab open on Friday?", "library"],
+  ["labHours", "لو سمحت، شو دوام المختبر بكرا؟", "library"],
+])
+  test("one request with a comma is answered: " + message, async () => {
+    const { ask } = published(intent);
+    assert.equal((await ask(message)).kind, kind);
+  });
+
+for (const message of [
+  "When does the lab open, how much is a CBC?",
+  "دوام المختبر شو هو، وقديه سعر فحص CBC؟",
+  "When does the lab open, something awful happened?",
+  "شو دوام المختبر بكرا، صار معي شي مخيف",
+  "When does the lab open, my father is acting strangely?",
+])
+  test(
+    "a second request or unrelated clause hands off: " + message,
+    async () => {
+      const { ask, calls } = published("labHours");
+      assert.equal((await ask(message)).kind, "reception");
+      assert.deepEqual(calls, []);
+    },
+  );
+
+for (const message of [
+  "When does the lab open, I cannot breathe",
+  "شو دوام المختبر، ما عم بقدر اتنفس",
+])
+  test("an urgent clause after a comma stays urgent: " + message, async () => {
+    const { ask, calls } = published("labHours");
+    assert.equal((await ask(message)).kind, "emergency");
+    assert.deepEqual(calls, []);
+  });
