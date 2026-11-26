@@ -20,7 +20,12 @@ export function createHostedLab({ db, key }) {
     JSON.stringify(["cedar-lab-v1", _id, accountId, profileId, digest]);
   const active = (account, profileId) =>
     id.test(profileId ?? "") &&
-    account?.profiles?.some((p) => p.id === profileId && !p.revokedAt);
+    account?.profiles?.some(
+      (p) =>
+        p.id === profileId &&
+        !p.revokedAt &&
+        ["self", "child"].includes(p.relationship),
+    );
   const authorized = (account, profileId) =>
     account?.emailVerifiedAt &&
     account.verifiedWhatsAppPhone &&
@@ -58,8 +63,14 @@ export function createHostedLab({ db, key }) {
     },
     profiles(account) {
       return (account.profiles ?? [])
-        .filter((p) => !p.revokedAt)
-        .map((p) => ({ id: p.id, name: [p.firstName, p.lastName].join(" ") }));
+        .filter(
+          (p) => !p.revokedAt && ["self", "child"].includes(p.relationship),
+        )
+        .map((p) => ({
+          id: p.id,
+          name: [p.firstName, p.lastName].join(" "),
+          relationship: p.relationship,
+        }));
     },
     async list(account, profileId) {
       if (!authorized(account, profileId)) throw unavailable();

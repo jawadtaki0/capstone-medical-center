@@ -1,3 +1,4 @@
+import { cancelChatCopy } from "../server/public-assistant-account.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createPublicAssistant } from "../server/public-assistant.js";
@@ -231,7 +232,11 @@ for (const [i, [lang, key, query]] of [
     const r = await ask(query, lang);
     assert.equal(
       r.text,
-      key === "symptom" ? receptionHandoff[lang] : rulesCopy[lang][key],
+      key === "symptom"
+        ? receptionHandoff[lang]
+        : key === "cancel"
+          ? cancelChatCopy[lang]
+          : rulesCopy[lang][key],
     );
     assert.equal(r.parts, undefined);
     assert.deepEqual(r.cards ?? [], []);

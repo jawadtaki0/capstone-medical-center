@@ -18,6 +18,9 @@ import { services } from "./data/homeContent.js";
 
 const patientAccounts = import.meta.env.VITE_PATIENT_ACCOUNTS === "1";
 const PatientAccountPage = lazy(() => import("./pages/PatientAccountPage.jsx"));
+const GuestCancellationPage = lazy(
+  () => import("./pages/GuestCancellationPage.jsx"),
+);
 
 export default function App() {
   const dialog = useRef(null);
@@ -29,6 +32,7 @@ export default function App() {
   const onDoctorsPage = pathname === "/doctors";
   const onHomePage = pathname === "";
   const onAccountPage = patientAccounts && pathname === "/account";
+  const onGuestCancellation = pathname === "/cancel";
   useEffect(() => {
     if (!patientAccounts) return;
     let current = true;
@@ -127,7 +131,11 @@ export default function App() {
         }
         overlay={<PrototypeDialog dialogRef={dialog} action={previewAction} />}
       >
-        {onAccountPage ? (
+        {onGuestCancellation ? (
+          <Suspense fallback={<LoadingStatus label="Loading cancellation…" />}>
+            <GuestCancellationPage />
+          </Suspense>
+        ) : onAccountPage ? (
           <Suspense fallback={<LoadingStatus label="Loading account…" />}>
             <PatientAccountPage account={account} onAccount={setAccount} />
           </Suspense>
@@ -171,7 +179,10 @@ export default function App() {
       </PublicShell>
       {import.meta.env.VITE_CEDAR_PUBLIC_ASSISTANT === "1" &&
         (onHomePage || onSchedulePage || onDoctorsPage || service) && (
-          <PublicAssistant />
+          <PublicAssistant
+            account={patientAccounts ? account : null}
+            onAccount={setAccount}
+          />
         )}
     </>
   );

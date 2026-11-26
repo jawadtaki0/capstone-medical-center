@@ -176,6 +176,14 @@ export default function WebsiteRequestPage({ tracking = false, account }) {
                 requestHref="/request"
               />
             )}{" "}
+            {data?.cancellationLink && (
+              <a
+                className="button button-secondary"
+                href={data.cancellationLink}
+              >
+                {language === "ar" ? "إلغاء الموعد" : "Cancel booking"}
+              </a>
+            )}
             {data?.windowEnded && (
               <p className="request-alert">
                 {language === "ar"

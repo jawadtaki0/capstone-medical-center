@@ -1,4 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import AssistantAccountCards from "./AssistantAccountCards.jsx";
+import {
+  privateAccountIntent,
+  cancelChatCopy,
+} from "../../server/public-assistant-account.js";
+import {
+  protectedGate,
+  rulesCopy,
+} from "../../server/public-assistant-gate.js";
+import { canon } from "../../server/public-assistant-language.js";
+import { isExactPublicPreparation } from "../../server/public-assistant-confidence.js";
+import { isNamedTestPreparation } from "../../server/public-assistant-intent-resolve.js";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { emergencyLine, receptionHandoff } from "../public-assistant-safety.js";
 import "./public-assistant.css";
 
@@ -33,6 +45,7 @@ const labels = {
     topics: {
       urgent: "Urgent help",
       private: "My results",
+      bookings: "My bookings",
       cancel: "Cancel or reschedule",
       clinical: "Medical advice",
     },
@@ -78,6 +91,7 @@ const labels = {
     topics: {
       urgent: "مساعدة طارئة",
       private: "نتائجي",
+      bookings: "حجوزاتي",
       cancel: "إلغاء الموعد أو تغييره",
       clinical: "استشارة طبية",
     },
@@ -94,7 +108,7 @@ const labels = {
   },
 };
 
-export default function PublicAssistant() {
+export default function PublicAssistant({ account, onAccount }) {
   const opener = useRef(null);
   const panel = useRef(null);
   const closeButton = useRef(null);
@@ -109,17 +123,29 @@ export default function PublicAssistant() {
   const [turns, setTurns] = useState([]);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
+  const [privatePanel, setPrivatePanel] = useState(null);
+  const invalidateAccount = useCallback(() => onAccount?.(null), [onAccount]);
+  const requestGeneration = useRef(0);
+  const accountEmail = account?.email;
+  useEffect(() => {
+    setPrivatePanel(null);
+  }, [accountEmail]);
   const [showTopics, setShowTopics] = useState(false);
   const copy = labels[language];
   const latest = turns.at(-1);
   // One emergency line, always in view. The urgent reply already says it.
-  const footerLanguage = latest?.replyLanguage ?? language;
+  const footerLanguage =
+    privatePanel?.language ?? latest?.replyLanguage ?? language;
   const urgentShown =
+    !privatePanel &&
     latest &&
     (latest.answer.parts ?? [latest.answer]).every(
       (part) => part.kind === "emergency",
     );
   function close() {
+    requestGeneration.current++;
+    setPrivatePanel(null);
+    setBusy(false);
     setOpen(false);
     opener.current.focus();
   }
@@ -169,6 +195,59 @@ export default function PublicAssistant() {
   ) {
     if (busy || !value) return;
     setShowTopics(false);
+    const generation = ++requestGeneration.current;
+    setPrivatePanel(null);
+    if (!topic && !intentChoice && !selectedDate && !menu) {
+      const detected =
+        protectedGate(value) ??
+        (/(?:^|\s)[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}(?![a-f0-9])/iu.test(
+          value,
+        )
+          ? "private"
+          : null);
+      const category =
+        detected === "clinical" &&
+        (isExactPublicPreparation(value) || isNamedTestPreparation(value))
+          ? null
+          : detected;
+      const intent = privateAccountIntent(value, category);
+      if (
+        intent ||
+        ["private", "cancel", "clinical", "emergency"].includes(category)
+      ) {
+        const replyLanguage = /\p{Script=Arabic}/u.test(value)
+          ? "ar"
+          : language;
+        const candidates = (account?.profiles ?? []).filter(
+          (p) =>
+            p.relationship === "child" &&
+            [p.firstName, p.lastName].every(Boolean) &&
+            canon(value).includes(canon(p.firstName + " " + p.lastName)),
+        );
+        setQuestion("");
+        setPrivatePanel({
+          intent:
+            intent ??
+            (category === "private" || category === "cancel"
+              ? "sign_in"
+              : null),
+          language: replyLanguage,
+          urgent: category === "emergency",
+          profileId: candidates.length === 1 ? candidates[0].id : undefined,
+          text:
+            intent === "cancel_request" && account
+              ? cancelChatCopy[replyLanguage]
+              : rulesCopy[replyLanguage][
+                  category === "emergency" ||
+                  category === "clinical" ||
+                  (account && category === "cancel")
+                    ? category
+                    : "private"
+                ],
+        });
+        return;
+      }
+    }
     const messages = [
       ...turns
         .filter((turn) => !turn.topic && !turn.menu)
@@ -199,12 +278,26 @@ export default function PublicAssistant() {
       if (!res.ok) throw Error();
       answer = await res.json();
       if (typeof answer.text !== "string") throw Error();
+      if (generation !== requestGeneration.current) return;
       searchContext.current = answer.searchContext ?? null;
     } catch {
+      if (generation !== requestGeneration.current) return;
       searchContext.current = null;
       answer = topic
         ? { kind: "failure", text: copy.failed }
         : { kind: "failure", text: receptionHandoff[language] };
+    }
+    if (answer.accountIntent) {
+      setPrivatePanel({
+        intent: answer.accountIntent,
+        language: answer.language ?? language,
+        text:
+          answer.accountIntent === "cancel_request" && !account
+            ? rulesCopy[answer.language ?? language].private
+            : answer.text,
+      });
+      setBusy(false);
+      return;
     }
     setTurns((current) => [
       ...current,
@@ -651,7 +744,27 @@ export default function PublicAssistant() {
               </svg>
             </button>
           </form>
-          {!urgentShown && (
+          {privatePanel && (
+            <div
+              className="cedar-assistant-private"
+              lang={privatePanel.language}
+              dir={privatePanel.language === "ar" ? "rtl" : "ltr"}
+            >
+              <p>{privatePanel.text}</p>
+              {privatePanel.intent && (
+                <AssistantAccountCards
+                  key={account?.email ?? "signed-out"}
+                  intent={privatePanel.intent}
+                  account={account}
+                  preferredProfileId={privatePanel.profileId}
+                  language={privatePanel.language}
+                  onExpire={invalidateAccount}
+                />
+              )}
+            </div>
+          )}
+
+          {!urgentShown && !privatePanel?.urgent && (
             <p
               className="cedar-assistant-footer"
               lang={footerLanguage}

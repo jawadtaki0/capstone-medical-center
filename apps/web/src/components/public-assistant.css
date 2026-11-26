@@ -336,3 +336,20 @@
     animation: none;
   }
 }
+
+.cedar-assistant-private {
+  max-height: 38vh;
+  overflow: auto;
+  border-block-start: 1px solid currentColor;
+  padding: 0.75rem 1rem;
+}
+.cedar-assistant-private fieldset,
+.cedar-assistant-private ul {
+  display: grid;
+  gap: 0.4rem;
+}
+.cedar-assistant-account-profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}

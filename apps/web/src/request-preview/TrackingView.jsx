@@ -5,9 +5,14 @@ const STATUSES = {
   confirmed: { en: "Confirmed", ar: "مؤكد" },
   rejected: { en: "Rejected", ar: "مرفوض" },
   cancelled: { en: "Cancelled", ar: "ملغى" },
+  cancelled_by_patient: { en: "Cancelled by patient", ar: "ألغاه المريض" },
 };
 
 export const STATUS_EXPLANATIONS = {
+  cancelled_by_patient: {
+    en: "This appointment was cancelled at your request.",
+    ar: "أُلغي هذا الموعد بناءً على طلبك.",
+  },
   awaiting: {
     en: "Reception is reviewing your request. No appointment is reserved until it is confirmed.",
     ar: "يراجع موظفو الاستقبال طلبك. لا يُحجز موعد حتى يتم تأكيد الطلب.",

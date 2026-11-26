@@ -27,13 +27,26 @@ export function loadHostedPatientAccounts(environment) {
     );
   return {
     phoneKey: Buffer.from(key, "base64url"),
-    patientAccountDelivery: async ({ to, purpose, link, language }) => {
+    patientAccountDelivery: async ({
+      to,
+      purpose,
+      link,
+      language,
+      subject: cancellationSubject,
+      message,
+    }) => {
       if (!address.test(to)) throw Error("Patient mail input unavailable.");
-      const { subject, text, html } = patientLinkEmail({
-        purpose,
-        link,
-        language,
-      });
+      const cancellation = purpose === "booking-cancellation";
+      const { subject, text, html } = cancellation
+        ? { subject: cancellationSubject, text: message }
+        : patientLinkEmail({ purpose, link, language });
+      if (
+        typeof subject !== "string" ||
+        !subject ||
+        typeof text !== "string" ||
+        !text
+      )
+        throw Error("Patient mail input unavailable.");
       const token = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         redirect: "error",
@@ -63,11 +76,15 @@ export function loadHostedPatientAccounts(environment) {
           "Content-Transfer-Encoding: base64",
           "",
           encodePart(text),
-          `--${boundary}`,
-          "Content-Type: text/html; charset=UTF-8",
-          "Content-Transfer-Encoding: base64",
-          "",
-          encodePart(html),
+          ...(html
+            ? [
+                `--${boundary}`,
+                "Content-Type: text/html; charset=UTF-8",
+                "Content-Transfer-Encoding: base64",
+                "",
+                encodePart(html),
+              ]
+            : []),
           `--${boundary}--`,
           "",
         ].join("\r\n"),

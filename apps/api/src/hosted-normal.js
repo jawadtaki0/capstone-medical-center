@@ -70,9 +70,13 @@ export function loadHostedNormalEnvironment(e = process.env) {
     )
       throw Error("Strict TLS is required.");
   }
+  const cutoff = e.CEDAR_PATIENT_CANCEL_CUTOFF_MINUTES ?? "120";
+  if (!/^\d{1,5}$/u.test(cutoff))
+    throw Error("Invalid patient cancellation cutoff.");
   return {
     ...c,
     uri,
+    cancellationCutoffMinutes: Number(cutoff),
     publicationToken: token,
     requestCredential: credential,
     key: Buffer.from(key, "base64url"),
@@ -161,6 +165,9 @@ export function createHostedNormalApplication({
         client,
         key: config.key,
         localReviewOnly: false,
+        cancellationContact: config.contact,
+        cancellationCutoffMinutes: config.cancellationCutoffMinutes,
+        deliverCancellationEmail: patientAccountDelivery,
         sessionReader: (date) => receiver.requestSessions(date),
         professionalReader: (date) => receiver.requestProfessionals(date),
         upcomingReader: (input) => receiver.requestUpcoming(input),

@@ -13,6 +13,8 @@ const names = {
   confirmed: "Confirmed",
   rejected: "Rejected",
   cancelled: "Cancelled",
+  cancelled_by_patient: "Cancelled by patient",
+  unread_cancellations: "Unread patient cancellations",
 };
 const noticeNames = {
   pending: "Message not sent",
@@ -602,6 +604,48 @@ export default function WebsiteRequests({
               <fieldset className="request-fields" disabled={busy}>
                 <div className="request-alert">
                   <strong>{names[r.status]}</strong>
+                  {r.patientCancellation && (
+                    <div>
+                      <p>
+                        Cancelled at{" "}
+                        {new Date(r.patientCancellation.at).toLocaleString(
+                          "en-GB",
+                          { timeZone: "Asia/Beirut" },
+                        )}{" "}
+                        Beirut time ·{" "}
+                        {r.patientCancellation.channel === "account"
+                          ? "My account"
+                          : "Guest link"}
+                      </p>
+                      <ul>
+                        {r.patientCancellation.reasons.map(({ code, note }) => (
+                          <li key={code}>
+                            {code.replaceAll("_", " ")}
+                            {note ? ": " + note : ""}
+                          </li>
+                        ))}
+                      </ul>
+                      {r.patientCancellation.seenAt ? (
+                        <p>Seen</p>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={async () => {
+                            if (
+                              await run("markCancellationSeen", { id: r.id })
+                            ) {
+                              await open(r.id);
+                              await load(cursor);
+                            }
+                          }}
+                        >
+                          Mark seen
+                        </button>
+                      )}
+                      <p>To restore service, create a new booking.</p>
+                    </div>
+                  )}
                   <p>
                     {!r.trackingExpired && r.syncedSequence === r.sequence
                       ? "Tracking synchronized"

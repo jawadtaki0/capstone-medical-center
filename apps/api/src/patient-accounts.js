@@ -161,6 +161,13 @@ export function patientAccountRouter({
   const accounts = db.collection("patient_accounts");
   const signups = db.collection("patient_account_signups");
   const limits = db.collection("patient_account_limits");
+  const audit = (row, profileId, type) =>
+    db.collection("patient_account_access_audit").insertOne({
+      accountId: row._id,
+      profileId,
+      type,
+      at: clock(),
+    });
   let passwordJobs = 0;
 
   async function hash(value, salt = randomBytes(16).toString("hex")) {
@@ -324,7 +331,9 @@ export function patientAccountRouter({
     post("/lab-reports", async (body, req) => {
       exact(body, ["patientId"]);
       const { row } = await current(req);
-      return { reports: await familyAccess.list(row, body.patientId) };
+      const reports = await familyAccess.list(row, body.patientId);
+      await audit(row, body.patientId, "lab_list");
+      return { reports };
     });
     const download = async (req, res, { patientId, reportId }) => {
       const { row } = await current(req);
@@ -336,6 +345,7 @@ export function patientAccountRouter({
       );
       if ((await current(req)).row.revision !== row.revision)
         throw new AccountError("profile_unavailable", 404);
+      await audit(row, patientId, "lab_download");
       res.set("Cache-Control", "private, no-store");
       res.set("X-Content-Type-Options", "nosniff");
       res.attachment(filename).type("application/pdf").send(bytes);
@@ -398,7 +408,10 @@ export function patientAccountRouter({
 
   function ownedProfile(row, id) {
     const profile = (row.profiles ?? []).find(
-      (item) => item.id === id && !item.revokedAt,
+      (item) =>
+        item.id === id &&
+        !item.revokedAt &&
+        ["self", "child"].includes(item.relationship),
     );
     if (!profile) throw new AccountError("profile_unavailable", 404);
     return profile;
@@ -487,14 +500,47 @@ export function patientAccountRouter({
     const { row } = await current(req);
     const profile = ownedProfile(row, body.profileId);
     if (!intake) throw new AccountError("try_later", 503);
-    return {
-      requests: await intake.profileRequests({
-        accountId: row._id,
-        profileId: profile.id,
-      }),
-    };
+    const requests = await intake.profileRequests({
+      accountId: row._id,
+      profileId: profile.id,
+    });
+    await audit(row, profile.id, "booking_list");
+    return { requests };
   });
 
+  post("/cancel-booking", async (body, req) => {
+    exact(
+      body,
+      ["profileId", "reference", "confirmed", "reasons", "note"],
+      ["profileId", "reference", "confirmed"],
+    );
+    const { row, guard } = await current(req);
+    const { profileId, reference, ...confirmation } = body;
+    ownedProfile(row, profileId);
+    if (!intake?.cancelProfileRequest) throw new AccountError("try_later", 503);
+    return intake.cancelProfileRequest(
+      { accountId: row._id, profileId },
+      reference,
+      confirmation,
+      async (_request, session) =>
+        Boolean(await accounts.findOne(guard, { session })),
+    );
+  });
+  post("/guest-cancellation", async (body, req) => {
+    exact(body, ["proof"]);
+    if (!intake?.guestCancellation) throw new AccountError("try_later", 503);
+    return intake.guestCancellation(body.proof, sourceReader(req));
+  });
+  post("/guest-cancel-booking", async (body, req) => {
+    exact(
+      body,
+      ["proof", "confirmed", "reasons", "note"],
+      ["proof", "confirmed"],
+    );
+    if (!intake?.cancelGuestRequest) throw new AccountError("try_later", 503);
+    const { proof, ...confirmation } = body;
+    return intake.cancelGuestRequest(proof, sourceReader(req), confirmation);
+  });
   post("/book", async (body, req) => {
     exact(body, [
       "profileId",

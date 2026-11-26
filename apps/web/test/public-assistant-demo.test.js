@@ -1,3 +1,4 @@
+import { cancelChatCopy } from "../server/public-assistant-account.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -288,7 +289,12 @@ for (const [lang, key, message] of [
   test("protected " + key + " " + message, async () => {
     const { ask, calls } = fixture("centerHours");
     const result = await ask(message, lang);
-    assert.equal(result.text, rulesCopy[lang][key]);
+    assert.equal(
+      result.text,
+      key === "cancel" && !message.includes("reschedule")
+        ? cancelChatCopy[lang]
+        : rulesCopy[lang][key],
+    );
     assert.equal(result.emergencyLine, emergencyLine[lang]);
     assert.deepEqual(result.cards ?? [], []);
     assert.deepEqual(calls, []);

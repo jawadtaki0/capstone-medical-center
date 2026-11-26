@@ -1,3 +1,4 @@
+import { patientCancellationMessage } from "./patient-cancellation-message.mjs";
 import { REQUEST_REASONS } from "./website-request-contract.mjs";
 export function websiteNoticeLocationText(localReviewOnly = true) {
   return (
@@ -25,6 +26,11 @@ export function websiteNoticeText(
   },
   language,
 ) {
+  if (status === "cancelled_by_patient")
+    return patientCancellationMessage(
+      { professional, date, startTime, endTime, contact },
+      language,
+    ).text;
   const ar = language === "ar",
     ltr = (v) => (ar ? `\u2066${v}\u2069` : v);
   const statuses = {

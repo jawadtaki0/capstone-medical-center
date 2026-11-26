@@ -1,4 +1,8 @@
 import {
+  cancelChatCopy,
+  privateAccountIntent,
+} from "./public-assistant-account.js";
+import {
   demoCopy,
   fixedDemoIntent,
   standaloneArabizi,
@@ -263,7 +267,19 @@ export function createAssistant({
     const handoff = () => reply("reception", { fallback: true });
     if (guide) {
       const { kind, copyKey, page } = guide;
-      return reply(kind, { text: fixed[copyKey], ...(page ? { page } : {}) });
+      const accountIntent = demo
+        ? {
+            private: "my_results",
+            cancel: "cancel_request",
+            bookings: "my_bookings",
+          }[topic]
+        : undefined;
+      return reply(kind, {
+        text:
+          topic === "cancel" && demo ? cancelChatCopy[lang] : fixed[copyKey],
+        ...(page ? { page } : {}),
+        ...(accountIntent ? { accountIntent } : {}),
+      });
     }
     if (
       !Array.isArray(messages) ||
@@ -290,6 +306,17 @@ export function createAssistant({
       publicPreparation
         ? null
         : protectedCategory;
+    const accountIntent = demoTurn && privateAccountIntent(latest, category);
+    if (accountIntent) {
+      const results = ["my_results", "where_results"].includes(accountIntent);
+      return reply("private", {
+        accountIntent,
+        ...(accountIntent === "cancel_request"
+          ? { text: cancelChatCopy[lang] }
+          : {}),
+        page: results ? "/account#lab-results" : "/account",
+      });
+    }
     if (
       demoTurn &&
       category !== "emergency" &&
