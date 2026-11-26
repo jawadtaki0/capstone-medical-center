@@ -279,7 +279,6 @@ for (const [intent, message, kind, text, reads] of [
 
 for (const [intent, message] of [
   // A date the resolver cannot read must never silently become today.
-  ["labHours", "How late is the lab open on the 26th?"],
   ["labHours", "La aya se3a l lab maftou7 nhar ssebt?"],
   ["labHours", "When does the lab open next week?"],
   ["labHours", "When is the lab open over the holiday?"],
@@ -300,6 +299,13 @@ for (const [intent, message] of [
     assert.deepEqual(result.cards ?? [], []);
     assert.deepEqual(calls, []);
   });
+
+test("a day of the month is read, not treated as today", async () => {
+  const { ask, calls } = published("labHours");
+  const result = await ask("How late is the lab open on the 26th?");
+  assert.match(result.text, /2026-11-26/u);
+  assert.deepEqual(calls, [["hours", thursday]]);
+});
 
 for (const message of [
   "Is the lab open the Friday after next?",
