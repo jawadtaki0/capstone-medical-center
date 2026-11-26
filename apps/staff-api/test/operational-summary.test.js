@@ -89,6 +89,7 @@ function fixture(roles = ["Receptionist"], grants = ["clinic:one"]) {
       { id: "clinic:one", kind: "clinic", active: true },
       { id: "clinic:two", kind: "clinic", active: true },
       { id: "service:audio", kind: "service", active: true },
+      { id: "laboratory", kind: "service", active: true },
     ],
     operational_grants: [{ _id: "staff:one", scopeIds: grants }],
     website_request_inbox: [
@@ -354,17 +355,21 @@ test("Clinic Admin has booking and request authority only for assigned Clinic sc
   assert.equal(result.capabilities.directory, false);
   assert(result.capabilities.professionals);
 });
-test("Lab Admin service assignment does not confer clinic counts; mixed roles combine explicit grants", async () => {
-  const lab = await fixture(["Lab Admin"], ["service:audio"]).service.read(
+test("Lab Admin can manage assigned Laboratory hours and has no Audiometry or Clinic write authority", async () => {
+  const lab = await fixture(["Lab Admin"], ["laboratory"]).service.read(
     "dummy",
   );
   assert(lab.capabilities.serviceHours);
   assert.equal(lab.counts.todayBookings, undefined);
   assert.equal(lab.counts.requestsAwaitingDecision, undefined);
   assert.equal(lab.capabilities.professionals, false);
+  const audio = await fixture(["Lab Admin"], ["service:audio"]).service.read(
+    "dummy",
+  );
+  assert.equal(audio.capabilities.serviceHours, false);
   const mixed = await fixture(
     ["Lab Admin", "Receptionist"],
-    ["service:audio", "clinic:one"],
+    ["laboratory", "service:audio", "clinic:one"],
   ).service.read("dummy");
   assert(mixed.capabilities.serviceHours && mixed.capabilities.requests);
   assert.equal(mixed.counts.requestsAwaitingDecision, 1);
