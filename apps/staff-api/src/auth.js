@@ -755,6 +755,8 @@ export function createAuthService({
     guard,
     requiresMfa,
     recentVerificationExpiry,
+    canRecoverByEmail: (session, account) =>
+      recovery.operator.canRecoverByEmail(session, account),
   });
   async function consumeContactFactor(session, account, method, code, at) {
     let filter = {

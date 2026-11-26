@@ -1,3 +1,5 @@
+import { saveStaffSesCredentials } from "../src/contact-ses.js";
+import { createGmailDelivery } from "../src/contact-delivery.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -63,6 +65,26 @@ export function allowanceIncreaseInput(args) {
 async function run() {
   if (process.platform !== "win32" || !process.argv.includes("--demo-loopback"))
     throw new Error("Explicit Windows local demo required.");
+  if (process.argv.includes("--configure-ses")) {
+    if (process.argv.slice(2).length !== 2)
+      throw Error("Use only --demo-loopback --configure-ses.");
+    await assertExistingAuthority();
+    await createGmailDelivery().configuration();
+    const values = await privateEntry(false, {
+      ses: true,
+      onReady: () => console.log("Private Staff SES popup is ready."),
+    });
+    if (values) {
+      await saveStaffSesCredentials({
+        accessKeyId: values[0],
+        secretAccessKey: values[1],
+      });
+      console.log(
+        "Saved protected Staff SES credentials. Restart the reviewed Staff API to select SES.",
+      );
+    }
+    return;
+  }
   const increase = allowanceIncreaseInput(process.argv.slice(2));
   if (increase) {
     console.log(

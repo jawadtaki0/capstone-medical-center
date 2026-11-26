@@ -1590,6 +1590,8 @@ export function createRecoveryService({
       grant,
       manager,
       activated,
+      canRecoverByEmail: async (session, account) =>
+        Boolean(await emailOwner(session, account)),
       startReplacement,
       event,
       counted,

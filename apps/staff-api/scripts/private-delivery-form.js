@@ -29,13 +29,15 @@ export class PrivateFormError extends Error {
 
 // Only fixed UI text enters the command. User input returns through a private
 // captured pipe, never through arguments, environment, console or a temp file.
-export function formScript({ approval = false, checkOnly = false } = {}) {
+export function formScript({ approval = false, checkOnly = false, ses = false } = {}) {
   const fields = approval
     ? [
         "Delivery scope (one-time operator confirmation)",
         "Sending allowance (no replenishment)",
       ]
-    : ["Dedicated Gmail sender", "Gmail App Password (not ordinary password)"];
+    : ses
+      ? ["Dedicated Staff SES access key ID", "Dedicated Staff SES secret access key"]
+      : ["Dedicated Gmail sender", "Gmail App Password (not ordinary password)"];
   return `
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -79,7 +81,7 @@ try {
   $note.Size = [System.Drawing.Size]::new(580, 40)
   $form.Controls.Add($note)
   $ok = [System.Windows.Forms.Button]::new()
-  $ok.Text = '${approval ? "Enable staff self-service email" : "Save encrypted credentials (sending OFF)"}'
+  $ok.Text = '${approval ? "Enable staff self-service email" : ses ? "Save protected Staff SES credentials" : "Save encrypted credentials (sending OFF)"}'
   $ok.Size = [System.Drawing.Size]::new(390, 38)
   $ok.Location = [System.Drawing.Point]::new(20, 225)
   $ok.TabIndex = 2
@@ -135,6 +137,7 @@ export function privateEntry(
   approval = false,
   {
     checkOnly = false,
+    ses = false,
     spawnProcess = spawn,
     signals = process,
     startupMs = 15_000,
@@ -190,7 +193,7 @@ export function privateEntry(
           "-WindowStyle",
           "Normal",
           "-EncodedCommand",
-          Buffer.from(formScript({ approval, checkOnly }), "utf16le").toString(
+          Buffer.from(formScript({ approval, checkOnly, ses }), "utf16le").toString(
             "base64",
           ),
         ],

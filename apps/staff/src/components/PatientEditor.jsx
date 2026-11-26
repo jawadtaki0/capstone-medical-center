@@ -6,6 +6,7 @@ import {
   PATIENT_FIELDS,
   PATIENT_LABELS,
   patientInput,
+  patientAgeLabel,
   patientToday,
 } from "../../shared/patient-input.js";
 import { isAccessError } from "../lib/staffManagement.js";
@@ -199,6 +200,10 @@ export default function PatientEditor({
         </div>
         <div className="patient-contact-grid">
           {renderField("dateOfBirth")}
+          <div className="staff-field">
+            <span>Age</span>
+            <output>{patientAgeLabel(record.dateOfBirth)}</output>
+          </div>
           <PhoneInput
             label="Phone number"
             defaultValue={patient.phone ?? ""}
