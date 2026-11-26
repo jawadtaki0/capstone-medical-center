@@ -1,3 +1,4 @@
+import { catalogueIntent } from "./public-assistant-facts.js";
 import { specialtyDefinitions } from "../src/data/specialties.js";
 import { laboratoryTests } from "../src/data/labAudioContent.js";
 import { fixedDemoIntent } from "./public-assistant-demo.js";
@@ -372,8 +373,13 @@ export function browserPublicRequest(input, previous, today, published = []) {
     }[policy.fields.page];
     if (service) return { intent: "bookingPolicy", service };
   }
-  if (resolvePublicIntent("prices", message, turn))
-    return { menu: { topic: "prices" } };
+  if (resolvePublicIntent("prices", message, turn)) {
+    const tests = catalogueIntent(message)?.tests ?? [];
+    const id = tests.length === 1 ? (tests[0].id ?? tests[0]) : null;
+    return {
+      menu: { topic: "prices", ...(testIds.has(id) ? { choice: id } : {}) },
+    };
+  }
   if (resolvePublicIntent("preparation", message, turn)?.kind === "reference")
     return { menu: { topic: "preparation", choice: "audiometry" } };
   return null;

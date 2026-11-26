@@ -13,7 +13,6 @@ import {
   cedarToday,
   resolveBeirutDate,
 } from "../../server/public-assistant-dates.js";
-import { intentLabels } from "../../server/public-assistant-intent-labels.js";
 import {
   symptomRequest,
   standaloneArabizi,
@@ -297,7 +296,6 @@ export default function PublicAssistant({ account, onAccount }) {
       ? language
       : questionLanguage(value, language);
     let answer;
-    let label = control ? value : "";
     let request = control;
     try {
       if (!control && !standaloneArabizi(value) && !symptomRequest(value)) {
@@ -320,17 +318,6 @@ export default function PublicAssistant({ account, onAccount }) {
           ).flat();
           request = browserPublicRequest(value, context, today, published);
         }
-        const intent =
-          request?.intent === "schedule"
-            ? "clinicSchedule"
-            : request?.intent === "hours"
-              ? {
-                  center: "centerHours",
-                  laboratory: "labHours",
-                  audiometry: "audioHours",
-                }[request.service]
-              : request?.intent;
-        label = intentLabels[intent]?.[replyLanguage] ?? "";
       }
       if (!request) throw Error();
       if (generation !== requestGeneration.current) return;
@@ -376,7 +363,7 @@ export default function PublicAssistant({ account, onAccount }) {
     setTurns((current) => [
       ...current,
       {
-        question: answer.fallback || answer.kind === "failure" ? "" : label,
+        question: answer.fallback || answer.kind === "failure" ? "" : value,
         answer,
         replyLanguage: answer.language ?? replyLanguage,
       },
