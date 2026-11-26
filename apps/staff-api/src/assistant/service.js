@@ -10,7 +10,11 @@ import { readPrefill } from "./prefill.js";
 const invalid = () =>
   new StaffError("assistant_input", "Send one short question.", 400);
 
-const TASKS = { book_help: "book" };
+const TASKS = {
+  book_help: "book",
+  cancel_booking_help: "cancel",
+  reschedule_help: "reschedule",
+};
 const WINDOW_DAYS = 28;
 const addDays = (day, count) => {
   const value = new Date(`${day}T12:00:00Z`);

@@ -37,6 +37,9 @@ async function register(first, last) {
     await post("/patients/create", admin.token, {
       record,
       reviewDigest: check.reviewDigest,
+      ...(check.candidates.length
+        ? { duplicateOverride: { acknowledged: true, reason: "Synthetic" } }
+        : {}),
     }),
   ).patient;
 }

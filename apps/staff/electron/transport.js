@@ -554,6 +554,9 @@ export function createBroker({
     confirmBooking: (payload) => call("/bookings/confirm", payload, true),
     listBookings: (payload) => call("/bookings/list", payload, true),
     cancelBooking: (payload) => call("/bookings/cancel", payload, true),
+    upcomingBookings: (payload) => call("/bookings/upcoming", payload, true),
+    rescheduleBooking: (payload) =>
+      call("/bookings/reschedule", payload, true),
     affectedBookings: (payload) => call("/bookings/affected", payload, true),
     searchPatients: (payload) => call("/patients/search", payload, true),
     readPatient: (payload) => call("/patients/read", payload, true),

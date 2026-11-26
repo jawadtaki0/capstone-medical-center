@@ -20,6 +20,8 @@ const names = [
   "confirmBooking",
   "listBookings",
   "cancelBooking",
+  "upcomingBookings",
+  "rescheduleBooking",
   "affectedBookings",
   "searchPatients",
   "readPatient",

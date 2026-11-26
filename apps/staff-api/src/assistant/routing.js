@@ -19,6 +19,21 @@ const SKIP_CONFIRMATION = [
   /(بدون|بلا|دون|من غير|تخطي|تجاوز).{0,20}(تاكيد|ما ?تسال|ما ?تاكد|موافق)/,
 ];
 
+// A sentence that opens with the command itself needs no guessing. Questions
+// ("how do I cancel") and Lab requests go to the matcher.
+const LAB_WORDS =
+  /\b(lab|order|sample|specimen|result|report)\b|مختبر|عينه|نتيجه|تقرير|فحص/;
+const OPENING = /^(please |can you |i want to |i need to |بدي |اريد |من فضلك )?/
+  .source;
+const COMMANDS = [
+  [
+    "reschedule_help",
+    "(reschedule|postpone)\\b|(اجل|أجل|غير) (موعد|الحجز|حجز)",
+  ],
+  ["cancel_booking_help", "cancel\\b|(الغي|الغ|الغاء) "],
+  ["book_help", "book\\b|احجز "],
+].map(([topic, verb]) => [topic, new RegExp(`${OPENING}(${verb})`)]);
+
 export async function routeMessage(message, matcher) {
   const language = detectLanguage(message),
     text = plain(message);
@@ -30,6 +45,9 @@ export async function routeMessage(message, matcher) {
   });
   if (SKIP_CONFIRMATION.some((pattern) => pattern.test(text)))
     return result("confirmation_required");
+  const command =
+    !LAB_WORDS.test(text) && COMMANDS.find(([, pattern]) => pattern.test(text));
+  if (command) return result("topic", command[0]);
   if (!matcher) return result("unavailable");
   // Names and dates say who and when, not what is wanted.
   const ranked = await matcher.rank(withoutDetails(message));

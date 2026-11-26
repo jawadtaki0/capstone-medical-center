@@ -184,6 +184,17 @@ function validatePayload(name, payload) {
     ],
     listBookings: ["date", "scopeId", "cursor"],
     cancelBooking: ["bookingId", "reason", "publicReason"],
+    upcomingBookings: ["query"],
+    rescheduleBooking: [
+      "bookingId",
+      "date",
+      "scopeId",
+      "sourceSessionId",
+      "sessionVersion",
+      "idempotencyKey",
+      "publicReason",
+      "noticeLanguage",
+    ],
     affectedBookings: ["cursor"],
     searchPatients: [
       "firstName",

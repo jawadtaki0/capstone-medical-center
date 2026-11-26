@@ -78,7 +78,9 @@ function readName(message) {
 
 // The request with the person's name and any dates replaced, for matching.
 export function withoutDetails(message) {
-  let text = westernDigits(message.normalize("NFKC")).replace(DATE, " ");
+  let text = westernDigits(message.normalize("NFKC"))
+    .replace(DATE, " ")
+    .replace(/\b[BP]-\d+\b/gi, " ");
   const name = readName(text);
   const arabic = /\p{Script=Arabic}/u.test(name.firstName ?? "");
   if (name.firstName) {
@@ -89,7 +91,9 @@ export function withoutDetails(message) {
     text = text.replace(name.lastName, "");
   }
   if (name.fatherName) text = text.replace(name.fatherName, "");
-  return text.replace(/(born( on)?|dob)|مواليد/giu, " ").replace(/\s+/g, " ");
+  return text
+    .replace(/\b(born( on)?|dob)\b|مواليد/giu, " ")
+    .replace(/\s+/g, " ");
 }
 
 export function readPrefill(message, today) {

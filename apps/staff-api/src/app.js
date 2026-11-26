@@ -215,6 +215,8 @@ export function createApp({
     "list",
     "cancel",
     "affected",
+    "upcoming",
+    "reschedule",
   ]) {
     app.post(
       `/bookings/${action}`,
