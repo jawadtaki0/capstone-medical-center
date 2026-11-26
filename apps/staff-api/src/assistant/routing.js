@@ -45,6 +45,9 @@ export async function routeMessage(message, matcher) {
   });
   if (SKIP_CONFIRMATION.some((pattern) => pattern.test(text)))
     return result("confirmation_required");
+  // "Prepare ..." asks for a draft report, even though it names an order.
+  if (new RegExp(`${OPENING}(prepare|حضر|جهز)( |$)`).test(text))
+    return result("topic", "lab_prepare_help");
   const command =
     !LAB_WORDS.test(text) && COMMANDS.find(([, pattern]) => pattern.test(text));
   if (command) return result("topic", command[0]);

@@ -222,6 +222,28 @@ export const TOPICS = [
     ]),
   ),
   topic(
+    "lab_prepare_help",
+    "labPrepare",
+    "lab",
+    [
+      "prepare a lab report and fill in the results",
+      "enter the test values and make the draft PDF",
+      "prepare an order with these results",
+      "حضر تقرير الفحص وعبي النتائج",
+      "ادخل قيم الفحص وجهز ملف PDF",
+    ],
+    text("Prepare a draft report", "To prepare a draft report:", [
+      "Open Lab, create the order and record collection.",
+      "Enter the results, then Preview report PDF.",
+      "Review the PDF, then Finalize report and release it.",
+    ]),
+    text("تحضير مسودة تقرير", "لتحضير مسودة تقرير:", [
+      "افتح Lab وأنشئ الطلب وسجّل أخذ العينة.",
+      "أدخل النتائج ثم Preview report PDF.",
+      "راجع الملف ثم Finalize report وأصدره.",
+    ]),
+  ),
+  topic(
     "lab_collect_help",
     "labOrder",
     "lab",
@@ -406,6 +428,7 @@ export function capabilitiesFor(roles, summary, labEnabled) {
     schedules: summary.schedules === true,
     labOrder: labEnabled && has("Lab Admin", "Receptionist"),
     labRelease: labEnabled && has("Admin", "Lab Admin", "Receptionist"),
+    labPrepare: labEnabled && has("Lab Admin"),
   };
 }
 

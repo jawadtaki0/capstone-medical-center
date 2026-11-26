@@ -18,6 +18,7 @@ const TASKS = {
   lab_collect_help: "collect",
   lab_cancel_help: "labCancel",
   lab_release_help: "release",
+  lab_prepare_help: "labPrepare",
 };
 const WINDOW_DAYS = 28;
 const addDays = (day, count) => {

@@ -4,6 +4,7 @@ import { isAccessError } from "../lib/staffManagement.js";
 import AssistantBooking from "./AssistantBooking.jsx";
 import AssistantChange from "./AssistantChange.jsx";
 import AssistantLab from "./AssistantLab.jsx";
+import AssistantPrepare from "./AssistantPrepare.jsx";
 import { TEXT } from "./assistantText.js";
 import "./assistant.css";
 
@@ -20,10 +21,11 @@ const TASKS = {
   collect: AssistantLab,
   labCancel: AssistantLab,
   release: AssistantLab,
+  labPrepare: AssistantPrepare,
 };
 
 // A form opens straight away when the question carried details, else on request.
-function Task({ api, language, task, roles, onError, onDone }) {
+function Task({ api, language, task, question, roles, onError, onDone }) {
   const [open, setOpen] = useState(task.open);
   const Card = TASKS[task.type];
   return open ? (
@@ -33,6 +35,7 @@ function Task({ api, language, task, roles, onError, onDone }) {
       language={language}
       prefill={task.prefill}
       today={task.today}
+      question={question ?? ""}
       roles={roles}
       onError={onError}
       onDone={onDone}
@@ -303,6 +306,7 @@ export default function AssistantPanel({
                     api={api}
                     language={reply.language}
                     task={reply.task}
+                    question={question}
                     roles={roles}
                     onError={onError}
                     onDone={(message) => {

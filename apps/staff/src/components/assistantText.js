@@ -2,6 +2,21 @@
 export const TEXT = {
   en: {
     start: "Do it here",
+    values: "Results (check every value)",
+    allCollected: "Every required specimen was collected",
+    prepare: "Create order, save results and prepare draft PDF",
+    prepareHint: "This records collection and results. Nothing is released.",
+    drafted: (id) =>
+      `Draft PDF prepared for ${id}. Review it before finalizing.`,
+    kept: (id, status) =>
+      `Order ${id} was saved (${status}) but the draft was not finished. Press the button again to continue it.`,
+    previewAgain: "Download the draft again",
+    reviewed: "I reviewed the draft PDF: patient, tests and values are correct",
+    finalize: "Finalize report",
+    finalized: (id) =>
+      `Report finalized for ${id}. Ask me to release it when you are ready.`,
+    releaseNow: "Continue to release",
+    noSave: "The draft was not saved to a file. Download it to review it.",
     stale: "Saved earlier. Ask again for current availability.",
     tests: "Tests",
     noTests: "No approved tests are available.",
@@ -102,6 +117,20 @@ export const TEXT = {
   },
   ar: {
     start: "نفّذ من هنا",
+    values: "النتائج (تحقق من كل قيمة)",
+    allCollected: "أُخذت كل العينات المطلوبة",
+    prepare: "أنشئ الطلب واحفظ النتائج وجهّز مسودة PDF",
+    prepareHint: "يسجّل هذا أخذ العينة والنتائج. لا يُصدر أي شيء.",
+    drafted: (id) => `جهزت مسودة PDF للطلب ${id}. راجعها قبل اعتمادها.`,
+    kept: (id, status) =>
+      `حُفظ الطلب ${id} (${status}) لكن المسودة لم تكتمل. اضغط الزر مرة أخرى للمتابعة.`,
+    previewAgain: "نزّل المسودة مرة أخرى",
+    reviewed: "راجعت المسودة: المريض والفحوصات والقيم صحيحة",
+    finalize: "اعتماد التقرير",
+    finalized: (id) =>
+      `اعتُمد تقرير الطلب ${id}. اطلب مني إصداره عندما تكون جاهزاً.`,
+    releaseNow: "متابعة إلى الإصدار",
+    noSave: "لم تُحفظ المسودة في ملف. نزّلها لمراجعتها.",
     stale: "محفوظ من قبل. اسأل مجدداً عن الأماكن المتاحة الآن.",
     tests: "الفحوصات",
     noTests: "لا توجد فحوصات معتمدة متاحة.",
