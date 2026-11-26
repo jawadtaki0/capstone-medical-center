@@ -5,6 +5,7 @@ import {
   publishedSessions,
 } from "../server/public-assistant.js";
 import { randomUUID } from "node:crypto";
+import { guidedTopic } from "../server/public-assistant-gate.js";
 
 const model = geminiAssistant({
   key: process.env.GEMINI_API_KEY,
@@ -51,6 +52,8 @@ export function assistantHandler(answer) {
         return send(413, {});
       if (typeof body === "string") body = JSON.parse(body);
       if (!body || typeof body !== "object") return send(400, {});
+      if (Object.hasOwn(body, "topic") && !guidedTopic(body.topic))
+        return send(400, {});
       const started = Date.now();
       const provider = [];
       let routeReason;
@@ -62,8 +65,8 @@ export function assistantHandler(answer) {
       });
       const fallback = Boolean(
         result.fallback ||
-          result.kind === "reception" ||
-          result.kind === "unavailable",
+        result.kind === "reception" ||
+        result.kind === "unavailable",
       );
       const fallbackReason = fallback
         ? (provider.find(({ outcome }) =>

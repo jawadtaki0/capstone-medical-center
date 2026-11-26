@@ -1,5 +1,6 @@
 import {
   emergencyDisclosure,
+  guidedTopic,
   protectedGate,
   rulesCopy,
 } from "./public-assistant-gate.js";
@@ -164,7 +165,7 @@ export function createAssistant({
 }) {
   const tokens = searchTokens(contextKey);
   return async (
-    { language, messages, searchContext },
+    { language, messages, searchContext, topic },
     { observe = defaultObserve, trace = () => {} } = {},
   ) => {
     const deadline = Date.now() + turnBudgetMs - fallbackReserveMs;
@@ -213,6 +214,11 @@ export function createAssistant({
         ? safeFallback(result)
         : result;
     };
+    const guide = guidedTopic(topic);
+    if (guide) {
+      const { kind, copyKey, page } = guide;
+      return reply(kind, { text: fixed[copyKey], ...(page ? { page } : {}) });
+    }
     if (
       !Array.isArray(messages) ||
       !messages.length ||

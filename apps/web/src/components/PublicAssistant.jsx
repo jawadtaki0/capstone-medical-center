@@ -13,6 +13,13 @@ const labels = {
     title: "Cedar assistant",
     help: "Ask about public Clinic sessions and Lab information. Keep personal details out of chat.",
     input: "Your question",
+    topicsLabel: "Guided help",
+    topics: {
+      urgent: "Urgent help",
+      private: "My results",
+      cancel: "Cancel or reschedule",
+      clinical: "Medical advice",
+    },
     send: "Send",
     busy: "Checking…",
     reception: "Contact Reception",
@@ -36,6 +43,13 @@ const labels = {
     title: "مساعد سيدر",
     help: "اسأل عن جلسات العيادة المنشورة ومعلومات المختبر. تجنّب كتابة معلومات شخصية.",
     input: "سؤالك",
+    topicsLabel: "مساعدة حسب الموضوع",
+    topics: {
+      urgent: "مساعدة طارئة",
+      private: "نتائجي",
+      cancel: "إلغاء الموعد أو تغييره",
+      clinical: "استشارة طبية",
+    },
     send: "إرسال",
     busy: "جارٍ التحقق…",
     reception: "تواصل مع الاستقبال",
@@ -54,6 +68,7 @@ export default function PublicAssistant() {
   const panel = useRef(null);
   const closeButton = useRef(null);
   const history = useRef(null);
+  const latestReply = useRef(null);
   const [open, setOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
   const searchContext = useRef(null);
@@ -92,16 +107,23 @@ export default function PublicAssistant() {
     };
   }, [open]);
   useEffect(() => {
-    if (open) history.current.scrollTop = history.current.scrollHeight;
+    if (!open) return;
+    const log = history.current;
+    if (!busy && turns.at(-1)?.topic && latestReply.current) {
+      log.scrollTop +=
+        latestReply.current.getBoundingClientRect().top -
+        log.getBoundingClientRect().top;
+    } else {
+      log.scrollTop = log.scrollHeight;
+    }
   }, [open, turns, busy]);
-  async function send(event) {
-    event.preventDefault();
-    const value = question.trim();
+  async function send(value, topic) {
     if (busy || !value) return;
-    const messages = [...turns.map(({ question }) => question), value].slice(
-      -8,
-    );
-    setQuestion("");
+    const messages = [
+      ...turns.filter((turn) => !turn.topic).map((turn) => turn.question),
+      value,
+    ].slice(-8);
+    if (!topic) setQuestion("");
     setBusy(true);
     let answer;
     try {
@@ -114,6 +136,7 @@ export default function PublicAssistant() {
           language,
           messages,
           searchContext: searchContext.current,
+          ...(topic ? { topic } : {}),
         }),
         signal: AbortSignal.timeout(55_000),
       });
@@ -125,7 +148,7 @@ export default function PublicAssistant() {
       searchContext.current = null;
       answer = { kind: "failure", text: copy.failed };
     }
-    setTurns((current) => [...current, { question: value, answer }]);
+    setTurns((current) => [...current, { question: value, answer, topic }]);
     setBusy(false);
   }
 
@@ -226,7 +249,10 @@ export default function PublicAssistant() {
                   <strong>{copy.you}</strong>
                   <p dir="auto">{question}</p>
                 </div>
-                <div className="cedar-assistant-reply">
+                <div
+                  className="cedar-assistant-reply"
+                  ref={index === turns.length - 1 ? latestReply : null}
+                >
                   <strong>{copy.cedar}</strong>
                   <p dir="auto">{answer.text}</p>
                   <div className="cedar-assistant-cards">
@@ -303,7 +329,29 @@ export default function PublicAssistant() {
               </div>
             )}
           </div>
-          <form onSubmit={send}>
+          <div
+            className="cedar-assistant-chips"
+            role="group"
+            aria-label={copy.topicsLabel}
+          >
+            {Object.entries(copy.topics).map(([topic, label]) => (
+              <button
+                key={topic}
+                type="button"
+                className="button button-secondary"
+                disabled={busy}
+                onClick={() => send(label, topic)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              send(question.trim());
+            }}
+          >
             <label htmlFor="cedar-assistant-question">{copy.input}</label>
             <input
               id="cedar-assistant-question"

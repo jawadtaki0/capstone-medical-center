@@ -36,6 +36,18 @@ const immediateDanger =
 const directArabicDanger =
   /(?:ما عم (?:بقدر|اقدر|فيني) (?:اتنفس|اخد نفس)|نفسي عم ينقطع|نفسي عم يضيق|مش عم يوصلني هوا|ما عم يدخل هوا|(?:مش|ماني|مانا) قادر[ة]? (?:اخد نفس|اتنفس)|(?:صدري|قلبي) عم (?:يوجعني|يالم[ني]+)|^(?:لا (?:استطيع|اقدر) (?:التنفس|ان اتنفس)|ما (?:بقدر|فيني) (?:اتنفس|اخد نفس)|(?:اشعر|احس) ب(?:الم|ضغط) (?:في |ب)?صدري))/u;
 
+const guidedTopics = new Map([
+  ["urgent", { kind: "emergency", copyKey: "emergency" }],
+  [
+    "private",
+    { kind: "private", copyKey: "private", page: "/account#lab-results" },
+  ],
+  ["cancel", { kind: "private", copyKey: "cancel", page: "/account" }],
+  ["clinical", { kind: "clinical", copyKey: "clinical" }],
+]);
+
+export const guidedTopic = (value) => guidedTopics.get(value);
+
 export const rulesCopy = {
   en: {
     cancel:
