@@ -222,7 +222,7 @@ for (const [intent, message, kind, text, reads] of [
   ],
   [
     "clinicSchedule",
-    "Fi shi window la doktor 3youn nhar l khamis?",
+    "Ophthalmology fi shi window nhar l khamis?",
     "sessions",
     /./u,
     [["sessions", thursday]],
@@ -300,3 +300,35 @@ for (const [intent, message] of [
     assert.deepEqual(result.cards ?? [], []);
     assert.deepEqual(calls, []);
   });
+
+for (const message of [
+  "Is the lab open the Friday after next?",
+  "What are the lab hours in two weeks on Monday?",
+  "Was the lab open last Friday?",
+  "Is the lab open on public holidays?",
+  "Is the lab open Friday evening in January?",
+  "When will the lab be ready with the report?",
+  "المختبر فاتح الجمعة بعد الجاي؟",
+])
+  test(
+    "another time or topic is not answered with hours: " + message,
+    async () => {
+      const { ask, calls } = published("labHours");
+      const result = await ask(message);
+      assert.equal(result.kind, "reception");
+      assert.deepEqual(calls, []);
+    },
+  );
+
+for (const message of [
+  "Is parking at the center open to visitors?",
+  "What time is the center director available?",
+])
+  test(
+    "another topic is not answered with center hours: " + message,
+    async () => {
+      const { ask, calls } = published("centerHours");
+      assert.equal((await ask(message)).text, receptionHandoff.en);
+      assert.deepEqual(calls, []);
+    },
+  );
