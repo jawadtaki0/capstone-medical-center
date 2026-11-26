@@ -1,44 +1,40 @@
+import { laboratoryTests } from "../src/data/labAudioContent.js";
 import {
   emergencyDisclosure,
   guidedTopic,
   protectedGate,
   rulesCopy,
 } from "./public-assistant-gate.js";
-import { nameScore } from "./public-assistant-language.js";
-import { laboratoryTests } from "../src/data/labAudioContent.js";
-import { arabicLabContent } from "../src/data/publicLabArabic.js";
-import { requestSelectionUrl } from "../src/request-selection.js";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
+import { publicContent } from "./public-assistant-content.js";
+import { classifyPublicTurn } from "./public-assistant-classify.js";
 import {
-  publicContent,
-  publishedAnswer,
-  reviewedMatch,
-} from "./public-assistant-content.js";
+  copy,
+  labCards,
+  renderClinicSummary,
+  renderHours,
+  renderReply,
+  sessionCard,
+} from "./public-assistant-render.js";
 import {
-  catalogueIntent,
-  combinedRequestParts,
-  hoursQuestion,
-  publicServiceAnswer,
-  publishedHourAnswer,
-} from "./public-assistant-facts.js";
+  catalogueFacts,
+  clinicWindowFacts,
+  publishedHourFacts,
+  norm,
+  specialtyWords,
+} from "./public-assistant-answerers.js";
+import { canon } from "./public-assistant-language.js";
+import { closingQuestion } from "./public-assistant-facts.js";
 import {
-  genericArabiziAvailability,
-  identityQuestion,
   localRoute,
   socialRoute,
-  refinementQuestion,
-  scheduleRequest,
   scheduleSpecialty,
-  specialtyCorrection,
 } from "./public-assistant-routing.js";
 
 import {
   addDays,
   cedarToday,
-  isCurrentWeek,
-  resolveTurnDates,
-  sameDayReference,
   selectSessionByTime,
   sessionDateRange,
   sessionDays,
@@ -80,53 +76,6 @@ function searchTokens(key) {
   };
 }
 
-const copy = {
-  en: {
-    unrelated:
-      "I can help with Cedar’s clinics, lab tests, and appointment requests. What would you like to know?",
-    reception:
-      "Please contact Reception for that information. I can help with Cedar’s public services, published sessions, and lab education.",
-    unavailable:
-      "I couldn’t load the published schedule. Try again or contact Reception.",
-    empty:
-      "No published sessions match those filters. Try another date, professional, or time.",
-    emptyCardiologyTomorrow:
-      "I couldn’t find any published cardiology sessions for tomorrow",
-    chooseSession:
-      "Which session do you mean? Tell me its time or select Open request form on its card. Reception confirms requests.",
-    sessions:
-      "These are published attendance windows. The request form checks the current schedule, and Reception confirms requests.",
-    clinic:
-      "Cedar publishes Clinic attendance windows for doctors and specialists. You can request a session for Reception to review.",
-    laboratory:
-      "Cedar publishes Laboratory hours and general test information. Contact Reception for availability, pricing, or instructions for your own order.",
-    labs: "Compare what the published entries describe. Contact Reception to confirm test availability or instructions for an order.",
-  },
-  ar: {
-    unrelated:
-      "يمكنني مساعدتك في عيادات سيدر وفحوصات المختبر وطلبات المواعيد. ماذا تود أن تعرف؟",
-    reception:
-      "يرجى التواصل مع الاستقبال لهذه المعلومات. يمكنني مساعدتك في خدمات سيدر العامة والجلسات المنشورة والمعلومات المخبرية العامة.",
-    unavailable:
-      "تعذّر تحميل الجدول المنشور. حاول مجددًا أو تواصل مع الاستقبال.",
-    empty:
-      "لا توجد جلسات منشورة تطابق البحث. جرّب تاريخًا أو اختصاصيًا أو وقتًا آخر.",
-    emptyCardiologyTomorrow: "لم أجد أي جلسات منشورة لأمراض القلب غدًا",
-    chooseSession:
-      "أي جلسة تقصد؟ اذكر وقتها أو افتح نموذج الطلب من بطاقتها. يؤكد الاستقبال الطلبات.",
-    sessions:
-      "هذه مواعيد الحضور المنشورة. يتحقق نموذج الطلب من الجدول الحالي، ويؤكد الاستقبال الطلبات.",
-    clinic:
-      "ينشر سيدر مواعيد حضور الأطباء والاختصاصيين. يمكنك طلب جلسة ليراجعها الاستقبال.",
-    laboratory:
-      "ينشر سيدر ساعات المختبر ومعلومات عامة عن الفحوصات. تواصل مع الاستقبال لمعرفة التوفّر والأسعار وتعليمات طلبك.",
-    labs: "يمكنك مقارنة المعلومات العامة المنشورة. تواصل مع الاستقبال للتأكد من توفّر الفحص أو تعليمات طلبك.",
-  },
-};
-
-const localLab = (test, language) =>
-  language === "ar" ? { ...test, ...arabicLabContent[test.id] } : test;
-
 const blocked =
   /(?:[\w.+-]+@[\w.-]+|\b(?:WR|LAB|P)-[\da-f-]{6,}|(?:\+?\d[ ().-]*){7,}|\b(?:my|personal)\s+(?:appointment|booking|report|result|record|test|symptom|password|dose)|\b(?:diagnos\w*|prescri\w*|dosage|symptom\w*|should i (?:take|stop|get|do|fast)|interpret\w*|patient records?)\b|نتيجتي|موعدي|تقـ?ريري|سجلي|تشخيص|جرعة|أعراض|هل أتناول|هل أصوم)/iu;
 const blockedMessage = (value) =>
@@ -135,22 +84,6 @@ const fallbackSafety = {
   en: "If this is an emergency, call the Lebanese Red Cross ambulance at 140 in Lebanon or go to the nearest emergency department. For non-emergency help, contact Cedar Reception.",
   ar: "إذا كانت الحالة طارئة، اتصل بإسعاف الصليب الأحمر اللبناني على الرقم 140 في لبنان أو توجّه إلى أقرب قسم طوارئ. للمساعدة في الحالات غير الطارئة، تواصل مع استقبال سيدر.",
 };
-const labPair = ["fasting-glucose", "hba1c"];
-const sessionCard = (row) => ({
-  professional: row.professionalName,
-  specialty: row.specialty,
-  date: row.date,
-  start: row.startTime,
-  end: row.endTime,
-  href: requestSelectionUrl(row),
-});
-const norm = (text) => text.normalize("NFKC").trim().toLowerCase();
-const specialtyWords = (text) =>
-  " " +
-  norm(text)
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim() +
-  " ";
 const internalCopy =
   /\b(?:system prompt|developer message|system instructions|return json|output schema|insert (?:text|response)|placeholder|previous instructions)\b|\{\{|\[(?:insert|placeholder|todo)\b/i;
 export function createAssistant({
@@ -200,11 +133,7 @@ export function createAssistant({
     let providerFallback = false;
     const reply = (key, extra = {}, relativeDisplayDate) => {
       trace(routeReasons[key] ?? "conversation_route");
-      const result = {
-        kind: key,
-        text: prefix + (words[key] ?? fixed[key]),
-        ...extra,
-      };
+      const result = renderReply(key, lang, extra, prefix);
       const state =
         carried && !["greeting", "thanks", "identity"].includes(key)
           ? { ...carried, shownDate: shownDateFor(result, relativeDisplayDate) }
@@ -250,58 +179,69 @@ export function createAssistant({
       );
     }
     const date = today();
-    const publicService = publicServiceAnswer(latest, lang);
-    if (publicService)
-      return reply(publicService.kind ?? "library", publicService);
-    const publicInfo = publishedAnswer(latest, lang);
-    if (publicInfo)
-      return reply(publicInfo.topic ? "library" : "reception", {
-        text: publicInfo.text,
-        ...(publicInfo.topic ? { page: "/services/" + publicInfo.topic } : {}),
-        reception: publicInfo.reception,
-      });
-    if (/\bwhat time do you close\b/i.test(latest))
-      return reply("clarify", { text: "Do you mean the Clinic or the Lab?" });
-    const parts = combinedRequestParts(latest);
-    const sessionMessage = parts?.session ?? latest;
-    const hoursMessage = parts?.hours ?? latest;
-    const hours = hoursQuestion(hoursMessage);
-    const { clinic, hourDays, conflict } = resolveTurnDates(
-      sessionMessage,
-      hoursMessage,
-      hours,
-      Boolean(parts),
+    const classified = classifyPublicTurn(latest, {
       date,
+      lang,
       context,
-    );
-    const request = scheduleRequest(sessionMessage, date, clinic);
-    const {
-      day,
-      specialty: specialtyHint,
-      clinician: namedProfessional,
-    } = request;
-    if (
-      conflict ||
-      (!hours &&
-        request.specified &&
-        !day &&
-        (request.availability || activeSearch || sameDayReference(latest)))
-    )
+      activeSearch,
+    });
+    if (classified.kind === "reference")
+      return reply(classified.route, classified.fields);
+    if (classified.kind === "ambiguousService")
+      return reply("clarify", {
+        text:
+          lang === "ar"
+            ? "هل تقصد العيادة أم المختبر؟"
+            : "Do you mean the Clinic or the Lab?",
+      });
+    if (classified.kind === "ambiguousDate")
       return reply("clarify", {
         text: lang === "ar" ? "أي تاريخ تقصد؟" : "Which date do you mean?",
       });
-    const combinedSchedule = Boolean(
-      parts && hours && (specialtyHint || namedProfessional),
-    );
+    if (classified.kind === "ambiguousSpecialty")
+      return reply("clarify", {
+        text:
+          lang === "ar"
+            ? "لم أتمكن من تحديد الاختصاص في دليل سيدر. أي اختصاص تقصد؟"
+            : "I couldn’t match the specialty to Cedar’s published directory. Which specialty do you mean?",
+      });
+    const {
+      parts,
+      hoursMessage,
+      hours,
+      hourDays,
+      day,
+      specialtyHint,
+      namedProfessional,
+      combinedSchedule,
+      time,
+      hasTime,
+      nameClarification,
+      booking,
+      onScreenChoice,
+      directSearch,
+      refinement,
+      entry,
+      maySearch,
+      comparison,
+      preparation,
+      knownSearch,
+      requiresAppointment,
+      currentWeek,
+      nextSession,
+      fixedSearch,
+    } = classified;
     let hoursSummary;
     if (hours) {
-      const result = await publishedHourAnswer(
+      const facts = await publishedHourFacts(
         hours,
-        hoursMessage,
         hourDays,
-        lang,
         readHours,
         deadline,
+      );
+      const result = renderHours(
+        { days: facts, closingOnly: closingQuestion.test(canon(hoursMessage)) },
+        lang,
       );
       if (!combinedSchedule) {
         if (result.complete && result.day) carried = { at, remaining: 2 };
@@ -328,27 +268,6 @@ export function createAssistant({
         cards,
         reception: true,
       });
-    const time =
-      combinedSchedule && /plan.*morning/i.test(latest) ? {} : request.time;
-    const hasTime = Object.keys(time).length > 0;
-    const nameClarification =
-      activeSearch?.awaitingProfessional &&
-      !hours &&
-      !specialtyHint &&
-      !day &&
-      !hasTime &&
-      /^(?:(?:dr\.?|doctor|دكتور|الدكتور)\s+)?[\p{L}][\p{L}'’-]+(?:\s+[\p{L}][\p{L}'’-]+){1,2}[.?!؟]?$/iu.test(
-        latest.trim(),
-      )
-        ? latest.trim()
-        : "";
-    const booking =
-      /\b(?:book|reserve|schedule) (?:me|that|the|it)\b|احجز لي|احجزلي/iu.test(
-        latest,
-      );
-    const onScreenChoice =
-      activeSearch &&
-      /\b(?:one|session|slot|appointment)\b|الجلسة|الموعد/iu.test(latest);
     if (booking || (onScreenChoice && /\d/.test(latest) && !hasTime && !day)) {
       const choices = activeSearch?.choices ?? [];
       const pick = selectSessionByTime(latest, choices, activeSearch?.picked);
@@ -379,35 +298,7 @@ export function createAssistant({
         return reply("unavailable");
       }
     }
-    const referencedRefinement = Boolean(
-      activeSearch &&
-      hasTime &&
-      !specialtyHint &&
-      !namedProfessional &&
-      sameDayReference(latest),
-    );
-    const directSearch =
-      !referencedRefinement && (request.availability || combinedSchedule);
-    const refinement =
-      !directSearch &&
-      (referencedRefinement ||
-        nameClarification ||
-        (refinementQuestion(latest) &&
-          (!activeSearch || day || hasTime || specialtyHint)) ||
-        (activeSearch &&
-          (day || hasTime) &&
-          /\b(?:actually|make that|switch|change|move|what about|how about)\b|طيب|والجمع[هة]/iu.test(
-            latest,
-          )) ||
-        (activeSearch && specialtyHint && specialtyCorrection(latest)) ||
-        (activeSearch &&
-          (day || hasTime) &&
-          !specialtyHint &&
-          !namedProfessional &&
-          !/\b(?:lab(?:oratory)?|audiometry|hearing|sama3|test|price)\b|مختبر|السمع|فحص|تحليل|سعر/iu.test(
-            latest,
-          )));
-    if (identityQuestion(latest)) {
+    if (classified.identity) {
       if (!directSearch) {
         if (activeSearch)
           carried = { ...activeSearch, remaining: activeSearch.remaining - 1 };
@@ -415,58 +306,10 @@ export function createAssistant({
       }
       prefix = fixed.identity + " " + prefix;
     }
-    const entry = reviewedMatch(latest, lang);
-    const avoidClinicSearch =
-      entry &&
-      (entry.topic !== "clinic" || entry.id.startsWith("clinic-confirmation"));
-    const maySearch =
-      !avoidClinicSearch && (directSearch || (refinement && activeSearch));
     if (refinement && !maySearch && !entry) {
       if (hasTime) carried = { at, remaining: 1, pendingTime: time };
       return reply("clarify");
     }
-    const comparison =
-      /\b(?:fasting (?:blood )?(?:glucose|sugar)|fbg|fpg|fbs)\b/i.test(
-        latest,
-      ) && /\b(?:hb\s*a1c|a1c|glycated hemoglobin)\b/i.test(latest);
-    const preparation =
-      context?.labPair && /fast(?:ing)?\b|صيام|صوم|siyam/i.test(latest);
-    const knownSearch =
-      maySearch &&
-      (specialtyHint ||
-        genericArabiziAvailability(latest) ||
-        (refinement && (day || Object.keys(time).length || nameClarification)));
-    const requiresAppointment =
-      /\brequire[s]? an? appointment\b/i.test(latest) ||
-      Boolean(refinement && activeSearch?.filters?.requiresAppointment);
-    if (
-      day &&
-      !specialtyHint &&
-      !namedProfessional &&
-      !refinement &&
-      /\b(?:[a-z]{3,}(?:ologist|ology|iatrist)|[a-z]+ specialist)\b|(?:اختصاصي|اخصائي)\s+[\p{L}]+/iu.test(
-        latest,
-      )
-    )
-      return reply("clarify", {
-        text:
-          lang === "ar"
-            ? "لم أتمكن من تحديد الاختصاص في دليل سيدر. أي اختصاص تقصد؟"
-            : "I couldn’t match the specialty to Cedar’s published directory. Which specialty do you mean?",
-      });
-    const currentWeek = isCurrentWeek(latest);
-    const nextSession = /\bnext\b/i.test(latest) && Boolean(specialtyHint);
-    const fixedSearch =
-      directSearch &&
-      (combinedSchedule ||
-        requiresAppointment ||
-        namedProfessional ||
-        currentWeek ||
-        nextSession ||
-        (specialtyHint && day) ||
-        /^\s*(?:sessions?|clinic sessions?)\s+(?:today|tomorrow)\s*[?.!]*$/i.test(
-          latest,
-        ));
     const conversation = {
       language: lang,
       today: date,
@@ -482,7 +325,6 @@ export function createAssistant({
         text: prefix + record.answer,
         page: "/services/" + record.topic,
         sourceId: record.id,
-        fallback: true,
       });
     async function grounded(kind, extra = {}) {
       const { facts: supplied = [], ...publicFields } = extra;
@@ -534,9 +376,7 @@ export function createAssistant({
       }
       return safeFallback(fallback);
     }
-    let intent = catalogueIntent(latest);
-    if ((comparison || preparation) && !intent?.preparation)
-      intent = { kind: "labs", tests: labPair, compare: !preparation };
+    let intent = classified.lab;
     try {
       intent ??= entry
         ? { kind: "library", entryId: entry.id }
@@ -545,7 +385,11 @@ export function createAssistant({
               kind: "sessions",
               ...(namedProfessional ? { professional: namedProfessional } : {}),
             }
-          : await interpret(conversation, { deadline, observe });
+          : interpret
+            ? await interpret(conversation, { deadline, observe })
+            : maySearch
+              ? { kind: "sessions" }
+              : null;
     } catch {
       providerFallback = true;
       if (!knownSearch)
@@ -575,23 +419,9 @@ export function createAssistant({
     if (intent?.kind === "unrelated")
       return reply("unrelated", { fallback: true });
     if (intent?.kind === "labs") {
-      const ids = Array.isArray(intent.tests) ? intent.tests.slice(0, 3) : [];
-      const tests = laboratoryTests
-        .filter((test) => ids.includes(test.id))
-        .map((test) => localLab(test, lang));
-      const cards = tests.map(({ id, name, sample, description, sources }) => ({
-        id,
-        name,
-        sample: lang === "ar" && sample === "blood" ? "دم" : sample,
-        description,
-        source: sources[0]?.url,
-      }));
-      if (
-        !cards.length ||
-        cards.length !== new Set(ids).size ||
-        (intent.compare === true && cards.length < 2)
-      )
-        return reply("reception", { fallback: true });
+      const tests = catalogueFacts(intent, lang);
+      if (!tests) return reply("reception", { fallback: true });
+      const cards = labCards(tests, lang);
       if (intent.preparation && !intent.description)
         return reply("labs", {
           text:
@@ -606,9 +436,6 @@ export function createAssistant({
         });
       if (comparison || preparation) {
         carried = { at, remaining: 2, labPair: true };
-        const tests = laboratoryTests
-          .filter(({ id }) => labPair.includes(id))
-          .map((test) => localLab(test, lang));
         const descriptions = tests.map(
           ({ name, description }) => name + ": " + description,
         );
@@ -704,37 +531,6 @@ export function createAssistant({
     )
       return reply("empty");
     try {
-      const records = (
-        await Promise.all(
-          days.map(async (day) => {
-            const rows = await readSessions(day, { deadline });
-            if (!Array.isArray(rows))
-              throw Error("Published schedule response is unavailable");
-            return rows.filter((row) => row?.date === day);
-          }),
-        )
-      ).flat();
-      const published = records.filter(
-        (row) =>
-          typeof row.professionalName === "string" &&
-          typeof row.specialty === "string" &&
-          typeof row.professionalId === "string" &&
-          typeof row.sourceSessionId === "string" &&
-          row.published !== false,
-      );
-      const eligible = published.filter(
-        (row) =>
-          row.available !== false &&
-          (!requiresAppointment ||
-            (row.appointmentRequired === true && row.kind === "doctor")) &&
-          timePattern.test(row.startTime) &&
-          timePattern.test(row.endTime) &&
-          (!specialty ||
-            (scheduleSpecialty(row.specialty) ||
-              specialtyWords(row.specialty)) ===
-              (scheduleSpecialty(specialty) || specialtyWords(specialty))) &&
-          row.startTime < row.endTime,
-      );
       const afternoonOnly = hasTime
         ? /\b(?:only (?:in the )?afternoon|afternoon only)\b/iu.test(latest)
         : Boolean(refinement && activeSearch.filters.afternoonOnly);
@@ -751,56 +547,37 @@ export function createAssistant({
       };
       const remaining = refinement ? activeSearch.remaining - 1 : 3;
       const searchStarted = refinement ? activeSearch.at : at;
-      let matchingProfessionals = eligible;
-      if (professional) {
-        const scored = published.map((row) => ({
-          row,
-          score: nameScore(professional, row.professionalName),
-        }));
-        const bestScore = scored.reduce(
-          (best, { score }) => Math.max(best, score),
-          0,
-        );
-        const identified = new Set(
-          scored
-            .filter(({ score }) => score > 0 && score === bestScore)
-            .map(({ row }) => row.professionalId),
-        );
-        if (identified.size !== 1) {
-          carried = {
-            remaining,
-            at: searchStarted,
-            filters,
-            awaitingProfessional: true,
-          };
-          return reply("clarify", {
-            text:
-              identified.size === 0
-                ? lang === "ar"
-                  ? "ما الاسم الكامل للاختصاصي الذي تقصده؟"
-                  : "Which clinician do you mean? Please give the full name."
-                : lang === "ar"
-                  ? "وجدت أكثر من اختصاصي بهذا الاسم. ما الاسم الكامل للاختصاصي الذي تقصده؟"
-                  : "More than one clinician matches that name. What is the clinician’s full name?",
-          });
-        }
-        matchingProfessionals = eligible.filter((row) =>
-          identified.has(row.professionalId),
-        );
+      const { matchCount, matches } = await clinicWindowFacts({
+        days,
+        readSessions,
+        deadline,
+        professional,
+        specialty,
+        after,
+        before,
+        requiresAppointment,
+        afternoonOnly,
+        startsAtOrAfter,
+        nextSession,
+      });
+      if (matchCount !== null) {
+        carried = {
+          remaining,
+          at: searchStarted,
+          filters,
+          awaitingProfessional: true,
+        };
+        return reply("clarify", {
+          text:
+            matchCount === 0
+              ? lang === "ar"
+                ? "لم أتمكن من تحديد الاختصاصي بالاسم في الجدول المنشور. هل يمكنك تأكيد الاسم الكامل وتهجئته؟"
+                : "I couldn’t identify a clinician by that name in the published schedule. Please confirm the full name and spelling."
+              : lang === "ar"
+                ? "وجدت أكثر من اختصاصي بهذا الاسم. ما الاسم الكامل للاختصاصي الذي تقصده؟"
+                : "More than one clinician matches that name. What is the clinician’s full name?",
+        });
       }
-      const matches = matchingProfessionals
-        .filter(
-          (row) =>
-            (!after ||
-              (afternoonOnly || startsAtOrAfter
-                ? row.startTime >= after
-                : row.endTime > after)) &&
-            (!before || row.startTime < before),
-        )
-        .sort((a, b) =>
-          (a.date + a.startTime).localeCompare(b.date + b.startTime),
-        )
-        .slice(0, nextSession ? 1 : 6);
       const cards = matches.map(sessionCard);
       carried = {
         remaining,
@@ -847,17 +624,7 @@ export function createAssistant({
               ? emptyText.replace(/\.$/, "") + timeNote + "."
               : words.empty,
           );
-        const windows = cards.map(
-          ({ professional, specialty, date, start, end }) =>
-            lang === "ar"
-              ? `${specialty} — ${professional}، ${date}، ${start}–${end}`
-              : `${specialty} with ${professional} on ${date}, ${start}–${end}`,
-        );
-        const sessionText =
-          lang === "ar"
-            ? `فترات الحضور المنشورة: ${windows.join("؛ ")}. يؤكد الاستقبال الطلبات.`
-            : `Published attendance ${cards.length === 1 ? "window" : "windows"}: ${windows.join("; ")}. Reception confirms requests.`;
-        return joinedReply("sessions", sessionText, cards);
+        return joinedReply("sessions", renderClinicSummary(cards, lang), cards);
       }
       if (cards.length && requiresAppointment)
         return reply("sessions", {

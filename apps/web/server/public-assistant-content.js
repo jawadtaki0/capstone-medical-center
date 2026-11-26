@@ -4,6 +4,11 @@ import {
   laboratoryFaqs,
 } from "../src/data/labAudioContent.js";
 
+export const audiometryPreparation = (language) =>
+  language === "ar"
+    ? "لا تحتاج فحوصات السمع الروتينية عادةً إلى تحضير خاص. أكّد تعليمات زيارتك مع الاستقبال."
+    : audiometryFaqs[1][1];
+
 const reviewed = "2026-11-24";
 const pair = (id, topic, en, ar) =>
   [en, ar].map(([questions, answer], i) => ({
@@ -163,7 +168,9 @@ export function publishedAnswer(value, lang) {
     );
   if (/\bwhat clinics\b|\bwhich clinics\b/u.test(text))
     return answer(
-      "Clinic consultations are listed by specialty in Cedar’s published schedule. Laboratory and Audiometry are listed separately.",
+      ar
+        ? "يعرض جدول سيدر المنشور معاينات العيادة بحسب الاختصاص، ويعرض المختبر وفحوصات السمع بشكل منفصل."
+        : "Clinic consultations are listed by specialty in Cedar’s published schedule. Laboratory and Audiometry are listed separately.",
       "clinic",
     );
   if (
@@ -187,13 +194,17 @@ export function publishedAnswer(value, lang) {
     );
   if (/\blab test.*appointment|\bappointment for a lab test\b/u.test(text))
     return answer(
-      "Online Lab booking is not available. Cedar has not published whether your Lab visit requires an appointment. Contact Reception.",
+      ar
+        ? "لا يمكن حجز زيارة المختبر عبر الموقع. لم ينشر سيدر ما إذا كانت الزيارة تتطلب موعدًا. تواصل مع الاستقبال."
+        : "Online Lab booking is not available. Cedar has not published whether your Lab visit requires an appointment. Contact Reception.",
       "laboratory",
       true,
     );
   if (/\b(?:do you|does cedar) (?:do|offer) hearing tests\b/u.test(text))
     return answer(
-      "Cedar publishes Audiometry information, including pure-tone audiometry, speech testing and tympanometry.",
+      ar
+        ? "ينشر سيدر معلومات عن فحوصات السمع، ومنها قياس السمع بالنغمات النقية وفحص الكلام وقياس الطبلة."
+        : "Cedar publishes Audiometry information, including pure-tone audiometry, speech testing and tympanometry.",
       "audiometry",
     );
   if (/\bhearing test.*(?:preparation|prepare)\b/u.test(text))

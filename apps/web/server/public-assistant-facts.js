@@ -1,15 +1,14 @@
-import {
-  laboratoryTests,
-  audiometryFaqs,
-} from "../src/data/labAudioContent.js";
+import { laboratoryTests } from "../src/data/labAudioContent.js";
 import {
   canon,
   confirmationConcept,
   priceConcept,
   requestedProfessional,
 } from "./public-assistant-language.js";
-import { publicContent } from "./public-assistant-content.js";
-import { timePattern } from "./public-assistant-dates.js";
+import {
+  audiometryPreparation,
+  publicContent,
+} from "./public-assistant-content.js";
 import {
   availabilityQuestion,
   scheduleSpecialty,
@@ -25,7 +24,7 @@ const words = (value) =>
     .trim() +
   " ";
 const audiometryTopic =
-  /\b(?:audiometry|hearing (?:tests?|assessment|screening|exam)|sama3)\b|(?:فحص|فحوصات|قسم|اختبار|قياس) السمع/u;
+  /\b(?:audiometry|hearing (?:tests?|assessment|screening|exam)|sama3)\b|(?:فحص|فحوصات|قسم|اختبار|قياس) (?:ال)?سمع/u;
 const specimenPreparation =
   /\b(?:collect(?:ion|ing)?|container|cup|jar|tube|specimen (?:kit|instructions)|sample (?:kit|instructions))\b|(?<!\p{L})(?:ل?جمع|تجميع)(?!\p{L})|وعاء|عبوه|علبه|كوب|انبوب|مرطبان|\b(?:3elbe|3elbeh|kebeye|tajmi3|jame3)\b/u;
 
@@ -71,7 +70,7 @@ export function catalogueIntent(message) {
   return null;
 }
 
-export function publicServiceAnswer(value, language) {
+export function publicServiceAnswer(value, language, catalogue) {
   const text = normalize(value);
   const canonical = canon(value);
   const library = (text, page, reception = false) => ({
@@ -79,72 +78,11 @@ export function publicServiceAnswer(value, language) {
     page,
     reception,
   });
-  if (
-    audiometryTopic.test(canonical) &&
-    /\b(?:book(?:ing)?|reserv(?:e|ation)|schedule (?:me|an?|the)|make (?:an? )?appointment|7aj[ez]z?|e7jez|e7jiz)\b|حجز|احجز|بحجز|نحجز/u.test(
-      canonical,
-    )
-  )
-    return library(
-      publicContent.find(({ id }) => id === "audiometry-booking-" + language)
-        .answer,
-      "/services/audiometry",
-      true,
-    );
-  if (
-    /\b(?:how (?:do|can) i|how to)\s+(?:request|book)\s+(?:an?\s+)?(?:clinic|consultation)\s+(?:session|visit|appointment)\b/u.test(
-      text,
-    )
-  )
-    return library(
-      "Choose a published Clinic attendance window and submit a request. Choosing a session does not reserve an appointment. Reception confirms requests.",
-      "/services/clinic",
-    );
-  if (
-    /\b(?:submit(?:ting)?|send(?:ing)?)\b.{0,36}\b(?:clinic|request) form\b.{0,30}\bconfirm\b/u.test(
-      text,
-    )
-  )
-    return library(publicContent[0].answer, "/services/clinic");
-  if (
-    /\b(?:where (?:are you|is cedar) located|what(?:'s| is) (?:your|cedar's) address)\b|اين يقع/u.test(
-      text,
-    )
-  )
-    return library(
-      language === "ar"
-        ? "مركز سيدر في برج البراجنة، بيروت، قرب مكتبة نور الدين."
-        : "Cedar is in Bourj El Brajneh, Beirut, near Noureddine Bookshop.",
-      "/#contact",
-    );
-  if (
-    /\b(?:your|cedar's|reception'?s?) (?:phone|telephone)(?: number)?\b|رقم الهاتف/u.test(
-      text,
-    )
-  )
-    return library(
-      language === "ar"
-        ? "رقم الهاتف المنشور لمركز سيدر هو +961 81 814 554."
-        : "Cedar’s published phone number is +961 81 814 554.",
-      "/#contact",
-    );
-  if (
-    serviceLogistics(value) ||
-    /\b(?:can i |how (?:do|can) i )?(?:book|reserve) a lab(?:oratory)? visit (?:online|(?:directly )?(?:through|on) .{0,30}website)\b/u.test(
-      text,
-    )
-  )
-    return library(
-      "Online Lab booking is not available. Contact Reception first to confirm test availability and Lab hours. Cedar has not published whether your visit needs an appointment, a referral, or specific documents.",
-      "/services/laboratory",
-      true,
-    );
-  if (/\bhearing test.*(?:prep(?:aration)?|prepare)\b/u.test(text))
-    return library(audiometryFaqs[1][1], "/services/audiometry", true);
   const priceQuestion = priceConcept(value);
   if (
     (priceQuestion &&
-      (catalogueIntent(value) ||
+      !audiometryTopic.test(canonical) &&
+      (catalogue ||
         /\b(?:tests?|lab(?:oratory)?|panel|catalogu?e)\b|فحص|تحليل|مختبر|\b(?:fa7s|ta7lil|mokhtabar)\b/u.test(
           canonical,
         ))) ||
@@ -181,11 +119,90 @@ export function publicServiceAnswer(value, language) {
     };
   }
   if (
+    audiometryTopic.test(canonical) &&
+    /\b(?:book(?:ing)?|reserv(?:e|ation)|schedule (?:me|an?|the)|make (?:an? )?appointment|7aj[ez]z?|e7jez|e7jiz)\b|حجز|احجز|بحجز|نحجز/u.test(
+      canonical,
+    )
+  )
+    return library(
+      publicContent.find(({ id }) => id === "audiometry-booking-" + language)
+        .answer,
+      "/services/audiometry",
+      true,
+    );
+  if (
+    /\b(?:how (?:do|can) i|how to)\s+(?:request|book)\s+(?:an?\s+)?(?:clinic|consultation)\s+(?:session|visit|appointment)\b/u.test(
+      text,
+    )
+  )
+    return library(
+      language === "ar"
+        ? "اختر فترة حضور منشورة للعيادة وأرسل طلبًا. اختيار الفترة لا يحجز موعدًا، ويتولى الاستقبال تأكيد الطلب."
+        : "Choose a published Clinic attendance window and submit a request. Choosing a session does not reserve an appointment. Reception confirms requests.",
+      "/services/clinic",
+    );
+  if (
+    /\b(?:submit(?:ting)?|send(?:ing)?)\b.{0,36}\b(?:clinic|request) form\b.{0,30}\bconfirm\b/u.test(
+      text,
+    )
+  )
+    return library(
+      publicContent.find(({ id }) => id === "clinic-confirmation-" + language)
+        .answer,
+      "/services/clinic",
+    );
+  if (
+    /\b(?:where (?:are you|is cedar) located|what(?:'s| is) (?:your|cedar's) address)\b|اين يقع/u.test(
+      text,
+    )
+  )
+    return library(
+      language === "ar"
+        ? "مركز سيدر في برج البراجنة، بيروت، قرب مكتبة نور الدين."
+        : "Cedar is in Bourj El Brajneh, Beirut, near Noureddine Bookshop.",
+      "/#contact",
+    );
+  if (
+    /\b(?:your|cedar's|reception'?s?) (?:phone|telephone)(?: number)?\b|رقم الهاتف/u.test(
+      text,
+    )
+  )
+    return library(
+      language === "ar"
+        ? "رقم الهاتف المنشور لمركز سيدر هو +961 81 814 554."
+        : "Cedar’s published phone number is +961 81 814 554.",
+      "/#contact",
+    );
+  if (
+    serviceLogistics(value) ||
+    /\b(?:can i |how (?:do|can) i )?(?:book|reserve) a lab(?:oratory)? visit (?:online|(?:directly )?(?:through|on) .{0,30}website)\b/u.test(
+      text,
+    )
+  )
+    return library(
+      language === "ar"
+        ? "حجز زيارات المختبر غير متاح على الموقع. تواصل مع الاستقبال لتأكيد توفر الفحص وساعات المختبر. لم ينشر سيدر ما إذا كانت الزيارة تتطلب موعدًا أو إحالة أو مستندات محددة."
+        : "Online Lab booking is not available. Contact Reception first to confirm test availability and Lab hours. Cedar has not published whether your visit needs an appointment, a referral, or specific documents.",
+      "/services/laboratory",
+      true,
+    );
+  if (
+    audiometryTopic.test(canonical) &&
+    /\b(?:prep(?:are|aration)?|get ready|te7dir|ta7dir)\b|تحضير|تحضر|جهز/u.test(
+      canonical,
+    )
+  )
+    return library(
+      audiometryPreparation(language),
+      "/services/audiometry",
+      true,
+    );
+  if (
     specimenPreparation.test(canonical) &&
     /\b(?:urine|stool|specimen|sample|lab(?:oratory)?|blood test)\b|بول|براز|عينه|مختبر/u.test(
       canonical,
     ) &&
-    !catalogueIntent(value)
+    !catalogue
   )
     return {
       ...library(
@@ -219,13 +236,17 @@ export function publicServiceAnswer(value, language) {
     )
   )
     return library(
-      "Cedar’s Laboratory page lists blood, urine and stool tests with general preparation information. Contact Reception to confirm a test’s availability and instructions for your order.",
+      language === "ar"
+        ? "تعرض صفحة المختبر فحوصات الدم والبول والبراز ومعلومات عامة عن التحضير. تواصل مع الاستقبال لتأكيد توفر الفحص وتعليمات طلبك."
+        : "Cedar’s Laboratory page lists blood, urine and stool tests with general preparation information. Contact Reception to confirm a test’s availability and instructions for your order.",
       "/services/laboratory",
       true,
     );
   if (/\b(?:summari[sz]e|overview of)\b.*\bwhat cedar offers\b/u.test(text))
     return library(
-      "Cedar publishes Clinic attendance windows and accepts requests that Reception confirms. The Laboratory publishes a test catalogue and general preparation information. The Audiometry page describes hearing and middle-ear tests.",
+      language === "ar"
+        ? "ينشر سيدر فترات حضور العيادة ويتيح إرسال طلبات يؤكدها الاستقبال. ينشر المختبر دليل الفحوصات ومعلومات عامة عن التحضير. وتشرح صفحة فحوصات السمع اختبارات السمع والأذن الوسطى."
+        : "Cedar publishes Clinic attendance windows and accepts requests that Reception confirms. The Laboratory publishes a test catalogue and general preparation information. The Audiometry page describes hearing and middle-ear tests.",
       "/",
     );
   if (
@@ -234,7 +255,9 @@ export function publicServiceAnswer(value, language) {
     )
   )
     return library(
-      "I’m sorry the wait was frustrating. Contact Reception to discuss what happened. Cedar has not published a separate complaint process.",
+      language === "ar"
+        ? "نأسف لأن الانتظار كان مزعجًا. تواصل مع الاستقبال لمناقشة ما حصل. لم ينشر سيدر إجراءً منفصلًا للشكاوى."
+        : "I’m sorry the wait was frustrating. Contact Reception to discuss what happened. Cedar has not published a separate complaint process.",
       "/#contact",
       true,
     );
@@ -244,16 +267,19 @@ export function publicServiceAnswer(value, language) {
     )
   )
     return library(
-      "اختر جلسة منشورة للعيادة، ثم افتح نموذج الطلب وأرسل طلبك. يتولى الاستقبال تأكيد الطلب.",
+      language === "ar"
+        ? "اختر جلسة منشورة للعيادة، ثم افتح نموذج الطلب وأرسل طلبك. يتولى الاستقبال تأكيد الطلب."
+        : "Choose a published Clinic session, open the request form and submit your request. Reception confirms requests.",
       "/services/clinic",
     );
   if (/النغمات النقية/u.test(text) && /طبلة الاذن/u.test(text))
     return library(
       publicContent
         .filter(({ id }) =>
-          ["audiometry-pure-tone-ar", "audiometry-tympanometry-ar"].includes(
-            id,
-          ),
+          [
+            "audiometry-pure-tone-" + language,
+            "audiometry-tympanometry-" + language,
+          ].includes(id),
         )
         .map(({ answer }) => answer)
         .join(" "),
@@ -262,7 +288,7 @@ export function publicServiceAnswer(value, language) {
   return null;
 }
 
-const closingQuestion =
+export const closingQuestion =
   /\b(?:close|closes|closing|(?:b(?:ye?|y)?|y)?s[ae]kk[ei]r)\b|\b(?:la|la7ad) ay(?:ya)? se3a\b|stop (?:receiving|seeing) (?:visitors|patients)|\b(?:bi2fol|bye2fal)\b|يغلق|اغلاق|اقفال|يقفل|بيقفل|بيسكر|يسكر|بخلص|بيخلص|بيضل شغال|(?:لحد|حتى) اي ساع[هة]|اخر ساع[هة]/iu;
 
 export function hoursQuestion(value) {
@@ -272,11 +298,11 @@ export function hoursQuestion(value) {
   const audio = audiometryTopic.test(text);
   const clinic = /\bclinic\b|العياده/u.test(text);
   const center =
-    /\b(?:cent(?:er|re)|main building|markaz)\b|المركز|المبنى الرئيسي/u.test(
+    /\b(?:cent(?:er|re)|(?:the |main |cedar(?:'s)? )building|marka[sz])\b|المركز|المبنى الرئيسي/u.test(
       text,
     );
   const when =
-    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|what time|when|emta|aymta|dawam|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|maftou7|maftu7|fet[iy]7|fetih)\b|متى|امتى|ايمتى|اي ساعه|يفتح|فاتح|بيبلش|بيبدا|يغلق|مفتوح|مسكر|\bmsakkar\b|دوام|ساعات|(?:ب?تشتغل|شغال)|السبت|بكرا/u.test(
+    /\b(?:hours|open(?:ing)?|clos(?:e|es|ing)|until when|what time|when|emta|aymta|daw[ae]m|weekend|tomorrow|bukra|bokra|saturday|plan.*morning|byesakkir|byesakker|bysakkir)\b|\b(?:bye?fta7|mafta7|maftou7|maftu7|fet[iy]7|fetih)\b|متى|امتى|ايمتى|اي ساعه|يفتح|فاتح|بيبلش|بيبدا|يغلق|مفتوح|مسكر|\bmsakkar\b|دوام|ساعات|(?:ب?تشتغل|شغال|يستقبل|بتستقبل)|الاحد|السبت|بكرا/u.test(
       text,
     );
   if (!when && !closingQuestion.test(text) && !(lab && audio)) return null;
@@ -317,101 +343,5 @@ export function combinedRequestParts(message) {
     session: clauses[session],
     hours: clauses[hours],
     hoursFirst: hours < session,
-  };
-}
-
-export async function publishedHourAnswer(
-  question,
-  message,
-  days,
-  language,
-  readHours,
-  deadline,
-) {
-  const closingOnly = closingQuestion.test(canon(message));
-  const names =
-    language === "ar"
-      ? { center: "المركز", laboratory: "المختبر", audiometry: "فحوصات السمع" }
-      : {
-          center: "Center",
-          laboratory: "Laboratory",
-          audiometry: "Audiometry",
-        };
-  const labels = [
-    question.center && "center",
-    question.lab && "laboratory",
-    question.audio && "audiometry",
-  ].filter(Boolean);
-  const result = await Promise.all(
-    days.map(async (day) => {
-      let schedule;
-      try {
-        schedule = await readHours?.(day, { deadline });
-      } catch {
-        /* unavailable */
-      }
-      if (schedule?.publicationStatus !== "published" || schedule.date !== day)
-        return {
-          text:
-            language === "ar"
-              ? `الساعات المنشورة غير متاحة ليوم ${day}.`
-              : `Published hours could not be checked for ${day}.`,
-          complete: false,
-        };
-      if (schedule.centerClosed)
-        return {
-          text:
-            language === "ar"
-              ? `المركز مغلق في ${day}.`
-              : `The center is closed on ${day}.`,
-          complete: true,
-        };
-      const parts = labels.map((label) => {
-        const row =
-          label === "center"
-            ? schedule.centerHours
-            : schedule.otherServices?.find(({ id }) => id === label);
-        return row &&
-          timePattern.test(row.startTime) &&
-          timePattern.test(row.endTime)
-          ? {
-              text: closingOnly
-                ? language === "ar"
-                  ? `يغلق ${names[label]} في ${day} عند ${row.endTime} بتوقيت بيروت`
-                  : `The ${names[label]} closes at ${row.endTime} Beirut time on ${day}`
-                : `${names[label]} ${day}: ${row.startTime}–${row.endTime}`,
-              complete: true,
-            }
-          : {
-              text:
-                language === "ar"
-                  ? `ساعات ${names[label]} غير منشورة في ${day}.`
-                  : `${names[label]} hours are not published for ${day}.`,
-              complete: false,
-            };
-      });
-      return {
-        text: parts.map(({ text }) => text).join(". "),
-        complete: parts.every(({ complete }) => complete),
-      };
-    }),
-  );
-  const complete = result.every((entry) => entry.complete);
-  const note =
-    language === "ar"
-      ? (closingOnly ? "" : "الأوقات بتوقيت بيروت. ") +
-        "تواصل مع الاستقبال لتأكيد توفر الخدمة وتعليمات الزيارة."
-      : (closingOnly ? "" : "Times are in Beirut. ") +
-        "Published hours are not an appointment or a guarantee of individual availability. Contact Reception to confirm visit requirements.";
-  return {
-    text:
-      result
-        .map(({ text }) => text)
-        .join(". ")
-        .replace(/\.$/, "") +
-      ". " +
-      note,
-    complete,
-    day: days.length === 1 ? days[0] : null,
   };
 }

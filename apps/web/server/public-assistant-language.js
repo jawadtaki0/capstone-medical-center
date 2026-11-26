@@ -216,7 +216,7 @@ function scoreNameTokens(wanted, available) {
 }
 
 const nameStop =
-  /^(?:on|at|in|for|have|has|had|is|was|available|listed|published|session|sessions|window|windows|schedule|this|next|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|and|or|please|work|working|see|seeing|open|slots?|appointments?|pls|bukra|bokra|emta|hours|saturday|nhar|yom|يوم|نهار|بكرا|اليوم|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|الاحد|شو|متى|امتى|في|على|عند|عنده|عندها|عندن|بيقبل|بتقبل|يستقبل|بتستقبل|بس|هل|وقت|موعد|مواعيد|جلسه|دوام|بيداوم|بيشتغل|بكره|غدا)$/u;
+  /^(?:on|at|in|for|after|before|have|has|had|is|was|available|listed|published|session|sessions|window|windows|schedule|this|next|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|and|or|please|work|working|see|seeing|open|slots?|appointments?|pls|bukra|bokra|emta|hours|saturday|nhar|yom|ba3d|ba3ed|2abel|يوم|نهار|بعد|قبل|بكرا|اليوم|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت|الاحد|شو|متى|امتى|في|على|عند|عنده|عندها|عندن|بيقبل|بتقبل|يستقبل|بتستقبل|بس|هل|وقت|موعد|مواعيد|جلسه|دوام|بيداوم|بيشتغل|بكره|غدا)$/u;
 
 // A clinician named after a title, e.g. "Dr. Zeinab Mkahhel" or "الدكتور غازي سرغاني".
 export function requestedProfessional(message) {
@@ -411,7 +411,7 @@ export function clinicalConcept(value) {
 
 // Questions about prices, fees or costs.
 export const priceConcept = (value) =>
-  /\b(?:prices?|pricing|priced|costs?|costing|fees?|charg(?:e[ds]?|ing)|pay(?:ing|ment)?|cheap\w*|expensive|how much (?:is|does|do|would|will|for)|afford\w*)\b|سعر|اسعار|تكلفه|كلفه|بكلف|يكلف|قديش|كم (?:حق|سعر|بيكلف)|\b(?:se3r|se3er|as3ar|2adesh|addesh|adde|kalfe|bikallef)\b/u.test(
+  /\b(?:prices?|pricing|priced|costs?|costing|fees?|charg(?:e[ds]?|ing)|pay(?:ing|ment)?|cheap\w*|expensive|how much (?:is|does|do|would|will|for)|afford\w*)\b|سعر|اسعار|تكلفه|كلفه|بكلف|يكلف|قديش|كم (?:حق|سعر|بيكلف)|\b(?:se3r|se3er|as3ar|2adesh|addesh|adde|ade|kalfe|bikallef|(?:mn|bn|mna|bna|bi|ba)?dfa3)\b/u.test(
     canon(value),
   );
 

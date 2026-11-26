@@ -1,22 +1,15 @@
 import {
   createAssistant,
-  geminiAssistant,
   publishedHours,
   publishedSessions,
 } from "../server/public-assistant.js";
 import { randomUUID } from "node:crypto";
 import { guidedTopic } from "../server/public-assistant-gate.js";
 
-const model = geminiAssistant({
-  key: process.env.GEMINI_API_KEY,
-  model: process.env.CEDAR_GEMINI_MODEL,
-});
 const publicOrigin =
   process.env.CEDAR_ASSISTANT_PUBLIC_ORIGIN ??
   "https://cedar-cmc-api.onrender.com";
 const assistant = createAssistant({
-  interpret: model,
-  compose: model,
   readSessions: publishedSessions(publicOrigin),
   readHours: publishedHours(publicOrigin),
 });

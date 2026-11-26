@@ -135,7 +135,7 @@ export function scheduleTime(value) {
   return {};
 }
 const sameDayWords =
-  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar)|(?:el ?|l ?)?(?:yom|nhar) nafs[ouh]+)\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})|\b(?:that (?:very )?(?:same )?(?:day|afternoon|morning)|hal nhar|bhal nhar)\b|(?:اليوم|النهار|التاريخ)\s+نفسه(?!\p{L})|\b(?:the (?:date|day) of (?:(?:that|the|my|our) )?visit|that (?:visit )?date)\b|(?:نهار|يوم|تاريخ) (?:هالزياره|هالموعد)(?!\p{L})|(?:بهالنهار|بهداك (?:اليوم|النهار)|وقتها)(?!\p{L})|(?:ب?(?:تاريخ|موعد)|نهار) (?:الزياره|الموعد) نفسه(?!\p{L})/gu;
+  /\b(?:(?:the |that )?same (?:day|date)|nafs (?:el ?|l ?)?(?:yom|nhar)|(?:bi|b)nafs (?:el ?|l ?)?(?:yom|nhar)|(?:el ?|l ?)?(?:yom|nhar) nafs[ouh]+)\b|(?:ب?نفس)\s+(?:ال)?(?:يوم|نهار|تاريخ)(?!\p{L})|\b(?:that (?:very )?(?:same )?(?:day|afternoon|morning)|hal nhar|bhal nhar)\b|(?:اليوم|النهار|التاريخ)\s+نفسه(?!\p{L})|\b(?:the (?:date|day) of (?:(?:that|the|my|our) )?visit|that (?:visit )?date)\b|(?:نهار|يوم|تاريخ) (?:هالزياره|هالموعد)(?!\p{L})|(?:بهالنهار|بهداك (?:اليوم|النهار)|وقتها)(?!\p{L})|(?:ب?(?:تاريخ|موعد)|نهار) (?:الزياره|الموعد) نفسه(?!\p{L})|(?:هالزياره|الزياره) (?:نفسها|ذاتها)(?!\p{L})|(?:نفس|ذات) (?:هالزياره|الزياره)(?!\p{L})|\b(?:during|on) (?:that|the same) visit\b/gu;
 
 export function sameDayReference(value) {
   const text = canon(value);
@@ -439,7 +439,7 @@ export function resolveTurnDates(
     (!severalDays && hoursDate.specified && !hoursDate.day);
   const hourDays = severalDays
     ? [...new Set(severalDays.map((value) => relativeDay(value, today)))]
-    : [hoursDate.day ?? inherited ?? today];
+    : [hoursDate.day ?? (combined ? clinic.day : null) ?? today];
   return { clinic, hourDays, conflict };
 }
 
