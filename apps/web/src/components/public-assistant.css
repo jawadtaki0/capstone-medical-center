@@ -140,7 +140,8 @@
   font-weight: 700;
   color: #526979;
 }
-.cedar-assistant .button {
+.cedar-assistant .button,
+.cedar-cancellation-dialog[data-standalone] .button {
   min-height: 44px;
   padding: 0.35rem 0.65rem;
   border-radius: 0.6rem;
@@ -514,7 +515,26 @@
 .cedar-cancellation-dialog::backdrop {
   background: transparent;
 }
-.cedar-assistant .cedar-cancellation-dialog > h3 {
+.cedar-cancellation-dialog[data-standalone] {
+  --cedar-ink: #06364b;
+  --cedar-blue: #006789;
+  --cedar-wash: #f4f9fc;
+  --cedar-urgent: #be141a;
+  inset: 0;
+  translate: none;
+  width: min(calc(100% - 1rem), 39rem);
+  max-height: calc(100dvh - 1rem);
+  margin: auto;
+}
+.cedar-cancellation-dialog[data-standalone]::backdrop {
+  background: rgb(18 43 55 / 42%);
+  animation: cedar-dialog-fade 180ms ease both;
+}
+.cedar-cancellation-dialog[data-standalone][data-closing]::backdrop {
+  animation-direction: reverse;
+}
+.cedar-cancellation-dialog > h3 {
+  margin: 0;
   padding: 0.65rem 0.95rem;
   background: #00465e;
   color: white;
@@ -589,13 +609,13 @@
   gap: 0.7rem;
   margin-block-start: 0.28rem;
 }
-.cedar-assistant .cedar-cancellation-keep {
+.cedar-cancellation-dialog .cedar-cancellation-keep {
   border: 1px solid var(--cedar-blue);
   background: #fff;
   color: var(--cedar-ink);
   font-weight: 700;
 }
-.cedar-assistant .cedar-cancellation-confirm {
+.cedar-cancellation-dialog .cedar-cancellation-confirm {
   border: 1px solid var(--cedar-urgent);
   background: var(--cedar-urgent);
   color: #fff;
@@ -633,7 +653,10 @@
 @media (prefers-reduced-motion: reduce) {
   .cedar-assistant,
   .cedar-assistant :is(button, .cedar-cancellation-dialog, .cedar-cancellation-note, .cedar-assistant-private, .cedar-assistant-account-card),
-  .cedar-assistant:has(.cedar-cancellation-dialog[open])::after {
+  .cedar-assistant:has(.cedar-cancellation-dialog[open])::after,
+  .cedar-cancellation-dialog[data-standalone],
+  .cedar-cancellation-dialog[data-standalone]::backdrop,
+  .cedar-cancellation-dialog[data-standalone] .cedar-cancellation-note {
     transition-duration: 1ms;
     animation-duration: 1ms;
   }

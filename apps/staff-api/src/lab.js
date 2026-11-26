@@ -43,10 +43,9 @@ export function createLabService({
       const auth = await authenticated(session, token, at);
       if (auth.failure) return auth;
       const roles = auth.account.roles;
-      const lab = roles.includes("Lab Admin");
+      const lab = roles.includes("Admin") || roles.includes("Lab Admin");
       const reception = roles.includes("Receptionist");
-      const manage = lab || roles.includes("Admin");
-      const canRelease = reception || manage;
+      const canRelease = reception || lab;
       const requireRole = (can) => {
         if (!can) fail("This Lab action is not permitted.", 403);
       };
@@ -66,7 +65,7 @@ export function createLabService({
             .toArray(),
         };
       if (["save", "retire", "approve"].includes(action)) {
-        requireRole(action === "approve" ? lab : manage);
+        requireRole(lab);
         const previous =
           typeof id === "string"
             ? await catalogue.findOne({ _id: id }, options)
@@ -483,7 +482,7 @@ export function createLabService({
           target = current.id;
         } else if (action === "reopen-report" || action === "withdraw-report") {
           const reopening = action === "reopen-report";
-          requireRole(reopening ? lab : manage);
+          requireRole(lab);
           requireState(
             current?.id === input.reportId &&
               current?.status === (reopening ? "Finalized" : "Released") &&

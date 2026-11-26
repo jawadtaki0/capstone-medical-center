@@ -1,6 +1,5 @@
-import CancellationForm, {
-  cancellationUnavailable,
-} from "../components/CancellationForm.jsx";
+import { cancellationUnavailable } from "../components/CancellationForm.jsx";
+import BookingCancellationDialog from "../components/BookingCancellationDialog.jsx";
 import { bookingStatus } from "../components/AssistantAccountCards.jsx";
 import { useState } from "react";
 import Button from "@mui/material/Button";
@@ -206,27 +205,37 @@ export function AccountProfiles({ account, language, t }) {
                             )}
                           </p>
                         )}
-                      {request.cancellation?.eligible &&
-                        (cancelling === request.reference ? (
-                          <CancellationForm
-                            ar={ar}
-                            onBack={() => setCancelling(null)}
-                            submit={async (confirmation) => {
-                              await accountRequest("cancel-booking", {
-                                profileId: profile.id,
-                                reference: request.reference,
-                                ...confirmation,
-                              });
-                              await viewRequests(profile.id);
-                            }}
-                          />
-                        ) : (
+                      {request.cancellation?.eligible && (
+                        <>
                           <Button
                             onClick={() => setCancelling(request.reference)}
                           >
                             {ar ? "إلغاء الموعد" : "Cancel booking"}
                           </Button>
-                        ))}
+                          {cancelling === request.reference && (
+                            <BookingCancellationDialog
+                              standalone
+                              record={request}
+                              profile={[
+                                profile.firstName,
+                                profile.lastName,
+                              ].join(" ")}
+                              ar={ar}
+                              onClose={(cancelled) => {
+                                setCancelling(null);
+                                if (cancelled) void viewRequests(profile.id);
+                              }}
+                              submit={async (confirmation) => {
+                                await accountRequest("cancel-booking", {
+                                  profileId: profile.id,
+                                  reference: request.reference,
+                                  ...confirmation,
+                                });
+                              }}
+                            />
+                          )}
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

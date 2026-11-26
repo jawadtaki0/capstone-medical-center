@@ -69,9 +69,16 @@ export function operationalAccess(roles, grants, scope) {
   const admin = roles.includes("Admin");
   const assigned = scope.active && grants.includes(scope.id);
   const clinic = scope.kind === "clinic";
+  const laboratory =
+    scope.kind === "service" &&
+    ["laboratory", "service:lab"].includes(scope.id);
   const edit =
     admin ||
-    Boolean(assigned && roles.includes(clinic ? "Clinic Admin" : "Lab Admin"));
+    Boolean(
+      assigned &&
+        ((clinic && roles.includes("Clinic Admin")) ||
+          (laboratory && roles.includes("Lab Admin"))),
+    );
   return {
     view: edit || Boolean(assigned && roles.includes("Receptionist")),
     edit,

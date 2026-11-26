@@ -2,7 +2,7 @@ import { hasLabCollection } from "../../shared/lab-collection.js";
 
 // Which orders a Lab card offers. The server checks every action again.
 export function eligibleOrders(orders, task, roles) {
-  const lab = roles.includes("Lab Admin"),
+  const lab = roles.includes("Admin") || roles.includes("Lab Admin"),
     reception = roles.includes("Receptionist");
   return orders.filter((order) => {
     if (task === "collect")

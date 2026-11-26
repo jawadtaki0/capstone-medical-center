@@ -128,16 +128,26 @@ test("validation accepts nullable/manual safe-integer limits and rejects invalid
     { code: "invalid_input" },
   );
 });
-test("explicit service assignment permits Lab Admin Audiometry without hardcoding its name or granting clinics", () => {
+test("Lab Admin can manage assigned Laboratory hours and Receptionist retains assigned Audiometry visibility", () => {
   assert.throws(() => validateOperationalRecord("__proto__", {}), {
     code: "invalid_input",
   });
   const clinic = { id: "clinic", kind: "clinic", active: true },
-    service = { id: "audio", kind: "service", active: true };
+    service = { id: "audio", kind: "service", active: true },
+    laboratory = { id: "laboratory", kind: "service", active: true };
   assert.equal(
     operationalAccess(["Lab Admin"], ["audio", "clinic"], service).edit,
+    false,
+  );
+  assert.equal(
+    operationalAccess(["Lab Admin"], ["laboratory"], laboratory).edit,
     true,
   );
+  assert.deepEqual(operationalAccess(["Receptionist"], ["audio"], service), {
+    view: true,
+    edit: false,
+    publish: false,
+  });
   assert.equal(
     operationalAccess(["Lab Admin"], ["audio", "clinic"], clinic).edit,
     false,

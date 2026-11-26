@@ -17,7 +17,9 @@ const good = (r) => {
   return r.body;
 };
 before(async () => {
-  f = await createSecurityFixture();
+  f = await createSecurityFixture({
+    collectionPrefix: "closeout_review_" + randomUUID().replaceAll("-", "") + "_",
+  });
 });
 beforeEach(async () => {
   await f.reset();

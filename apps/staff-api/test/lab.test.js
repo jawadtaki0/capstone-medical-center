@@ -164,7 +164,9 @@ test("standalone Lab preserves approved snapshots and enforces specimen transiti
       ),
     );
     assert.equal(
-      (await perform(reception, { action: "list" })).orders[0].status,
+      (await perform(reception, { action: "list" })).orders.find(
+        (row) => row._id === order._id,
+      ).status,
       "Cancelled",
     );
   } finally {
